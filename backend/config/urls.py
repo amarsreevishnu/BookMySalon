@@ -23,4 +23,8 @@ urlpatterns = [
         "api/v1/accounts/",
         include("accounts.urls"),
     ),
+    path(
+        "api/v1/salons/",
+        include("salons.urls"),
+    ),
 ]
