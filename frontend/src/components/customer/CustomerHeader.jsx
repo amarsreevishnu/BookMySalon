@@ -1,12 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
-
+import { useAuth } from "../../context/AuthContext";
 function CustomerHeader() {
   const navigate = useNavigate();
-
+  const { logout } = useAuth();
   const handleLogout = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    localStorage.removeItem("user");
+    logout();
 
     navigate("/login");
   };

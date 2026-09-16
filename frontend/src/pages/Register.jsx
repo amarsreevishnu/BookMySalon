@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
+import GoogleButton from "../components/auth/GoogleButton";
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
 
@@ -64,6 +64,7 @@ function Register() {
             footerLinkText="Login"
             footerLink="/login"
         >
+          <GoogleButton />
             <form className="auth-form" onSubmit={handleSubmit}>
                 {/* Email */}
                 <div className="form-field">

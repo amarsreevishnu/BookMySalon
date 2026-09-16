@@ -1,6 +1,8 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+// import { loginUser } from "../services/authService";
 
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
@@ -17,6 +19,8 @@ function Login() {
         password: "",
     });
 
+    const { login } = useAuth();
+    
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -42,12 +46,11 @@ function Login() {
             );
 
             const { access, refresh, user } = response.data;
-
+            login(access, refresh, user);
+            console.log("Login response:", response.data);
             // Store authentication data
-            localStorage.setItem("access", access);
-            localStorage.setItem("refresh", refresh);
-            localStorage.setItem("user", JSON.stringify(user));
-
+            
+            
             // Navigate based on user role
             if (user.role === "OWNER") {
                 navigate("/owner/dashboard");
