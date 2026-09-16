@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 
 function Register() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -10,8 +13,8 @@ function Register() {
     role: "CUSTOMER",
   });
 
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     setFormData({
@@ -23,90 +26,110 @@ function Register() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    setMessage("");
     setError("");
+    setLoading(true);
 
     try {
       await api.post("/accounts/register/", formData);
-
-      setMessage("Registration successful.");
-
-      setFormData({
-        email: "",
-        password: "",
-        first_name: "",
-        last_name: "",
-        role: "CUSTOMER",
-      });
+      navigate("/login");
     } catch (error) {
       setError(
-        error.response?.data || "Registration failed."
+        JSON.stringify(
+          error.response?.data || "Registration failed.",
+          null,
+          2
+        )
       );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div>
-      <h2>Register</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <Link to="/" className="brand auth-brand">
+          <span className="brand-icon">✂</span>
+          <span>BookMySalon</span>
+        </Link>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
+        <h1>Create your account</h1>
 
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
+        <p className="auth-description">
+          Join BookMySalon and discover your next beauty experience.
+        </p>
 
-        <input
-          type="text"
-          name="first_name"
-          placeholder="First name"
-          value={formData.first_name}
-          onChange={handleChange}
-          required
-        />
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label>Email address</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="you@example.com"
+            required
+          />
 
-        <input
-          type="text"
-          name="last_name"
-          placeholder="Last name"
-          value={formData.last_name}
-          onChange={handleChange}
-          required
-        />
+          <label>Password</label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Minimum 8 characters"
+            minLength="8"
+            required
+          />
 
-        <select
-          name="role"
-          value={formData.role}
-          onChange={handleChange}
-        >
-          <option value="CUSTOMER">Customer</option>
-          <option value="OWNER">Salon Owner</option>
-        </select>
+          <div className="form-row">
+            <div>
+              <label>First name</label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-        <button type="submit">
-          Register
-        </button>
-      </form>
+            <div>
+              <label>Last name</label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                required
+              />
+            </div>
+          </div>
 
-      {message && <p>{message}</p>}
+          <label>Register as</label>
+          <select
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+          >
+            <option value="CUSTOMER">Customer</option>
+            <option value="OWNER">Salon owner</option>
+          </select>
 
-      {error && (
-        <pre>
-          {JSON.stringify(error, null, 2)}
-        </pre>
-      )}
+          {error && <pre className="error-message">{error}</pre>}
+
+          <button
+            type="submit"
+            className="primary-button auth-submit"
+            disabled={loading}
+          >
+            {loading ? "Creating account..." : "Create account"}
+          </button>
+        </form>
+
+        <p className="auth-footer">
+          Already have an account? <Link to="/login">Login</Link>
+        </p>
+      </div>
     </div>
   );
 }
