@@ -1,29 +1,9 @@
 const services = [
-  {
-    name: "Haircut",
-    description: "Fresh new look",
-    icon: "✂",
-  },
-  {
-    name: "Spa",
-    description: "Relax and refresh",
-    icon: "🧖",
-  },
-  {
-    name: "Facial",
-    description: "Glow naturally",
-    icon: "✨",
-  },
-  {
-    name: "Beard",
-    description: "Sharp and stylish",
-    icon: "🧔",
-  },
-  {
-    name: "Nails",
-    description: "Perfect finishing",
-    icon: "💅",
-  },
+  { name: "Haircut", icon: "✂️", description: "Fresh styles" },
+  { name: "Hair Spa", icon: "🧖", description: "Relax & refresh" },
+  { name: "Facial", icon: "✨", description: "Healthy glow" },
+  { name: "Manicure", icon: "💅", description: "Nail care" },
+  { name: "Massage", icon: "🌿", description: "Relaxation" },
 ];
 
 function PopularServices() {

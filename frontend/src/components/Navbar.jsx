@@ -15,7 +15,7 @@ function Navbar() {
       </nav>
 
       <div className="nav-actions">
-        <Link to="/login" className="login-link">
+        <Link to="/login/" className="login-link">
           Login
         </Link>
 
