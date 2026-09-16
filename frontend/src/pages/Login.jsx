@@ -51,7 +51,7 @@ function Login() {
             } else if (user.role === "ADMIN") {
                 navigate("/admin/dashboard");
             } else {
-                navigate("/customer/dashboard");
+                navigate("/customer-home");
             }
         } catch (error) {
             const responseData = error.response?.data;

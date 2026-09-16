@@ -7,6 +7,7 @@ import {
 import LandingPage from "./pages/LandingPage";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
+import CustomerHome from "./pages/CustomerHome";
 
 function App() {
   return (
@@ -16,10 +17,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 
-        <Route
-          path="/customer/dashboard"
-          element={<h1>Customer Dashboard</h1>}
-        />
+        <Route path="/customer-home" element={<CustomerHome />} />
 
         <Route
           path="/owner/dashboard"
