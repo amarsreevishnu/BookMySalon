@@ -45,10 +45,16 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     "corsheaders",
-    'rest_framework',
+    "rest_framework",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.headless",
+    "allauth.socialaccount.providers.google",
+
+
     'accounts',
     'salons',
-
 
 ]
 
@@ -60,6 +66,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    "allauth.account.middleware.AccountMiddleware",
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -153,4 +160,40 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     
+}
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+
+SOCIALACCOUNT_AUTO_SIGNUP = True
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": [
+            "profile",
+            "email",
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+    }
+}
+
+HEADLESS_FRONTEND_URLS = {
+    "account_signup": "http://localhost:5173/register",
+    "account_confirm_email": "http://localhost:5173/account/verify-email/{key}",
+    "account_reset_password": "http://localhost:5173/reset-password",
+    "account_reset_password_from_key": (
+        "http://localhost:5173/reset-password/{key}"
+    ),
+    "socialaccount_login_error": (
+        "http://localhost:5173/login"
+    ),
 }

@@ -27,4 +27,10 @@ urlpatterns = [
         "api/v1/salons/",
         include("salons.urls"),
     ),
+
+    # Allauth OAuth URLs
+    path("accounts/", include("allauth.urls")),
+
+    # Allauth headless API
+    path("_allauth/", include("allauth.headless.urls")),
 ]
