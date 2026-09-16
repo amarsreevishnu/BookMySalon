@@ -1,41 +1,39 @@
 const steps = [
   {
     number: "01",
-    title: "Search a salon",
+    title: "Search & Discover",
     description:
-      "Find salons near you and explore their services, ratings, and prices.",
+      "Find salons near you and explore their services, prices, and reviews.",
   },
   {
     number: "02",
-    title: "Book a service",
+    title: "Book Your Appointment",
     description:
-      "Choose your preferred service, worker, date, and available time slot.",
+      "Choose your preferred service, date, time, and available stylist.",
   },
   {
     number: "03",
-    title: "Relax and enjoy",
+    title: "Relax & Glow",
     description:
-      "Visit the salon at your selected time and enjoy your beauty experience.",
+      "Visit the salon and enjoy a smooth, personalized beauty experience.",
   },
 ];
 
 function HowItWorks() {
   return (
-    <section className="section" id="how-it-works">
+    <section className="section-container how-section" id="how-it-works">
       <div className="center-heading">
-        <p className="eyebrow">SIMPLE AND CONVENIENT</p>
-        <h2>How BookMySalon works</h2>
+        <span className="eyebrow">SIMPLE, SEAMLESS, BEAUTIFUL</span>
+        <h2>How BookMySalon Works</h2>
       </div>
 
       <div className="steps-grid">
         {steps.map((step) => (
-          <div className="step-card" key={step.number}>
+          <article className="step-card" key={step.number}>
             <span className="step-number">{step.number}</span>
-
             <h3>{step.title}</h3>
-
             <p>{step.description}</p>
-          </div>
+          </article>
         ))}
       </div>
     </section>

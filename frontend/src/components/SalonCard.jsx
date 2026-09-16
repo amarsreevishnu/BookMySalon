@@ -5,24 +5,21 @@ function SalonCard({ salon }) {
     <article className="salon-card">
       <div className="salon-image-wrapper">
         <img src={salon.image} alt={salon.name} />
-
-        <span className="rating-badge">★ {salon.rating}</span>
+        <span className="salon-rating">★ {salon.rating}</span>
       </div>
 
       <div className="salon-card-content">
-        <p className="salon-location">{salon.location}</p>
+        <span className="salon-location">{salon.location}</span>
 
         <h3>{salon.name}</h3>
 
-        <p className="salon-description">{salon.description}</p>
+        <p>{salon.description}</p>
 
-        <div className="salon-card-footer">
-          <span>
-            From <strong>₹{salon.price}</strong>
-          </span>
+        <div className="salon-card-bottom">
+          <strong>{salon.price}</strong>
 
-          <Link to="/register" className="outline-button">
-            View salon
+          <Link to="/login" className="small-button">
+            View Salon
           </Link>
         </div>
       </div>

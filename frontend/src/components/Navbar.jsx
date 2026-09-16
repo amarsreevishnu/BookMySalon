@@ -11,15 +11,15 @@ function Navbar() {
       <nav className="nav-links">
         <a href="#services">Services</a>
         <a href="#salons">Salons</a>
-        <a href="#how-it-works">How it works</a>
+        <a href="#how-it-works">How It Works</a>
       </nav>
 
       <div className="nav-actions">
-        <Link to="/login/" className="login-link">
-          Login
+        <Link to="/login" className="login-link">
+          Log in
         </Link>
 
-        <Link to="/register" className="primary-button small-button">
+        <Link to="/register" className="nav-button">
           Sign up
         </Link>
       </div>

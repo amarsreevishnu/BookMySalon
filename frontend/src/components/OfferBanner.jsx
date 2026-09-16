@@ -2,26 +2,26 @@ import { Link } from "react-router-dom";
 
 function OfferBanner() {
   return (
-    <section className="offer-banner">
-      <div className="offer-content">
-        <p className="eyebrow">LIMITED TIME OFFER</p>
+    <section className="section-container">
+      <div className="offer-banner">
+        <div className="offer-content">
+          <span className="eyebrow">SPECIAL OFFER</span>
 
-        <h2>Summer Radiance Package</h2>
+          <h2>Summer Radiance Package</h2>
 
-        <p>
-          Refresh your look with our special seasonal beauty packages and
-          enjoy exclusive offers from selected salons.
-        </p>
+          <p>
+            Refresh your look with our carefully selected beauty and wellness
+            treatments.
+          </p>
 
-        <Link to="/register" className="primary-button">
-          Explore offer
-        </Link>
-      </div>
+          <Link to="/login" className="dark-button">
+            Explore offer
+          </Link>
+        </div>
 
-      <div className="offer-image">
         <img
-          src="https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80"
-          alt="Beauty products and skincare"
+          src="https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=85"
+          alt="Beauty products"
         />
       </div>
     </section>

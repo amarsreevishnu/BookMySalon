@@ -2,21 +2,23 @@ import { Link } from "react-router-dom";
 
 function OwnerCTA() {
   return (
-    <section className="owner-cta">
-      <div>
-        <p className="eyebrow light-eyebrow">FOR SALON OWNERS</p>
+    <section className="section-container">
+      <div className="owner-cta">
+        <div>
+          <span className="eyebrow">GROW WITH BOOKMYSALON</span>
 
-        <h2>Elevate your salon business</h2>
+          <h2>Elevate Your Salon Business</h2>
 
-        <p>
-          Join BookMySalon, reach more customers, and manage your salon
-          bookings in one place.
-        </p>
+          <p>
+            Bring your salon online, manage appointments, connect with
+            customers, and grow your business with BookMySalon.
+          </p>
+        </div>
+
+        <Link to="/salon-application" className="light-button">
+          List your salon
+        </Link>
       </div>
-
-      <Link to="/register" className="light-button">
-        List your salon →
-      </Link>
     </section>
   );
 }

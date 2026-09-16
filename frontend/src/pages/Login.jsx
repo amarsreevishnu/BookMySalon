@@ -1,117 +1,164 @@
+
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 import api from "../api/axios";
+import AuthLayout from "../components/AuthLayout";
+import Navbar from "../components/Navbar";
 
 function Login() {
-  const navigate = useNavigate();
+    const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (event) => {
-    setFormData({
-      ...formData,
-      [event.target.name]: event.target.value,
+    const [formData, setFormData] = useState({
+        email: "",
+        password: "",
     });
-  };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
-    setError("");
-    setLoading(true);
+    const handleChange = (event) => {
+        const { name, value } = event.target;
 
-    try {
-      const response = await api.post(
-        "/accounts/login/",
-        formData
-      );
+        setFormData((prevData) => ({
+            ...prevData,
+            [name]: value,
+        }));
+    };
 
-      localStorage.setItem("access", response.data.access);
-      localStorage.setItem("refresh", response.data.refresh);
-      localStorage.setItem(
-        "user",
-        JSON.stringify(response.data.user)
-      );
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
-      const role = response.data.user.role;
+        setError("");
+        setLoading(true);
 
-      if (role === "OWNER") {
-        navigate("/owner/dashboard");
-      } else if (role === "ADMIN") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/customer/dashboard");
-      }
-    } catch (error) {
-      setError(
-        JSON.stringify(
-          error.response?.data || "Login failed.",
-          null,
-          2
-        )
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+        try {
+            const response = await api.post(
+                "/accounts/login/",
+                formData
+            );
 
-  return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <Link to="/" className="brand auth-brand">
-          <span className="brand-icon">✂</span>
-          <span>BookMySalon</span>
-        </Link>
+            const { access, refresh, user } = response.data;
 
-        <h1>Welcome back</h1>
+            // Store authentication data
+            localStorage.setItem("access", access);
+            localStorage.setItem("refresh", refresh);
+            localStorage.setItem("user", JSON.stringify(user));
 
-        <p className="auth-description">
-          Login to continue your BookMySalon experience.
-        </p>
+            // Navigate based on user role
+            if (user.role === "OWNER") {
+                navigate("/owner/dashboard");
+            } else if (user.role === "ADMIN") {
+                navigate("/admin/dashboard");
+            } else {
+                navigate("/customer/dashboard");
+            }
+        } catch (error) {
+            const responseData = error.response?.data;
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <label>Email address</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="you@example.com"
-            required
-          />
+            if (typeof responseData === "object" && responseData !== null) {
+                setError(
+                    Object.values(responseData)
+                        .flat()
+                        .join(" ")
+                );
+            } else {
+                setError(responseData || "Login failed. Please try again.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
-          <label>Password</label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-          />
+    return (
+        
+        <AuthLayout
+            title="Welcome back"
+            description="Log in to continue your BookMySalon experience."
+            footerText="Don't have an account?"
+            footerLinkText="Create account"
+            footerLink="/register"
+        >
+            
+            <form className="auth-form" onSubmit={handleSubmit}>
+                {/* Google Login */}
+                <button
+                    type="button"
+                    className="google-button"
+                    onClick={() =>
+                        setError("Google login will be added later.")
+                    }
+                >
+                    <span className="google-icon">G</span>
+                    Continue with Google
+                </button>
 
-          {error && <pre className="error-message">{error}</pre>}
+                <div className="auth-divider">
+                    <span>OR LOGIN WITH EMAIL</span>
+                </div>
 
-          <button
-            type="submit"
-            className="primary-button auth-submit"
-            disabled={loading}
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
+                {/* Email */}
+                <div className="form-field">
+                    <label htmlFor="email">EMAIL</label>
 
-        <p className="auth-footer">
-          Don't have an account? <Link to="/register">Sign up</Link>
-        </p>
-      </div>
-    </div>
-  );
+                    <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="jane@example.com"
+                        value={formData.email}
+                        onChange={handleChange}
+                        required
+                    />
+                </div>
+
+                {/* Password */}
+                <div className="form-field">
+                    <label htmlFor="password">PASSWORD</label>
+
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={handleChange}
+                        required
+                    />
+                </div>
+
+                {/* Forgot Password */}
+                <div className="forgot-password">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setError(
+                                "Password reset will be added later."
+                            )
+                        }
+                    >
+                        Forgot password?
+                    </button>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                    <pre className="auth-error">
+                        {error}
+                    </pre>
+                )}
+
+                {/* Submit */}
+                <button
+                    type="submit"
+                    className="auth-submit-button"
+                    disabled={loading}
+                >
+                    {loading ? "Logging in..." : "Log In"}
+                </button>
+            </form>
+        </AuthLayout>
+    );
 }
 
 export default Login;
