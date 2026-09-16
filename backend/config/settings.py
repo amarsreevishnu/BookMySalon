@@ -43,9 +43,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "django.contrib.sites",
 
     "corsheaders",
     "rest_framework",
+
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -146,12 +148,16 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
+LOGIN_REDIRECT_URL = "http://localhost:5173/customer-home"
+
+LOGOUT_REDIRECT_URL = "http://localhost:5173/login"
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -162,15 +168,17 @@ REST_FRAMEWORK = {
     
 }
 
-SITE_ID = 1
+SITE_ID = 2
 
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+ACCOUNT_USERNAME_REQUIRED = False
 
 SOCIALACCOUNT_AUTO_SIGNUP = True
 

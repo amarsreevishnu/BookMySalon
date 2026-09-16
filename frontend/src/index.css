@@ -825,3 +825,33 @@ a {
     gap: 0;
   }
 }
+
+.google-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid #dfe4df;
+  border-radius: 8px;
+  color: #34453b;
+  background: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.google-login-button:hover {
+  background: #f5f7f4;
+}
+
+.google-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #4285f4;
+  font-weight: 700;
+}

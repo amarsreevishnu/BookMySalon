@@ -4,7 +4,10 @@ import { useNavigate } from "react-router-dom";
 
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
-import Navbar from "../components/Navbar";
+// import Navbar from "../components/Navbar";
+
+import GoogleButton from "../components/auth/GoogleButton";
+
 
 function Login() {
     const navigate = useNavigate();
@@ -82,17 +85,9 @@ function Login() {
             
             <form className="auth-form" onSubmit={handleSubmit}>
                 {/* Google Login */}
-                <button
-                    type="button"
-                    className="google-button"
-                    onClick={() =>
-                        setError("Google login will be added later.")
-                    }
-                >
-                    <span className="google-icon">G</span>
-                    Continue with Google
-                </button>
-
+                
+                     <GoogleButton />
+                    
                 <div className="auth-divider">
                     <span>OR LOGIN WITH EMAIL</span>
                 </div>
