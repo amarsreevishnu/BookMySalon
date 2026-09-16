@@ -10,7 +10,7 @@ function Register() {
     password: "",
     first_name: "",
     last_name: "",
-    role: "CUSTOMER",
+    
   });
 
   const [error, setError] = useState("");
@@ -105,15 +105,7 @@ function Register() {
             </div>
           </div>
 
-          <label>Register as</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-          >
-            <option value="CUSTOMER">Customer</option>
-            <option value="OWNER">Salon owner</option>
-          </select>
+          
 
           {error && <pre className="error-message">{error}</pre>}
 

@@ -8,7 +8,7 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
-        min_length=8
+        min_length=8,
     )
 
     class Meta:
@@ -18,29 +18,21 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password",
             "first_name",
             "last_name",
-            "role",
         ]
-
-    def validate_role(self, value):
-        allowed_roles = [
-            User.Role.CUSTOMER,
-            User.Role.OWNER,
-        ]
-
-        if value not in allowed_roles:
-            raise serializers.ValidationError(
-                "Only CUSTOMER or OWNER registration is allowed."
-            )
-
-        return value
 
     def create(self, validated_data):
         password = validated_data.pop("password")
 
-        return User.objects.create_user(
+        user = User.objects.create_user(
+            username=validated_data["email"],
+            email=validated_data["email"],
             password=password,
-            **validated_data
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            role=User.Role.CUSTOMER,
         )
+
+        return user
 
 
 class LoginSerializer(serializers.Serializer):
