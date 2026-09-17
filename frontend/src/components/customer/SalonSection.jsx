@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import SalonCard from "./SalonCard";
 import api from "../../api/axios";
 
@@ -141,7 +142,9 @@ function SalonSection({
 
         <div className="section-heading-actions">
           <span>Showing verified salons</span>
-          <button>View all 14 salons →</button>
+          <Link to="/salons" className="text-button">
+            View all salons →
+          </Link>
         </div>
       </div>
 

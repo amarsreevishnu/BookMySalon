@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import SalonCard from "./SalonCard";
 import api from "../api/axios";
 
@@ -74,7 +75,9 @@ function PopularSalons() {
           <h2>Nearby & Popular Salons</h2>
         </div>
 
-        <button className="text-button">View all salons →</button>
+        <Link to="/salons" className="text-button">
+          View all salons →
+        </Link>
       </div>
 
       <div className="salon-grid">

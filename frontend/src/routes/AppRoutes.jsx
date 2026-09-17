@@ -8,6 +8,7 @@ import GoogleCallback from "../pages/GoogleCallback";
 // import NotFound from "../pages/public/NotFound";
 
 import CustomerHome from "../pages/CustomerHome";
+import SalonsExplore from "../pages/customer/SalonsExplore";
 // import Profile from "../pages/customer/Profile";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
@@ -35,6 +36,8 @@ function AppRoutes() {
 
       <Route element={<RoleRoute allowedRoles={["CUSTOMER"]} />}>
         <Route path="/customer-home" element={<CustomerHome />} />
+        <Route path="/salons" element={<SalonsExplore />} />
+        <Route path="/customer/salons" element={<SalonsExplore />} />
         {/* <Route path="/profile" element={<Profile />} /> */}
       </Route>
 

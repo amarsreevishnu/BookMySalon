@@ -4,6 +4,7 @@ from .views import (
     AdminDashboardStatsView,
     AdminSalonListView,
     ApprovedSalonListView,
+    CustomerSalonExploreView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
     PendingSalonListView,
@@ -13,6 +14,11 @@ from .views import (
 
 
 urlpatterns = [
+    path(
+        "explore/",
+        CustomerSalonExploreView.as_view(),
+        name="customer-salons-explore",
+    ),
     path(
         "owner/dashboard/",
         OwnerDashboardView.as_view(),
