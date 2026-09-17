@@ -75,3 +75,24 @@ class PendingRegistration(models.Model):
 
     def is_otp_expired(self):
         return timezone.now() > self.otp_created_at + timedelta(seconds=60)
+
+
+class PasswordResetOTP(models.Model):
+    email = models.EmailField(unique=True)
+    otp = models.CharField(max_length=6)
+    otp_created_at = models.DateTimeField(default=timezone.now)
+    attempts = models.PositiveIntegerField(default=0)
+    reset_token = models.CharField(max_length=128, blank=True, null=True)
+    token_created_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_otp_expired(self):
+        return timezone.now() > self.otp_created_at + timedelta(seconds=60)
+
+    def is_token_expired(self):
+        if not self.token_created_at:
+            return True
+        return timezone.now() > self.token_created_at + timedelta(minutes=15)
+
+    def __str__(self):
+        return f"Reset OTP for {self.email}"

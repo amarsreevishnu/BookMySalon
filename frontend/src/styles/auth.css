@@ -150,13 +150,21 @@
     margin-top: -2px;
 }
 
-.forgot-password button {
+.forgot-password button,
+.forgot-password a {
     padding: 0;
     border: 0;
     color: #729c86;
     background: transparent;
     cursor: pointer;
     font-size: 11px;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.forgot-password a:hover,
+.forgot-password button:hover {
+    text-decoration: underline;
 }
 
 .auth-submit-button {

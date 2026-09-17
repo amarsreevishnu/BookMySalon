@@ -9,9 +9,13 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
+    ForgotPasswordRequestSerializer,
+    ForgotPasswordResendOTPSerializer,
+    ForgotPasswordVerifyOTPSerializer,
     LoginSerializer,
     RegisterSerializer,
     ResendOTPSerializer,
+    ResetPasswordConfirmSerializer,
     VerifyOTPSerializer,
 )
 
@@ -160,3 +164,78 @@ def google_success(request):
     )
 
     return redirect(f"http://localhost:5173/google-callback?{params}")
+
+
+class ForgotPasswordRequestView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordRequestSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reset_record = serializer.save()
+
+        return Response(
+            {
+                "message": (
+                    "A 6-digit verification code has been sent to your registered email address."
+                ),
+                "email": reset_record.email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordVerifyOTPSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reset_token = serializer.save()
+
+        return Response(
+            {
+                "message": "Verification code verified successfully.",
+                "email": serializer.validated_data["email"],
+                "reset_token": reset_token,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordResendOTPView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordResendOTPSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "message": "A new verification code has been sent to your email.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResetPasswordConfirmView(generics.GenericAPIView):
+    serializer_class = ResetPasswordConfirmSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "message": (
+                    "Password has been reset successfully! You can now log in with your new password."
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )

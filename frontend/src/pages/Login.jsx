@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 // import { loginUser } from "../services/authService";
 
@@ -25,6 +25,9 @@ function Login() {
     const [error, setError] = useState(
         () => location.state?.error || new URLSearchParams(location.search).get("error") || ""
     );
+    const [successMessage, setSuccessMessage] = useState(
+        () => location.state?.message || ""
+    );
     const [loading, setLoading] = useState(false);
 
     const handleChange = (event) => {
@@ -40,6 +43,7 @@ function Login() {
         event.preventDefault();
 
         setError("");
+        setSuccessMessage("");
         setLoading(true);
 
         try {
@@ -130,17 +134,15 @@ function Login() {
 
                 {/* Forgot Password */}
                 <div className="forgot-password">
-                    <button
-                        type="button"
-                        onClick={() =>
-                            setError(
-                                "Password reset will be added later."
-                            )
-                        }
-                    >
-                        Forgot password?
-                    </button>
+                    <Link to="/forgot-password">Forgot password?</Link>
                 </div>
+
+                {/* Success Message */}
+                {successMessage && (
+                    <div className="auth-success">
+                        {successMessage}
+                    </div>
+                )}
 
                 {/* Error Message */}
                 {error && (

@@ -1,9 +1,13 @@
 from django.urls import path
 
 from .views import (
+    ForgotPasswordRequestView,
+    ForgotPasswordResendOTPView,
+    ForgotPasswordVerifyOTPView,
     LoginView,
     RegisterView,
     ResendOTPView,
+    ResetPasswordConfirmView,
     VerifyOTPView,
     google_success,
 )
@@ -23,6 +27,26 @@ urlpatterns = [
         "resend-otp/",
         ResendOTPView.as_view(),
         name="resend_otp",
+    ),
+    path(
+        "forgot-password/",
+        ForgotPasswordRequestView.as_view(),
+        name="forgot_password",
+    ),
+    path(
+        "forgot-password/verify-otp/",
+        ForgotPasswordVerifyOTPView.as_view(),
+        name="forgot_password_verify_otp",
+    ),
+    path(
+        "forgot-password/resend-otp/",
+        ForgotPasswordResendOTPView.as_view(),
+        name="forgot_password_resend_otp",
+    ),
+    path(
+        "forgot-password/reset/",
+        ResetPasswordConfirmView.as_view(),
+        name="reset_password_confirm",
     ),
     path(
         "login/",
