@@ -1,39 +1,57 @@
 const categories = [
   {
     name: "Hair",
-    icon: "✂",
-    price: "Starting ₹250",
-    description: "Haircuts & styling",
+    icon: "✂️",
+    price: "From ₹250",
+    description: "Haircuts, styling & color",
+    tag: "Popular",
+    colorBg: "#eef7f2",
+    iconColor: "#2d6a4f",
   },
   {
     name: "Spa",
-    icon: "♨",
-    price: "Starting ₹900",
-    description: "Relax & refresh",
+    icon: "🧖‍♀️",
+    price: "From ₹900",
+    description: "Detox & aromatherapy rituals",
+    tag: "Relaxing",
+    colorBg: "#fef3c7",
+    iconColor: "#92400e",
   },
   {
     name: "Facial",
-    icon: "◉",
-    price: "Starting ₹450",
-    description: "Skin care",
+    icon: "✨",
+    price: "From ₹450",
+    description: "Botanical glow & skin therapy",
+    tag: "Clean Purity",
+    colorBg: "#e0f2fe",
+    iconColor: "#0369a1",
   },
   {
     name: "Nails",
-    icon: "◌",
-    price: "Starting ₹350",
-    description: "Nail care",
+    icon: "💅",
+    price: "From ₹350",
+    description: "Gel manicure & nail artistry",
+    tag: "Artistry",
+    colorBg: "#fce7f3",
+    iconColor: "#be185d",
   },
   {
     name: "Makeup",
-    icon: "◍",
-    price: "Starting ₹750",
-    description: "Beauty makeup",
+    icon: "💄",
+    price: "From ₹750",
+    description: "Occasion & bridal touch",
+    tag: "Glamour",
+    colorBg: "#fae8ff",
+    iconColor: "#86198f",
   },
   {
     name: "Therapy",
-    icon: "♧",
-    price: "Starting ₹600",
-    description: "Wellness care",
+    icon: "🌿",
+    price: "From ₹600",
+    description: "Ayurvedic wellness & massage",
+    tag: "Holistic",
+    colorBg: "#dcfce7",
+    iconColor: "#15803d",
   },
 ];
 
@@ -42,36 +60,63 @@ function CategorySection({
   onCategorySelect,
 }) {
   return (
-    <section className="customer-section">
+    <section className="customer-section category-section">
       <div className="customer-section-heading">
         <div>
-          <span className="section-label">CURATED CATEGORIES</span>
+          <span className="section-label">🌿 CURATED TREATMENTS</span>
           <h2>Popular Services</h2>
+          <p className="section-subtitle">
+            Explore certified botanical services and top-rated stylist rituals
+          </p>
         </div>
 
-        <span className="section-side-text">
-          Quick booking in 1 click
-        </span>
+        <div className="section-heading-actions">
+          {selectedCategory && selectedCategory !== "All" && (
+            <button
+              type="button"
+              className="reset-category-btn"
+              onClick={() => onCategorySelect("All")}
+            >
+              Reset filter (<strong>{selectedCategory}</strong>) ✕
+            </button>
+          )}
+          <span className="section-side-badge">⚡ Instant 1-Click Booking</span>
+        </div>
       </div>
 
       <div className="category-grid">
-        {categories.map((category) => (
-          <button
-            key={category.name}
-            className={`category-card ${
-              selectedCategory === category.name ? "selected" : ""
-            }`}
-            onClick={() => onCategorySelect(category.name)}
-          >
-            <span className="category-icon">{category.icon}</span>
+        {categories.map((category) => {
+          const isSelected = selectedCategory === category.name;
+          return (
+            <button
+              key={category.name}
+              type="button"
+              className={`category-card ${isSelected ? "selected" : ""}`}
+              onClick={() => onCategorySelect(category.name)}
+              aria-pressed={isSelected}
+            >
+              <div className="category-card-top">
+                <div
+                  className="category-icon"
+                  style={{ backgroundColor: category.colorBg, color: category.iconColor }}
+                >
+                  <span>{category.icon}</span>
+                </div>
+                <span className="category-tag-pill">{category.tag}</span>
+              </div>
 
-            <strong>{category.name}</strong>
+              <div className="category-card-info">
+                <h3 className="category-name">{category.name}</h3>
+                <p className="category-desc">{category.description}</p>
+              </div>
 
-            <small>{category.price}</small>
-
-            <span>{category.description}</span>
-          </button>
-        ))}
+              <div className="category-card-footer">
+                <span className="category-price-chip">{category.price}</span>
+                <span className="category-arrow">→</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </section>
   );

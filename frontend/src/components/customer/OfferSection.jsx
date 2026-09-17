@@ -43,12 +43,15 @@ function OfferSection() {
     <section className="customer-section offers-section">
       <div className="customer-section-heading">
         <div>
-          <span className="section-label">LIMITED QUANTITIES</span>
-          <h2>Today's Offers</h2>
+          <span className="section-label">🏷️ EXCLUSIVE DISCOUNTS</span>
+          <h2>Today's Offers & Deals</h2>
+          <p className="section-subtitle">
+            Exclusive promo codes redeemable instantly during booking
+          </p>
         </div>
 
-        <span className="section-side-text">
-          Exclusive deals available today
+        <span className="section-side-badge">
+          ⏳ Limited Availability
         </span>
       </div>
 

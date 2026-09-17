@@ -21,7 +21,7 @@ function SalonCard({ salon }) {
         <div className="salon-card-title-row">
           <div>
             <h3>{salon.name}</h3>
-            <p>{salon.location}</p>
+            <p>📍 {salon.location}</p>
           </div>
 
           <span className="salon-price">

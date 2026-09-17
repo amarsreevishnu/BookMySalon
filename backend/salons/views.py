@@ -423,7 +423,8 @@ class OwnerQuickWalkInView(APIView):
 
 
 class CustomerSalonExploreView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
 
     def get(self, request):
         search = request.query_params.get("search", "").strip().lower()
@@ -434,10 +435,71 @@ class CustomerSalonExploreView(APIView):
         price_tier_param = request.query_params.get("price_tier", "") # 1, 2, 3
         atmosphere_param = request.query_params.get("atmosphere", "").strip().lower()
 
-        # Base curated salons matching reference mockup
+        # Dynamically fetch approved database registered salons first (newest first)
+        db_salons = Salon.objects.filter(
+            approval_status=Salon.ApprovalStatus.APPROVED
+        ).order_by("-created_at")
+
+        registered_salons = []
+        for s in db_salons:
+            # Build tags from amenities and category
+            tags = []
+            if s.category:
+                tags.append(s.category)
+            if s.amenities:
+                for am in s.amenities[:2]:
+                    if am not in tags:
+                        tags.append(am)
+            if not tags:
+                tags = ["Hair & Beauty", "AC", "Certified"]
+
+            # Service list based on category
+            services = [
+                {"name": "Haircut & Styling", "price": "₹349", "category": "hair"},
+                {"name": "Organic Detox Spa", "price": "₹899", "category": "spa"},
+                {"name": "Hydra Facial Glow", "price": "₹999", "category": "skin"},
+            ]
+            cat_lower = (s.category or "").lower()
+            if "nail" in cat_lower:
+                services = [
+                    {"name": "Gel Manicure", "price": "₹399", "category": "nails"},
+                    {"name": "Pedicure Spa", "price": "₹599", "category": "nails"},
+                    {"name": "Nail Art Custom", "price": "₹799", "category": "nails"},
+                ]
+            elif "spa" in cat_lower or "massage" in cat_lower:
+                services = [
+                    {"name": "Ayurvedic Spa Ritual", "price": "₹1,200", "category": "spa"},
+                    {"name": "Aromatherapy Massage", "price": "₹1,400", "category": "spa"},
+                    {"name": "Head & Shoulder Spa", "price": "₹600", "category": "spa"},
+                ]
+
+            registered_salons.append({
+                "id": s.id,
+                "name": s.name,
+                "badge": "● Verified Partner",
+                "badge_type": "partner",
+                "distance_km": 1.5,
+                "address_line": s.address or s.city,
+                "city": f"{s.city}, {s.state}" if s.city and s.state else (s.city or "Kerala"),
+                "tags": tags,
+                "gender_category": "unisex",
+                "rating": 4.9,
+                "review_count": 42,
+                "has_instant_slot": True,
+                "instant_slot_text": "Instant slot available today • Verified Partner",
+                "price_tier": 2,
+                "services": services,
+                "purity_note": "Certified clean & botanical hygiene standards",
+                "image": s.cover_image or (s.images[0] if s.images else "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"),
+                "is_clean_purity": True,
+                "phone": s.phone or "+91 88481 94536",
+                "opening_hours": "9:00 AM – 8:30 PM",
+            })
+
+        # Curated mockup partner salons
         curated_salons = [
             {
-                "id": 1,
+                "id": 101,
                 "name": "Aura Luxe Salon & Spa",
                 "badge": "● Verified Organic",
                 "badge_type": "organic",
@@ -463,7 +525,7 @@ class CustomerSalonExploreView(APIView):
                 "opening_hours": "9:00 AM – 9:00 PM",
             },
             {
-                "id": 2,
+                "id": 102,
                 "name": "Urban Glow Hair Studio",
                 "badge": "🏷 20% OFF",
                 "badge_type": "promo",
@@ -489,7 +551,7 @@ class CustomerSalonExploreView(APIView):
                 "opening_hours": "9:30 AM – 8:30 PM",
             },
             {
-                "id": 3,
+                "id": 103,
                 "name": "The Grooming Club",
                 "badge": "👑 Men's Luxury",
                 "badge_type": "luxury",
@@ -515,7 +577,7 @@ class CustomerSalonExploreView(APIView):
                 "opening_hours": "10:00 AM – 9:30 PM",
             },
             {
-                "id": 4,
+                "id": 104,
                 "name": "Verdant Nail & Skin Sanctuary",
                 "badge": "🌿 Cruelty-Free & Eco",
                 "badge_type": "eco",
@@ -542,38 +604,11 @@ class CustomerSalonExploreView(APIView):
             },
         ]
 
-        # Dynamically append any approved database registered salons
-        db_salons = Salon.objects.filter(approval_status=Salon.ApprovalStatus.APPROVED)
-        for s in db_salons:
-            curated_salons.append({
-                "id": s.id + 100,
-                "name": s.name,
-                "badge": "● Verified Partner",
-                "badge_type": "partner",
-                "distance_km": 3.2,
-                "address_line": s.address[:35] if s.address else s.city,
-                "city": s.city or "Indiranagar, Bengaluru",
-                "tags": [s.category or "Hair & Beauty", "AC", "Certified"],
-                "gender_category": "unisex",
-                "rating": 4.85,
-                "review_count": 48,
-                "has_instant_slot": True,
-                "instant_slot_text": "Instant slots open this afternoon",
-                "price_tier": 2,
-                "services": [
-                    {"name": "Signature Haircut", "price": "₹399", "category": "hair"},
-                    {"name": "Organic Detox Spa", "price": "₹899", "category": "spa"},
-                    {"name": "Hydra Facial Glow", "price": "₹999", "category": "skin"},
-                ],
-                "purity_note": "Standard clean hygiene certified",
-                "image": s.cover_image or (s.images[0] if s.images else "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85"),
-                "is_clean_purity": True,
-                "phone": s.phone or "+91 98450 99999",
-                "opening_hours": "9:00 AM – 9:00 PM",
-            })
+        # Prioritize real registered salons at the top
+        all_salons = registered_salons + curated_salons
 
         # Apply in-memory filtering
-        results = curated_salons
+        results = all_salons
 
         if search:
             results = [

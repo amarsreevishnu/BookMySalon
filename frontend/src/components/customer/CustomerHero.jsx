@@ -1,3 +1,6 @@
+import { useAuth } from "../../context/AuthContext";
+
+
 function CustomerHero({
   search,
   setSearch,
@@ -5,12 +8,14 @@ function CustomerHero({
   setSelectedFilter,
   onSearch,
 }) {
+  const { user } = useAuth();
+
   return (
     <section className="customer-hero">
       <div className="customer-hero-top">
         <div>
           <h1>
-            Hello, Vishnu <span>👋</span>
+            Hello, {user?.first_name || "there"} <span>👋</span>
           </h1>
 
           <p>
@@ -20,7 +25,7 @@ function CustomerHero({
         </div>
 
         <div className="current-location">
-          <span>⌖</span>
+          <span>📍</span>
           <div>
             <small>CURRENT LOCATION</small>
             <strong>Thiruvananthapuram</strong>
@@ -30,16 +35,16 @@ function CustomerHero({
       </div>
 
       <div className="availability-message">
-        <span>✦</span>
-        14 salons open near you with available slots
+        <span>●</span>
+        14 botanical & partner salons open near you with live slots
       </div>
 
       <div className="customer-search">
-        <span className="search-symbol">⌕</span>
+        <span className="search-symbol">🔍</span>
 
         <input
           type="text"
-          placeholder="Search salons, services, or treatments..."
+          placeholder="Search salons, services (haircut, spa, facial)..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           onKeyDown={(event) => {
@@ -49,13 +54,16 @@ function CustomerHero({
           }}
         />
 
-        <button onClick={onSearch}>Find it</button>
+        <button type="button" onClick={onSearch}>
+          Find Salons →
+        </button>
       </div>
 
       <div className="quick-filters">
         <span>QUICK FILTERS:</span>
 
         <button
+          type="button"
           className={selectedFilter === "Open Now" ? "active" : ""}
           onClick={() => setSelectedFilter("Open Now")}
         >
@@ -63,13 +71,15 @@ function CustomerHero({
         </button>
 
         <button
+          type="button"
           className={selectedFilter === "Near Me" ? "active" : ""}
           onClick={() => setSelectedFilter("Near Me")}
         >
-          ⌖ Near Me
+          📍 Near Me
         </button>
 
         <button
+          type="button"
           className={selectedFilter === "Top Rated" ? "active" : ""}
           onClick={() => setSelectedFilter("Top Rated")}
         >
@@ -77,17 +87,19 @@ function CustomerHero({
         </button>
 
         <button
+          type="button"
           className={selectedFilter === "Offers" ? "active" : ""}
           onClick={() => setSelectedFilter("Offers")}
         >
-          ♧ Offers
+          🏷 Offers
         </button>
 
         <button
+          type="button"
           className={selectedFilter === "All" ? "active" : ""}
           onClick={() => setSelectedFilter("All")}
         >
-          All
+          All Salons
         </button>
       </div>
     </section>

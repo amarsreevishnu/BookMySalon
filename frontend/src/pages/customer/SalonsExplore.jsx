@@ -27,13 +27,13 @@ export default function SalonsExplore() {
   const [selectedDate, setSelectedDate] = useState("Today, 24 Oct");
   const [timeWindow, setTimeWindow] = useState("2:00 PM – 5:00 PM");
 
-  // Sidebar Filter States
-  const [instantSlots, setInstantSlots] = useState(true);
-  const [distanceRadius, setDistanceRadius] = useState("5 km");
-  const [minRating, setMinRating] = useState(4.8);
-  const [priceTier, setPriceTier] = useState(2); // 1 = <500, 2 = 500-1500, 3 = 1500+
+  // Sidebar Filter States (clean defaults so all approved salons appear immediately)
+  const [instantSlots, setInstantSlots] = useState(false);
+  const [distanceRadius, setDistanceRadius] = useState("Any");
+  const [minRating, setMinRating] = useState(0);
+  const [priceTier, setPriceTier] = useState(null); // null = all, 1 = <500, 2 = 500-1500, 3 = 1500+
   const [atmosphere, setAtmosphere] = useState("All Salons");
-  const [selectedServices, setSelectedServices] = useState(["Hair Cut & Styling", "Organic Hair Spa"]);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPurity, setSelectedPurity] = useState([]);
 
   // Sorting & View mode
@@ -47,6 +47,7 @@ export default function SalonsExplore() {
   const [toastMessage, setToastMessage] = useState("");
 
   // Modals state
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [bookingModalSalon, setBookingModalSalon] = useState(null);
   const [bookingService, setBookingService] = useState("Haircut & Styling");
   const [bookingTime, setBookingTime] = useState("2:30 PM");
@@ -76,7 +77,7 @@ export default function SalonsExplore() {
         }
       } catch (err) {
         // Fallback to local curated items matching reference
-        console.log("Using curated partner salons for exploration");
+        console.log("Using curated partner salons for exploration", err);
       } finally {
         setLoading(false);
       }
@@ -87,6 +88,31 @@ export default function SalonsExplore() {
   // Filter salons dynamically
   const filteredSalons = useMemo(() => {
     let list = salonsList.length > 0 ? [...salonsList] : [
+      {
+        id: 5,
+        name: "Apple Salon Sreekariyam",
+        badge: "● Verified Partner",
+        badge_type: "partner",
+        distance_km: 1.5,
+        address_line: "Sreekariyam Gandhipuarm",
+        city: "sreekariyam, Kerala",
+        tags: ["Hair & Styling", "Air Conditioned", "Card & UPI"],
+        gender_category: "unisex",
+        rating: 4.9,
+        review_count: 42,
+        has_instant_slot: true,
+        instant_slot_text: "Instant slot available today • Verified Partner",
+        price_tier: 2,
+        services: [
+          { name: "Haircut & Styling", price: "₹349", category: "hair" },
+          { name: "Organic Detox Spa", price: "₹899", category: "spa" },
+          { name: "Hydra Facial Glow", price: "₹999", category: "skin" },
+        ],
+        purity_note: "Certified clean & botanical hygiene standards",
+        image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+        phone: "8848194536",
+        opening_hours: "9:00 AM – 8:30 PM",
+      },
       {
         id: 1,
         name: "Aura Luxe Salon & Spa",
@@ -201,6 +227,17 @@ export default function SalonsExplore() {
       );
     }
 
+    // Filter by category URL parameter if present
+    const categoryUrlParam = searchParams.get("category");
+    if (categoryUrlParam && categoryUrlParam.toLowerCase() !== "all") {
+      const cat = categoryUrlParam.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.tags?.some((t) => t.toLowerCase().includes(cat)) ||
+          s.services?.some((srv) => srv.name.toLowerCase().includes(cat) || (srv.category && srv.category.toLowerCase().includes(cat)))
+      );
+    }
+
     // Filter by atmosphere
     if (atmosphere !== "All Salons") {
       const atm = atmosphere.toLowerCase();
@@ -243,6 +280,7 @@ export default function SalonsExplore() {
   }, [
     salonsList,
     treatmentQuery,
+    searchParams,
     atmosphere,
     instantSlots,
     distanceRadius,
@@ -250,6 +288,20 @@ export default function SalonsExplore() {
     priceTier,
     sortBy,
   ]);
+
+  // Active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (treatmentQuery.trim()) count++;
+    if (atmosphere !== "All Salons") count++;
+    if (instantSlots) count++;
+    if (distanceRadius !== "Any") count++;
+    if (minRating > 0) count++;
+    if (priceTier) count++;
+    if (selectedServices.length > 0) count += selectedServices.length;
+    if (selectedPurity.length > 0) count += selectedPurity.length;
+    return count;
+  }, [treatmentQuery, atmosphere, instantSlots, distanceRadius, minRating, priceTier, selectedServices, selectedPurity]);
 
   // Toggle favorite heart
   const toggleFavorite = (id) => {
@@ -346,12 +398,7 @@ export default function SalonsExplore() {
 
             <div
               className="explore-user-chip"
-              onClick={() => {
-                if (window.confirm("Do you want to sign out?")) {
-                  logout();
-                  navigate("/login");
-                }
-              }}
+              onClick={() => setShowLogoutModal(true)}
               title="Click to sign out"
             >
               <div className="explore-user-info">
@@ -394,13 +441,32 @@ export default function SalonsExplore() {
             <div className="filter-segment-icon gold">✨</div>
             <div className="filter-segment-content">
               <span className="filter-segment-label">TREATMENT OR STYLIST</span>
-              <input
-                type="text"
-                className="filter-segment-input"
-                placeholder="Haircut, Organic Spa, Herbal Facial"
-                value={treatmentQuery}
-                onChange={(e) => setTreatmentQuery(e.target.value)}
-              />
+              <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
+                <input
+                  type="text"
+                  className="filter-segment-input"
+                  placeholder="Haircut, Organic Spa, Herbal Facial"
+                  value={treatmentQuery}
+                  onChange={(e) => setTreatmentQuery(e.target.value)}
+                />
+                {treatmentQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setTreatmentQuery("")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#94a3b8",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      padding: "0 4px",
+                    }}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -462,6 +528,11 @@ export default function SalonsExplore() {
             <div className="sidebar-title">
               <span>⚡</span>
               <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="sidebar-active-count-badge">
+                  {activeFilterCount}
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -635,14 +706,16 @@ export default function SalonsExplore() {
           <div className="results-header-bar">
             <div className="results-title-group">
               <div className="results-title-row">
-                <h1 className="results-main-title">28 Botanical Salons</h1>
+                <h1 className="results-main-title">
+                  {filteredSalons.length} Botanical {filteredSalons.length === 1 ? "Salon" : "Salons"}
+                </h1>
                 <span className="results-live-badge">
                   <span className="results-live-dot" />
                   <span>Live Availability</span>
                 </span>
               </div>
               <p className="results-subtitle">
-                Showing curated spaces near {locationParam}
+                Showing curated wellness spaces near {locationParam}
               </p>
             </div>
 
@@ -679,97 +752,148 @@ export default function SalonsExplore() {
           </div>
 
           {/* Salon Cards List */}
-          <div className="salons-cards-list">
-            {filteredSalons.map((salon) => (
-              <article key={salon.id} className="salon-explore-card">
-                {/* Media Left */}
-                <div className="salon-card-media">
-                  <img
-                    src={salon.image}
-                    alt={salon.name}
-                    className="salon-card-img"
-                  />
-                  {salon.badge && (
+          {filteredSalons.length === 0 ? (
+            <div className="salons-empty-state">
+              <div className="salons-empty-icon">🌿</div>
+              <h3 className="salons-empty-title">No matching salons found</h3>
+              <p className="salons-empty-desc">
+                We couldn't find any botanical salons matching your active filters. Try loosening your distance, rating, or search term.
+              </p>
+              <button
+                type="button"
+                className="salons-empty-reset-btn"
+                onClick={handleClearAll}
+              >
+                Reset All Filters
+              </button>
+            </div>
+          ) : (
+            <div className={`salons-cards-list ${viewMode === "grid" ? "grid-mode" : ""}`}>
+              {filteredSalons.map((salon) => (
+                <article key={salon.id} className="salon-explore-card">
+                  {/* Media Left */}
+                  <div className="salon-card-media">
+                    <img
+                      src={salon.image || "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85"}
+                      alt={salon.name}
+                      className="salon-card-img"
+                    />
                     <span className={`salon-badge-overlay ${salon.badge_type || "organic"}`}>
-                      {salon.badge}
+                      {salon.badge || "● Verified Organic"}
                     </span>
-                  )}
-                  <button
-                    type="button"
-                    className={`btn-fav-toggle ${savedFavorites.has(salon.id) ? "saved" : ""}`}
-                    onClick={() => toggleFavorite(salon.id)}
-                    title={savedFavorites.has(salon.id) ? "Remove from favorites" : "Save to favorites"}
-                  >
-                    {savedFavorites.has(salon.id) ? "♥" : "♡"}
-                  </button>
-                </div>
-
-                {/* Content Right */}
-                <div className="salon-card-content">
-                  <div>
-                    <div className="salon-card-top-row">
-                      <h3 className="salon-card-name">{salon.name}</h3>
-                      <span className="salon-card-rating">
-                        ★ {salon.rating} ({salon.review_count})
-                      </span>
-                    </div>
-
-                    <div className="salon-card-meta">
-                      <span>📍 {salon.distance_km} km away</span>
-                      <span>•</span>
-                      <span>{salon.address_line}</span>
-                      <span>•</span>
-                      <span>{salon.tags.join(" • ")}</span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`btn-fav-toggle ${savedFavorites.has(salon.id) ? "saved" : ""}`}
+                      onClick={() => toggleFavorite(salon.id)}
+                      title={savedFavorites.has(salon.id) ? "Remove from favorites" : "Save to favorites"}
+                    >
+                      {savedFavorites.has(salon.id) ? "♥" : "♡"}
+                    </button>
                   </div>
 
-                  {/* Slot availability banner */}
-                  {salon.instant_slot_text && (
-                    <div className="salon-slot-alert">
-                      <span>⚡</span>
-                      <span>{salon.instant_slot_text}</span>
-                    </div>
-                  )}
-
-                  {/* Pricing row (3 columns) */}
-                  <div className="salon-services-pricing-grid">
-                    {salon.services.map((srv, idx) => (
-                      <div key={idx} className="service-tariff-col">
-                        <span className="service-tariff-name">{srv.name}</span>
-                        <span className="service-tariff-price">{srv.price}</span>
+                  {/* Content Right */}
+                  <div className="salon-card-content">
+                    <div className="salon-card-header-group">
+                      <div className="salon-card-top-row">
+                        <h3 className="salon-card-name" title={salon.name}>{salon.name}</h3>
+                        <span className="salon-card-rating">
+                          <span className="rating-star">★</span>
+                          <span className="rating-val">{salon.rating || "4.8"}</span>
+                          <span className="rating-count">({salon.review_count || "48"})</span>
+                        </span>
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Footer & Actions */}
-                  <div className="salon-card-bottom-row">
-                    <span className="salon-purity-text">{salon.purity_note}</span>
+                      <p className="salon-card-meta">
+                        <span>📍 {salon.distance_km || "2.4"} km away</span>
+                        <span>•</span>
+                        <span>{salon.address_line || salon.city || "Bengaluru"}</span>
+                        <span>•</span>
+                        <span>{(salon.tags && salon.tags.length > 0 ? salon.tags : ["Unisex", "AC"]).slice(0, 2).join(" • ")}</span>
+                      </p>
+                    </div>
 
-                    <div className="salon-card-btn-group">
-                      <button
-                        type="button"
-                        className="btn-view-salon"
-                        onClick={() => setDetailsModalSalon(salon)}
-                      >
-                        View Salon
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-book-slot"
-                        onClick={() => {
-                          setBookingModalSalon(salon);
-                          setBookingService(salon.services[0]?.name || "Haircut & Styling");
-                        }}
-                      >
-                        <span>Book Slot</span>
-                        <span>→</span>
-                      </button>
+                    {/* Slot availability inline badges matching reference */}
+                    <div className="salon-slot-row">
+                      {(() => {
+                        const text = salon.instant_slot_text || "Instant Slot available today • Guaranteed reservation";
+                        if (text.includes(" • ") && (text.includes("OFF") || text.includes("🎁") || text.includes("Free"))) {
+                          const [slotPart, promoPart] = text.split(" • ");
+                          return (
+                            <>
+                              <span className="salon-slot-pill grey">
+                                <span className="slot-pill-icon">🕒</span>
+                                <span>{slotPart}</span>
+                              </span>
+                              <span className={promoPart.includes("OFF") ? "salon-slot-promo red" : "salon-slot-pill gold"}>
+                                {promoPart}
+                              </span>
+                            </>
+                          );
+                        } else {
+                          const isInstant = salon.has_instant_slot || text.toLowerCase().includes("instant");
+                          return (
+                            <span className={`salon-slot-pill ${isInstant ? "green" : "grey"}`}>
+                              <span className="slot-pill-icon">{isInstant ? "⚡" : "🕒"}</span>
+                              <span>{text}</span>
+                            </span>
+                          );
+                        }
+                      })()}
+                    </div>
+
+                    {/* Pricing row (borderless clean 3 uniform columns) */}
+                    <div className="salon-services-pricing-grid">
+                      {(() => {
+                        const sList = (salon.services && salon.services.length > 0) ? [...salon.services] : [];
+                        const defaults = [
+                          { name: "Haircut & Styling", price: "₹349" },
+                          { name: "Organic Hair Spa", price: "₹899" },
+                          { name: "Hydra Facial Glow", price: "₹999" },
+                        ];
+                        while (sList.length < 3) {
+                          sList.push(defaults[sList.length]);
+                        }
+                        return sList.slice(0, 3).map((srv, idx) => (
+                          <div key={idx} className="service-tariff-col">
+                            <span className="service-tariff-name" title={srv.name}>{srv.name}</span>
+                            <span className="service-tariff-price">{srv.price}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+
+                    {/* Footer & Actions */}
+                    <div className="salon-card-bottom-row">
+                      <span className="salon-purity-text" title={salon.purity_note}>
+                        🌿 {salon.purity_note || "Standard clean hygiene certified"}
+                      </span>
+
+                      <div className="salon-card-btn-group">
+                        <button
+                          type="button"
+                          className="btn-view-salon"
+                          onClick={() => setDetailsModalSalon(salon)}
+                        >
+                          View Salon
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-book-slot"
+                          onClick={() => {
+                            setBookingModalSalon(salon);
+                            setBookingService(salon.services?.[0]?.name || "Haircut & Styling");
+                          }}
+                        >
+                          <span>Book Slot</span>
+                          <span>→</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
 
           {/* Pagination / Load More Footer */}
           <div className="explore-pagination-row">
@@ -1012,6 +1136,66 @@ export default function SalonsExplore() {
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div
+          className="logout-modal-overlay"
+          onClick={() => setShowLogoutModal(false)}
+        >
+          <div
+            className="logout-modal-box"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <button
+              type="button"
+              className="logout-modal-close"
+              onClick={() => setShowLogoutModal(false)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <div className="logout-modal-avatar">
+              {(currentUser?.first_name || "V")[0].toUpperCase()}
+            </div>
+
+            <h3 className="logout-modal-title">Sign Out of BookMySalon</h3>
+            <div className="logout-modal-subtitle">
+              Wellness Member • {currentUser?.first_name || "Vishnu"}
+            </div>
+
+            <p className="logout-modal-message">
+              Are you sure you want to sign out? You can sign back in anytime with your email and password.
+            </p>
+
+            <div className="logout-modal-actions">
+              <button
+                type="button"
+                className="logout-btn-cancel"
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="logout-btn-confirm"
+                onClick={() => {
+                  setShowLogoutModal(false);
+                  logout();
+                  navigate("/login");
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+

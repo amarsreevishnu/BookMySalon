@@ -46,7 +46,7 @@ function CustomerHome() {
     <div className="customer-home">
       <CustomerHeader />
 
-      <main>
+      <main className="customer-main-content">
         <CustomerHero
           search={search}
           setSearch={setSearch}
@@ -68,21 +68,22 @@ function CustomerHome() {
         <OfferSection />
 
         <section className="map-promo-section">
-          <div className="map-promo-icon">⌖</div>
+          <div className="map-promo-icon">📍</div>
 
           <div>
             <h3>Looking for salons within walking distance?</h3>
             <p>
               Switch to the interactive map to discover salons near your
-              current location.
+              current location with live directions.
             </p>
           </div>
 
           <button
+            type="button"
             className="outline-button"
             onClick={() => navigate("/salons/map")}
           >
-            Open Map View
+            Open Map View →
           </button>
         </section>
       </main>

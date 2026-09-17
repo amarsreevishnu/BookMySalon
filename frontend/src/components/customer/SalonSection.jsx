@@ -5,6 +5,19 @@ import api from "../../api/axios";
 
 const DEFAULT_SALONS = [
   {
+    id: 5,
+    name: "Apple Salon Sreekariyam",
+    location: "Sreekariyam Gandhipuarm, sreekariyam",
+    rating: "4.9",
+    openUntil: "8:30 PM",
+    price: "₹349+",
+    description: "Certified partner salon with premium hair styling & grooming.",
+    tags: ["Hair & Styling", "AC", "Certified"],
+    category: "Hair",
+    image:
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+  },
+  {
     id: 1,
     name: "Aura Luxe Salon & Spa",
     location: "Kowdiar, Thiruvananthapuram",
@@ -136,12 +149,15 @@ function SalonSection({
     <section className="customer-section">
       <div className="customer-section-heading">
         <div>
-          <span className="section-label">● OPEN NOW · REAL-TIME SLOTS</span>
-          <h2>Available Near You</h2>
+          <span className="section-label">● LIVE AVAILABILITY</span>
+          <h2>Available Salons Near You</h2>
+          <p className="section-subtitle">
+            Certified organic & verified venues open with slots available today
+          </p>
         </div>
 
         <div className="section-heading-actions">
-          <span>Showing verified salons</span>
+          <span className="section-side-text">Showing verified salons</span>
           <Link to="/salons" className="text-button">
             View all salons →
           </Link>
