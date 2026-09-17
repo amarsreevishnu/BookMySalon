@@ -23,6 +23,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
 import secrets
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework.views import APIView
 from .email_utils import send_salon_approval_email, send_salon_rejection_email
 
@@ -246,3 +247,176 @@ class ApprovedSalonListView(generics.ListAPIView):
             return approved.order_by("-created_at")
         # Fallback for preview/testing before admin approval
         return Salon.objects.all().order_by("-created_at")
+
+
+class OwnerDashboardView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        salon = None
+
+        if user and user.is_authenticated and hasattr(user, "salons"):
+            salon = user.salons.first()
+
+        if not salon:
+            salon = Salon.objects.first()
+
+        salon_name = salon.name if salon else "ABC Salon & Spa - Indiranagar Flagship"
+        salon_city = salon.city if salon else "Indiranagar, Bangalore"
+        salon_category = salon.category if salon else "Hair & Styling • Spa"
+        outlet_code = f"#{salon.id:02d}" if salon else "#04"
+
+        data = {
+            "salon_info": {
+                "id": salon.id if salon else 1,
+                "name": salon_name,
+                "city": salon_city,
+                "category": salon_category,
+                "outlet_code": outlet_code,
+                "is_open": True,
+                "approval_status": salon.approval_status if salon else "APPROVED",
+            },
+            "kpi_stats": {
+                "bookings": {"value": 24, "trend": "+12% vs yesterday", "trend_type": "positive"},
+                "revenue": {"value": 8450, "formatted": "₹8,450", "trend": "+18% target pacing", "trend_type": "positive"},
+                "completed": {"value": 15, "trend": "+9% turnaround", "trend_type": "positive"},
+                "cancelled": {"value": 2, "trend": "-1% low attrition", "trend_type": "warning"},
+                "upcoming": {"value": 7, "trend": "+8% booked slots", "trend_type": "positive"},
+            },
+            "today_schedule": [
+                {
+                    "id": 101,
+                    "time": "10:00 AM",
+                    "client_name": "Vishnu Prasad",
+                    "station": "Station 01",
+                    "stylist": "Rahul",
+                    "service": "Haircut & Styling",
+                    "duration": "45 mins",
+                    "status": "In Progress",
+                    "action_label": "Check In",
+                },
+                {
+                    "id": 102,
+                    "time": "10:30 AM",
+                    "client_name": "Meera Nair",
+                    "station": "Station 02",
+                    "stylist": "Anjali",
+                    "service": "Hydra Facial",
+                    "duration": "60 mins",
+                    "status": "Arrived",
+                    "action_label": "Seat Client",
+                },
+                {
+                    "id": 103,
+                    "time": "11:00 AM",
+                    "client_name": "Vikram Singhania",
+                    "station": "Station 03",
+                    "stylist": "Rahul",
+                    "service": "Royal Beard Sculpt",
+                    "duration": "30 mins",
+                    "status": "Confirmed",
+                    "action_label": "Send Reminder",
+                },
+            ],
+            "staff_on_duty": [
+                {
+                    "id": 1,
+                    "name": "Rahul Sharma",
+                    "station": "Station 01",
+                    "role": "Senior Hair Stylist",
+                    "rating": 4.9,
+                    "booked_count": 8,
+                    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+                    "is_active": True,
+                },
+                {
+                    "id": 2,
+                    "name": "Anjali Sen",
+                    "station": "Station 02",
+                    "role": "Skin & Spa Specialist",
+                    "rating": 4.95,
+                    "booked_count": 6,
+                    "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
+                    "is_active": True,
+                },
+            ],
+            "revenue_progression": {
+                "peak_window": "11 AM - 1 PM",
+                "daily_accrued": "₹8,450",
+                "target": "₹12,000",
+                "hours": [
+                    {"time": "9 AM", "amount": 650, "height_pct": 35, "is_peak": False, "pos_amount": 450, "online_amount": 200},
+                    {"time": "10 AM", "amount": 1400, "height_pct": 60, "is_peak": False, "pos_amount": 900, "online_amount": 500},
+                    {"time": "11 AM", "amount": 2600, "height_pct": 95, "is_peak": True, "pos_amount": 1800, "online_amount": 800},
+                    {"time": "12 PM", "amount": 2100, "height_pct": 82, "is_peak": False, "pos_amount": 1400, "online_amount": 700},
+                    {"time": "1 PM", "amount": 1100, "height_pct": 50, "is_peak": False, "pos_amount": 700, "online_amount": 400},
+                    {"time": "2 PM", "amount": 600, "height_pct": 25, "is_peak": False, "pos_amount": 400, "online_amount": 200},
+                ],
+            },
+            "popular_services": [
+                {
+                    "id": 1,
+                    "name": "Haircut & Styling",
+                    "icon": "scissors",
+                    "bookings": 32,
+                    "contribution_pct": 58,
+                    "avg_price": "₹450",
+                },
+                {
+                    "id": 2,
+                    "name": "Facial & Cleanups",
+                    "icon": "sparkles",
+                    "bookings": 18,
+                    "contribution_pct": 32,
+                    "avg_price": "₹1,200",
+                },
+                {
+                    "id": 3,
+                    "name": "Spa & Hair Rituals",
+                    "icon": "lotus",
+                    "bookings": 12,
+                    "contribution_pct": 21,
+                    "avg_price": "₹1,650",
+                },
+            ],
+        }
+        return Response(data)
+
+
+class OwnerQuickWalkInView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        client_name = request.data.get("client_name", "").strip()
+        service = request.data.get("service", "Haircut & Styling").strip()
+        stylist = request.data.get("stylist", "Rahul").strip()
+        station = request.data.get("station", "Station 01").strip()
+        duration = request.data.get("duration", "45 mins").strip()
+
+        if not client_name:
+            return Response(
+                {"error": "Client name is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        walk_in = {
+            "id": int(timezone.now().timestamp()),
+            "time": timezone.now().strftime("%I:%M %p"),
+            "client_name": client_name,
+            "station": station,
+            "stylist": stylist,
+            "service": service,
+            "duration": duration,
+            "status": "In Progress",
+            "action_label": "Check In",
+        }
+        return Response(
+            {
+                "message": f"Walk-in for {client_name} registered successfully!",
+                "appointment": walk_in,
+            },
+            status=status.HTTP_201_CREATED,
+        )

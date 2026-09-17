@@ -10,7 +10,7 @@ import GoogleCallback from "../pages/GoogleCallback";
 import CustomerHome from "../pages/CustomerHome";
 // import Profile from "../pages/customer/Profile";
 
-// import OwnerDashboard from "../pages/owner/OwnerDashboard";
+import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
@@ -43,9 +43,11 @@ function AppRoutes() {
         <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 
-      {/* <Route element={<RoleRoute allowedRoles={["OWNER"]} />}> */}
-        {/* <Route path="/owner-dashboard" element={<OwnerDashboard />} /> */}
-      {/* </Route> */}
+      <Route element={<RoleRoute allowedRoles={["OWNER", "ADMIN"]} />}>
+        <Route path="/owner/dashboard" element={<OwnerDashboard />} />
+        <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+        <Route path="/owner" element={<OwnerDashboard />} />
+      </Route>
 
       {/* <Route path="*" element={<NotFound />} /> */}
     </Routes>

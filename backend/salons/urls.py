@@ -4,6 +4,8 @@ from .views import (
     AdminDashboardStatsView,
     AdminSalonListView,
     ApprovedSalonListView,
+    OwnerDashboardView,
+    OwnerQuickWalkInView,
     PendingSalonListView,
     SalonApprovalView,
     SalonCreateView,
@@ -11,6 +13,16 @@ from .views import (
 
 
 urlpatterns = [
+    path(
+        "owner/dashboard/",
+        OwnerDashboardView.as_view(),
+        name="owner-dashboard",
+    ),
+    path(
+        "owner/walk-in/",
+        OwnerQuickWalkInView.as_view(),
+        name="owner-quick-walk-in",
+    ),
     path(
         "create/",
         SalonCreateView.as_view(),
