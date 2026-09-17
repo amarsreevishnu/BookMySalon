@@ -1,11 +1,13 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getRoleDashboardPath } from "../utils/roleUtils";
 
 function PublicRoute() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   if (token) {
-    return <Navigate to="/customer-home" replace />;
+    const target = getRoleDashboardPath(user);
+    return <Navigate to={target} replace />;
   }
 
   return <Outlet />;

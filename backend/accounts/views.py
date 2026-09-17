@@ -116,6 +116,8 @@ class LoginView(generics.GenericAPIView):
                     "role": user.role,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
+                    "is_superuser": user.is_superuser,
+                    "is_staff": user.is_staff,
                 },
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
@@ -145,6 +147,8 @@ def google_success(request):
         "role": user.role,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "is_superuser": user.is_superuser,
+        "is_staff": user.is_staff,
     }
 
     params = urlencode(

@@ -1,6 +1,11 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { getRoleDashboardPath } from "../utils/roleUtils";
 
 function Navbar() {
+  const { token, user } = useAuth();
+  const dashboardPath = getRoleDashboardPath(user);
+
   return (
     <header className="navbar">
       <Link to="/" className="brand">
@@ -15,13 +20,25 @@ function Navbar() {
       </nav>
 
       <div className="nav-actions">
-        <Link to="/login" className="login-link">
-          Log in
-        </Link>
+        {token ? (
+          <Link to={dashboardPath} className="nav-button">
+            {user?.role === "ADMIN" || user?.is_superuser
+              ? "Admin Dashboard →"
+              : user?.role === "OWNER"
+              ? "Owner Dashboard →"
+              : "My Dashboard →"}
+          </Link>
+        ) : (
+          <>
+            <Link to="/login" className="login-link">
+              Log in
+            </Link>
 
-        <Link to="/register" className="nav-button">
-          Sign up
-        </Link>
+            <Link to="/register" className="nav-button">
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
     </header>
   );

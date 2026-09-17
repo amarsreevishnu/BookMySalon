@@ -11,6 +11,7 @@ import CustomerHome from "../pages/CustomerHome";
 
 // import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
+import AdminDashboard from "../pages/admin/AdminDashboard";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -30,9 +31,14 @@ function AppRoutes() {
         <Route path="/register" element={<Register />} />
       </Route>
 
-      <Route element={<PrivateRoute />}>
+      <Route element={<RoleRoute allowedRoles={["CUSTOMER"]} />}>
         <Route path="/customer-home" element={<CustomerHome />} />
         {/* <Route path="/profile" element={<Profile />} /> */}
+      </Route>
+
+      <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 
       {/* <Route element={<RoleRoute allowedRoles={["OWNER"]} />}> */}

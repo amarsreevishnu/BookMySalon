@@ -6,13 +6,21 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() =>
     localStorage.getItem("access_token")
   );
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  });
 
-  const login = (accessToken, refreshToken, user) => {
+  const login = (accessToken, refreshToken, userData) => {
     localStorage.setItem("access_token", accessToken);
     localStorage.setItem("refresh_token", refreshToken);
-    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("user", JSON.stringify(userData));
 
     setToken(accessToken);
+    setUser(userData);
   };
 
   const logout = () => {
@@ -21,10 +29,11 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("user");
 
     setToken(null);
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, login, logout }}>
+    <AuthContext.Provider value={{ token, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

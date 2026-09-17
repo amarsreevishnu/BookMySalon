@@ -55,10 +55,10 @@ function Login() {
             
             
             // Navigate based on user role
-            if (user.role === "OWNER") {
-                navigate("/owner/dashboard");
-            } else if (user.role === "ADMIN") {
+            if (user.role === "ADMIN" || user.is_superuser) {
                 navigate("/admin/dashboard");
+            } else if (user.role === "OWNER") {
+                navigate("/owner/dashboard");
             } else {
                 navigate("/customer-home");
             }
