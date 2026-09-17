@@ -1,13 +1,28 @@
 from django.urls import path
 
-from .views import RegisterView, LoginView, google_success
-
+from .views import (
+    LoginView,
+    RegisterView,
+    ResendOTPView,
+    VerifyOTPView,
+    google_success,
+)
 
 urlpatterns = [
     path(
         "register/",
         RegisterView.as_view(),
         name="register",
+    ),
+    path(
+        "verify-otp/",
+        VerifyOTPView.as_view(),
+        name="verify_otp",
+    ),
+    path(
+        "resend-otp/",
+        ResendOTPView.as_view(),
+        name="resend_otp",
     ),
     path(
         "login/",

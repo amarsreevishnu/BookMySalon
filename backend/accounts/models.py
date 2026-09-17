@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
 
 class UserManager(BaseUserManager):
@@ -57,3 +59,19 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+class PendingRegistration(models.Model):
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+
+    first_name = models.CharField(max_length=100, blank=True)
+    last_name = models.CharField(max_length=100, blank=True)
+
+    otp = models.CharField(max_length=6)
+    otp_created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_otp_expired(self):
+        return timezone.now() > self.otp_created_at + timedelta(seconds=60)

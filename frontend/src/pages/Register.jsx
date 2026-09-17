@@ -1,12 +1,15 @@
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import GoogleButton from "../components/auth/GoogleButton";
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
+import { useAuth } from "../context/AuthContext";
 
 function Register() {
     const navigate = useNavigate();
+    const { login } = useAuth();
+
+    const [step, setStep] = useState("DETAILS"); // "DETAILS" | "OTP"
 
     const [formData, setFormData] = useState({
         email: "",
@@ -15,31 +18,60 @@ function Register() {
         last_name: "",
     });
 
+    const [otp, setOtp] = useState("");
     const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const [loading, setLoading] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+
+    const [countdown, setCountdown] = useState(60);
+    const [timerActive, setTimerActive] = useState(false);
+
+    useEffect(() => {
+        let interval = null;
+        if (timerActive && countdown > 0) {
+            interval = setInterval(() => {
+                setCountdown((prev) => prev - 1);
+            }, 1000);
+        } else if (countdown === 0) {
+            setTimerActive(false);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [timerActive, countdown]);
 
     const handleChange = (event) => {
         const { name, value } = event.target;
-
         setFormData((prevData) => ({
             ...prevData,
             [name]: value,
         }));
     };
 
-    const handleSubmit = async (event) => {
+    const handleOtpChange = (event) => {
+        const value = event.target.value.replace(/\D/g, "").slice(0, 6);
+        setOtp(value);
+    };
+
+    // Step 1: Submit Details & Request OTP
+    const handleDetailsSubmit = async (event) => {
         event.preventDefault();
 
         setError("");
+        setSuccessMessage("");
         setLoading(true);
 
         try {
-            await api.post("/accounts/register/", formData);
-
-            navigate("/login");
-        } catch (error) {
-            const responseData = error.response?.data;
-
+            const response = await api.post("/accounts/register/", formData);
+            setStep("OTP");
+            setCountdown(60);
+            setTimerActive(true);
+            setSuccessMessage(
+                response.data?.message || "Verification code sent to your email."
+            );
+        } catch (err) {
+            const responseData = err.response?.data;
             if (typeof responseData === "object" && responseData !== null) {
                 setError(
                     Object.values(responseData)
@@ -56,94 +88,268 @@ function Register() {
         }
     };
 
+    // Step 2: Submit OTP & Complete Registration
+    const handleOtpSubmit = async (event) => {
+        event.preventDefault();
+
+        if (otp.length !== 6) {
+            setError("Please enter a valid 6-digit verification code.");
+            return;
+        }
+
+        if (countdown === 0) {
+            setError("Verification code has expired. Please click 'Resend code' to get a new code.");
+            return;
+        }
+
+        setError("");
+        setSuccessMessage("");
+        setLoading(true);
+
+        try {
+            const response = await api.post("/accounts/verify-otp/", {
+                email: formData.email,
+                otp: otp,
+            });
+
+            const { access, refresh, user } = response.data;
+            if (access && refresh && user) {
+                login(access, refresh, user);
+                navigate("/customer-home", { replace: true });
+            } else {
+                navigate("/login", {
+                    replace: true,
+                    state: { error: "Registration completed. Please log in." },
+                });
+            }
+        } catch (err) {
+            const responseData = err.response?.data;
+            if (typeof responseData === "object" && responseData !== null) {
+                setError(
+                    Object.values(responseData)
+                        .flat()
+                        .join(" ")
+                );
+            } else {
+                setError(
+                    responseData || "Verification failed. Please try again."
+                );
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Resend OTP
+    const handleResendOtp = async () => {
+        if (timerActive || resendLoading) return;
+
+        setError("");
+        setSuccessMessage("");
+        setResendLoading(true);
+
+        try {
+            const response = await api.post("/accounts/resend-otp/", {
+                email: formData.email,
+            });
+            setSuccessMessage(
+                response.data?.message || "A new code has been sent to your email."
+            );
+            setCountdown(60);
+            setTimerActive(true);
+            setOtp("");
+        } catch (err) {
+            const responseData = err.response?.data;
+            if (typeof responseData === "object" && responseData !== null) {
+                setError(
+                    Object.values(responseData)
+                        .flat()
+                        .join(" ")
+                );
+            } else {
+                setError(
+                    responseData || "Failed to resend code. Please try again."
+                );
+            }
+        } finally {
+            setResendLoading(false);
+        }
+    };
+
+    const handleBackToDetails = () => {
+        setStep("DETAILS");
+        setError("");
+        setSuccessMessage("");
+        setOtp("");
+        setTimerActive(false);
+    };
+
     return (
         <AuthLayout
-            title="Create your account"
-            description="Join BookMySalon and discover your next beauty experience."
-            footerText="Already have an account?"
-            footerLinkText="Login"
+            title={step === "DETAILS" ? "Create your account" : "Verify your email"}
+            description={
+                step === "DETAILS"
+                    ? "Join BookMySalon and discover your next beauty experience."
+                    : "Enter the 6-digit verification code sent to your inbox."
+            }
+            footerText={
+                step === "DETAILS"
+                    ? "Already have an account?"
+                    : "Need help signing in?"
+            }
+            footerLinkText={step === "DETAILS" ? "Login" : "Go to login"}
             footerLink="/login"
         >
-          <GoogleButton />
-            <form className="auth-form" onSubmit={handleSubmit}>
-                {/* Email */}
-                <div className="form-field">
-                    <label htmlFor="email">EMAIL</label>
+            {step === "DETAILS" ? (
+                <>
+                    <GoogleButton />
 
-                    <input
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        placeholder="you@example.com"
-                        required
-                    />
-                </div>
+                    <div className="auth-divider">
+                        <span>OR SIGN UP WITH EMAIL</span>
+                    </div>
 
-                {/* Password */}
-                <div className="form-field">
-                    <label htmlFor="password">PASSWORD</label>
+                    <form className="auth-form" onSubmit={handleDetailsSubmit}>
+                        {/* Email */}
+                        <div className="form-field">
+                            <label htmlFor="email">EMAIL</label>
+                            <input
+                                id="email"
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                placeholder="you@example.com"
+                                required
+                            />
+                        </div>
 
-                    <input
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder="Minimum 8 characters"
-                        minLength={8}
-                        required
-                    />
-                </div>
+                        {/* Password */}
+                        <div className="form-field">
+                            <label htmlFor="password">PASSWORD</label>
+                            <input
+                                id="password"
+                                type="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                placeholder="Minimum 8 characters"
+                                minLength={8}
+                                required
+                            />
+                        </div>
 
-                {/* First and Last Name */}
-                <div className="form-row">
+                        {/* First and Last Name */}
+                        <div className="form-row">
+                            <div className="form-field">
+                                <label htmlFor="first_name">FIRST NAME</label>
+                                <input
+                                    id="first_name"
+                                    type="text"
+                                    name="first_name"
+                                    value={formData.first_name}
+                                    onChange={handleChange}
+                                    placeholder="First name"
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-field">
+                                <label htmlFor="last_name">LAST NAME</label>
+                                <input
+                                    id="last_name"
+                                    type="text"
+                                    name="last_name"
+                                    value={formData.last_name}
+                                    onChange={handleChange}
+                                    placeholder="Last name"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Error Message */}
+                        {error && <pre className="auth-error">{error}</pre>}
+
+                        {/* Submit */}
+                        <button
+                            type="submit"
+                            className="auth-submit-button"
+                            disabled={loading}
+                        >
+                            {loading ? "Sending verification code..." : "Continue"}
+                        </button>
+                    </form>
+                </>
+            ) : (
+                <form className="auth-form" onSubmit={handleOtpSubmit}>
+                    {/* Target Email Info */}
+                    <div className="otp-target-info">
+                        <span className="otp-target-text">
+                            Sent to <strong>{formData.email}</strong>
+                        </span>
+                        <button
+                            type="button"
+                            className="otp-change-email-btn"
+                            onClick={handleBackToDetails}
+                        >
+                            Change
+                        </button>
+                    </div>
+
+                    {/* OTP Input */}
                     <div className="form-field">
-                        <label htmlFor="first_name">FIRST NAME</label>
-
+                        <label htmlFor="otp">VERIFICATION CODE</label>
                         <input
-                            id="first_name"
+                            id="otp"
+                            name="otp"
                             type="text"
-                            name="first_name"
-                            value={formData.first_name}
-                            onChange={handleChange}
-                            placeholder="First name"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            className="otp-input-field"
+                            placeholder="000000"
+                            maxLength={6}
+                            value={otp}
+                            onChange={handleOtpChange}
+                            autoFocus
                             required
                         />
                     </div>
 
-                    <div className="form-field">
-                        <label htmlFor="last_name">LAST NAME</label>
-
-                        <input
-                            id="last_name"
-                            type="text"
-                            name="last_name"
-                            value={formData.last_name}
-                            onChange={handleChange}
-                            placeholder="Last name"
-                            required
-                        />
+                    {/* Resend Row */}
+                    <div className="otp-resend-container">
+                        <span>Didn&apos;t receive the code?</span>
+                        <button
+                            type="button"
+                            className="otp-resend-button"
+                            onClick={handleResendOtp}
+                            disabled={timerActive || resendLoading}
+                        >
+                            {timerActive
+                                ? `Resend in ${countdown}s`
+                                : resendLoading
+                                ? "Sending..."
+                                : "Resend code"}
+                        </button>
                     </div>
-                </div>
 
-                {/* Error Message */}
-                {error && (
-                    <pre className="auth-error">
-                        {error}
-                    </pre>
-                )}
+                    {/* Success Message */}
+                    {successMessage && (
+                        <div className="auth-success">{successMessage}</div>
+                    )}
 
-                {/* Submit */}
-                <button
-                    type="submit"
-                    className="auth-submit-button"
-                    disabled={loading}
-                >
-                    {loading ? "Creating account..." : "Create account"}
-                </button>
-            </form>
+                    {/* Error Message */}
+                    {error && <pre className="auth-error">{error}</pre>}
+
+                    {/* Submit */}
+                    <button
+                        type="submit"
+                        className="auth-submit-button"
+                        disabled={loading || otp.length !== 6}
+                    >
+                        {loading ? "Verifying..." : "Verify & Complete Registration"}
+                    </button>
+                </form>
+            )}
         </AuthLayout>
     );
 }
