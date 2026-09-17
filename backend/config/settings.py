@@ -205,3 +205,5 @@ HEADLESS_FRONTEND_URLS = {
         "http://localhost:5173/login"
     ),
 }
+
+LOGIN_REDIRECT_URL = "http://localhost:8000/api/v1/accounts/google-success/"

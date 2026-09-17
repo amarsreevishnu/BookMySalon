@@ -42,3 +42,4 @@ class LoginView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
+
