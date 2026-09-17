@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import SalonCard from "./SalonCard";
+import api from "../api/axios";
 
-const salons = [
+const DEFAULT_SALONS = [
   {
     name: "Maison Beauty Lounge",
     location: "Kowdiar, Trivandrum",
@@ -31,6 +33,39 @@ const salons = [
 ];
 
 function PopularSalons() {
+  const [salons, setSalons] = useState(DEFAULT_SALONS);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/salons/")
+      .then((res) => {
+        if (isMounted && res.data && res.data.length > 0) {
+          const mapped = res.data.map((s) => ({
+            name: s.name,
+            location: s.city
+              ? `${s.city}, ${s.state || ""}`.trim().replace(/,$/, "")
+              : s.address,
+            description: s.description || "Luxury hair and beauty services",
+            price: "From ₹399",
+            rating: "4.9",
+            image:
+              s.cover_image ||
+              (s.images && s.images[0]) ||
+              "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=85",
+          }));
+          setSalons(mapped);
+        }
+      })
+      .catch(() => {
+        // Fallback to default curated list
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section className="section-container" id="salons">
       <div className="section-heading">

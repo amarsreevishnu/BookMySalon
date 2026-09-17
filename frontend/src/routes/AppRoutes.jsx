@@ -10,7 +10,7 @@ import CustomerHome from "../pages/CustomerHome";
 // import Profile from "../pages/customer/Profile";
 
 // import OwnerDashboard from "../pages/owner/OwnerDashboard";
-// import CreateSalon from "../pages/owner/CreateSalon";
+import CreateSalon from "../pages/owner/CreateSalon";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -21,6 +21,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/google-callback" element={<GoogleCallback />} />
+      <Route path="/salon-application" element={<CreateSalon />} />
+      <Route path="/create-salon" element={<CreateSalon />} />
+      <Route path="/owner/create-salon" element={<CreateSalon />} />
 
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />
@@ -34,7 +37,6 @@ function AppRoutes() {
 
       {/* <Route element={<RoleRoute allowedRoles={["OWNER"]} />}> */}
         {/* <Route path="/owner-dashboard" element={<OwnerDashboard />} /> */}
-        {/* <Route path="/owner/create-salon" element={<CreateSalon />} /> */}
       {/* </Route> */}
 
       {/* <Route path="*" element={<NotFound />} /> */}

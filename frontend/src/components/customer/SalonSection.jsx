@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import SalonCard from "./SalonCard";
+import api from "../../api/axios";
 
-const salons = [
+const DEFAULT_SALONS = [
   {
     id: 1,
     name: "Aura Luxe Salon & Spa",
@@ -59,6 +61,56 @@ function SalonSection({
   selectedCategory,
   selectedFilter,
 }) {
+  const [salons, setSalons] = useState(DEFAULT_SALONS);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/salons/")
+      .then((res) => {
+        if (isMounted && res.data && res.data.length > 0) {
+          const mapped = res.data.map((s) => ({
+            id: s.id,
+            name: s.name,
+            location: s.city
+              ? `${s.city}, ${s.state || ""}`.trim().replace(/,$/, "")
+              : s.address,
+            rating: "4.9",
+            openUntil: "9:00 PM",
+            price: "₹399+",
+            description:
+              s.description ||
+              "Premium salon treatments and expert stylists.",
+            category: s.category?.toLowerCase().includes("hair")
+              ? "Hair"
+              : s.category?.toLowerCase().includes("nail")
+              ? "Nails"
+              : s.category?.toLowerCase().includes("skin")
+              ? "Skin"
+              : s.category?.toLowerCase().includes("spa")
+              ? "Spa"
+              : s.category || "Hair",
+            tags:
+              s.amenities && s.amenities.length > 0
+                ? s.amenities.slice(0, 3)
+                : [s.category || "Hair"],
+            image:
+              s.cover_image ||
+              (s.images && s.images[0]) ||
+              "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85",
+          }));
+          setSalons(mapped);
+        }
+      })
+      .catch(() => {
+        // Fallback to default list
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   let filteredSalons = [...salons];
 
   if (selectedCategory !== "All") {

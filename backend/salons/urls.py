@@ -29,4 +29,9 @@ urlpatterns = [
         ApprovedSalonListView.as_view(),
         name="approved-salons",
     ),
+    path(
+        "",
+        ApprovedSalonListView.as_view(),
+        name="salon-list",
+    ),
 ]
