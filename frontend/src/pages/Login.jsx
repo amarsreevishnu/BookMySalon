@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 // import { loginUser } from "../services/authService";
 
@@ -13,6 +13,7 @@ import GoogleButton from "../components/auth/GoogleButton";
 
 function Login() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [formData, setFormData] = useState({
         email: "",
@@ -21,7 +22,9 @@ function Login() {
 
     const { login } = useAuth();
     
-    const [error, setError] = useState("");
+    const [error, setError] = useState(
+        () => location.state?.error || new URLSearchParams(location.search).get("error") || ""
+    );
     const [loading, setLoading] = useState(false);
 
     const handleChange = (event) => {

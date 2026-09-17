@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import RegisterView,LoginView
+from .views import RegisterView, LoginView, google_success
 
 
 urlpatterns = [
@@ -14,6 +14,9 @@ urlpatterns = [
         LoginView.as_view(),
         name="login",
     ),
-
-    
+    path(
+        "google-success/",
+        google_success,
+        name="google_success",
+    ),
 ]

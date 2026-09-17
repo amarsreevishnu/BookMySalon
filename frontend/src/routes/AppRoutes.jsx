@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import LandingPage from "../pages/LandingPage";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import GoogleCallback from "../pages/GoogleCallback";
 // import NotFound from "../pages/public/NotFound";
 
 import CustomerHome from "../pages/CustomerHome";
@@ -19,6 +20,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/google-callback" element={<GoogleCallback />} />
 
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />

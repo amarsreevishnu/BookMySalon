@@ -2,7 +2,7 @@
 function GoogleButton() {
   const handleGoogleLogin = () => {
     window.location.href =
-      "http://localhost:8000/accounts/google/login/";
+      "http://localhost:8000/accounts/google/login/?process=login";
   };
 
   return (

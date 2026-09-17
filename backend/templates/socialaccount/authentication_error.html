@@ -1,0 +1,26 @@
+{% extends "socialaccount/base_entrance.html" %}
+{% load i18n %}
+{% load allauth %}
+{% block head_title %}
+    {% trans "Third-Party Login Failure" %}
+{% endblock head_title %}
+{% block content %}
+    {% element h1 %}
+        {% trans "Third-Party Login Failure" %}
+    {% endelement %}
+    {% element p %}
+        {% trans "An error occurred while attempting to login via your third-party account." %}
+    {% endelement %}
+    {% if auth_error.exception %}
+        <div style="margin-top: 15px; padding: 12px; background: #fee2e2; color: #b91c1c; border-radius: 6px; font-family: monospace; word-break: break-word;">
+            <strong>Error Details:</strong> {{ auth_error.exception }}
+        </div>
+    {% endif %}
+    {% if auth_error.code %}
+        <p><small>Error code: {{ auth_error.code }}</small></p>
+    {% endif %}
+    <p style="margin-top: 20px;">
+        <a href="http://localhost:5173/login" style="padding: 10px 18px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; display: inline-block;">Return to Login</a>
+    </p>
+{% endblock content %}
+
