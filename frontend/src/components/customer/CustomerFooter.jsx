@@ -4,14 +4,13 @@ function CustomerFooter() {
   return (
     <footer className="customer-footer">
       <div className="customer-footer-brand">
-        <Link to="/customer-home" className="customer-brand">
-          <span className="customer-brand-icon">✂</span>
-
-          <div>
-            <strong>BookMySalon</strong>
-            <small>BEAUTY & WELLNESS</small>
-          </div>
-        </Link>
+        <Link to="/customer-home" className="explore-brand-group">
+            <div className="explore-brand-icon">✂</div>
+            <div className="explore-brand-titles">
+              <span className="explore-brand-name">BookMySalon</span>
+              <span className="explore-brand-sub">ORGANIC WELLNESS</span>
+            </div>
+          </Link>
 
         <p>
           Your trusted destination for effortless beauty, wellness,

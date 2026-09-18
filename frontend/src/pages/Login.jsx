@@ -20,6 +20,8 @@ function Login() {
         password: "",
     });
 
+    const [showPassword, setShowPassword] = useState(false);
+
     const { login } = useAuth();
     
     const [error, setError] = useState(
@@ -55,8 +57,6 @@ function Login() {
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
             console.log("Login response:", response.data);
-            // Store authentication data
-            
             
             // Navigate based on user role
             if (user.role === "ADMIN" || user.is_superuser) {
@@ -84,71 +84,83 @@ function Login() {
     };
 
     return (
-        
         <AuthLayout
             title="Welcome back"
-            description="Log in to continue your BookMySalon experience."
+            description="Log in to explore curated salons and manage your appointments."
             footerText="Don't have an account?"
             footerLinkText="Create account"
             footerLink="/register"
         >
-            
-            <form className="auth-form" onSubmit={handleSubmit}>
+            <form className="auth-form" onSubmit={handleSubmit} noValidate={false}>
                 {/* Google Login */}
-                
-                     <GoogleButton />
+                <GoogleButton />
                     
                 <div className="auth-divider">
-                    <span>OR LOGIN WITH EMAIL</span>
+                    <span>OR CONTINUE WITH EMAIL</span>
                 </div>
 
                 {/* Email */}
                 <div className="form-field">
-                    <label htmlFor="email">EMAIL</label>
-
-                    <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="jane@example.com"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                    />
+                    <label htmlFor="email">EMAIL ADDRESS</label>
+                    <div className="auth-input-wrapper">
+                        <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            placeholder="jane@example.com"
+                            value={formData.email}
+                            onChange={handleChange}
+                            autoComplete="email"
+                            required
+                        />
+                    </div>
                 </div>
 
                 {/* Password */}
                 <div className="form-field">
-                    <label htmlFor="password">PASSWORD</label>
-
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={formData.password}
-                        onChange={handleChange}
-                        required
-                    />
-                </div>
-
-                {/* Forgot Password */}
-                <div className="forgot-password">
-                    <Link to="/forgot-password">Forgot password?</Link>
+                    <div className="form-field-header">
+                        <label htmlFor="password">PASSWORD</label>
+                        <Link to="/forgot-password" className="forgot-password-link">
+                            Forgot password?
+                        </Link>
+                    </div>
+                    <div className="auth-input-wrapper password-wrapper">
+                        <input
+                            id="password"
+                            name="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={formData.password}
+                            onChange={handleChange}
+                            autoComplete="current-password"
+                            required
+                        />
+                        <button
+                            type="button"
+                            className="password-toggle-btn"
+                            onClick={() => setShowPassword(!showPassword)}
+                            title={showPassword ? "Hide password" : "Show password"}
+                            tabIndex="-1"
+                        >
+                            {showPassword ? "👁️" : "👁️‍🗨️"}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Success Message */}
                 {successMessage && (
                     <div className="auth-success">
-                        {successMessage}
+                        <span className="auth-alert-icon">✓</span>
+                        <span>{successMessage}</span>
                     </div>
                 )}
 
                 {/* Error Message */}
                 {error && (
-                    <pre className="auth-error">
-                        {error}
-                    </pre>
+                    <div className="auth-error">
+                        <span className="auth-alert-icon">⚠️</span>
+                        <span>{error}</span>
+                    </div>
                 )}
 
                 {/* Submit */}
@@ -157,7 +169,14 @@ function Login() {
                     className="auth-submit-button"
                     disabled={loading}
                 >
-                    {loading ? "Logging in..." : "Log In"}
+                    {loading ? (
+                        <span className="btn-loading-content">
+                            <span className="auth-spinner"></span>
+                            <span>Signing In...</span>
+                        </span>
+                    ) : (
+                        <span>Sign In →</span>
+                    )}
                 </button>
             </form>
         </AuthLayout>

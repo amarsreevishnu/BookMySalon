@@ -35,6 +35,21 @@ const DEFAULT_SALONS = [
 
 function PopularSalons() {
   const [salons, setSalons] = useState(DEFAULT_SALONS);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [favorites, setFavorites] = useState(new Set());
+
+  const toggleFavorite = (salonName, e) => {
+    e.stopPropagation();
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(salonName)) {
+        next.delete(salonName);
+      } else {
+        next.add(salonName);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -43,13 +58,15 @@ function PopularSalons() {
       .then((res) => {
         if (isMounted && res.data && res.data.length > 0) {
           const mapped = res.data.map((s) => ({
+            id: s.id,
             name: s.name,
             location: s.city
               ? `${s.city}, ${s.state || ""}`.trim().replace(/,$/, "")
               : s.address,
-            description: s.description || "Luxury hair and beauty services",
-            price: "From ₹399",
+            description: s.description || "Certified organic treatments & master stylists",
+            price: "From ₹349",
             rating: "4.9",
+            category: s.category || "Hair & Styling",
             image:
               s.cover_image ||
               (s.images && s.images[0]) ||
@@ -67,22 +84,76 @@ function PopularSalons() {
     };
   }, []);
 
+  const filteredSalons = salons.filter((s) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Top Rated") return parseFloat(s.rating) >= 4.8;
+    if (activeFilter === "Hair") return (s.category || "").toLowerCase().includes("hair");
+    if (activeFilter === "Spa") return (s.category || "").toLowerCase().includes("spa");
+    return true;
+  });
+
   return (
     <section className="section-container" id="salons">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">DISCOVER YOUR NEXT EXPERIENCE</span>
-          <h2>Nearby & Popular Salons</h2>
+          <span className="eyebrow">LIVE AVAILABILITY</span>
+          <h2>Nearby & Top-Rated Salons</h2>
         </div>
 
         <Link to="/salons" className="text-button">
-          View all salons →
+          View all salons ({salons.length}) →
         </Link>
       </div>
 
+      {/* Interactive Filter Pills */}
+      <div className="landing-filter-pills">
+        {["All", "Top Rated", "Hair", "Spa"].map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={`landing-tab-btn ${activeFilter === tab ? "active" : ""}`}
+            onClick={() => setActiveFilter(tab)}
+          >
+            {tab === "Top Rated" ? "★ Top Rated" : tab}
+          </button>
+        ))}
+      </div>
+
       <div className="salon-grid">
-        {salons.map((salon) => (
-          <SalonCard salon={salon} key={salon.name} />
+        {filteredSalons.slice(0, 6).map((salon) => (
+          <article className="salon-card interactive-salon-card" key={salon.name}>
+            <div className="salon-image-wrapper">
+              <img src={salon.image} alt={salon.name} />
+              <span className="salon-rating">★ {salon.rating}</span>
+              {/* <button
+                type="button"
+                className={`landing-fav-btn ${favorites.has(salon.name) ? "favorited" : ""}`}
+                onClick={(e) => toggleFavorite(salon.name, e)}
+                title={favorites.has(salon.name) ? "Remove from favorites" : "Save to favorites"}
+              >
+                {favorites.has(salon.name) ? "♥" : "♡"}
+              </button> */}
+              <span className="salon-live-chip">⚡ Instant Slot</span>
+            </div>
+
+            <div className="salon-card-content">
+              <span className="salon-location">📍 {salon.location}</span>
+              <h3 title={salon.name}>{salon.name}</h3>
+              <p>{salon.description}</p>
+
+              <div className="salon-card-bottom">
+                <div className="salon-price-info">
+                  <small>Tariff starts</small>
+                  <strong>{salon.price}</strong>
+                </div>
+
+                <Link to="/salons" className="small-button">
+                  <span>Book Slot</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
+          </article>
         ))}
       </div>
     </section>

@@ -25,8 +25,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/google-callback" element={<GoogleCallback />} />
       <Route path="/salon-application" element={<CreateSalon />} />
-      <Route path="/create-salon" element={<CreateSalon />} />
-      <Route path="/owner/create-salon" element={<CreateSalon />} />
+      {/* <Route path="/create-salon" element={<CreateSalon />} /> */}
+      {/* <Route path="/owner/create-salon" element={<CreateSalon />} /> */}
 
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />
