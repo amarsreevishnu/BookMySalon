@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
+import { resolveImageUrl } from "../../utils/imageUtils";
+import AdminSidebar from "../../components/admin/AdminSidebar";
 import "../../styles/adminDashboard.css";
 
 const REGIONAL_HUBS = [
@@ -92,6 +94,10 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error("Failed to load admin dashboard data:", err);
+      if (err.response?.status === 401) {
+        setToastMessage("Session expired. Redirecting to login...");
+        setTimeout(() => navigate("/login"), 1500);
+      }
     } finally {
       setLoadingSalons(false);
     }
@@ -219,149 +225,20 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Left Sidebar */}
-      <aside className="admin-sidebar">
-        <div className="admin-brand-header">
-          <div className="admin-brand-icon">B</div>
-          <div className="admin-brand-info">
-            <h2>BookMySalon</h2>
-            <span className="admin-brand-domain">admin.bookmysalon.com</span>
-          </div>
-        </div>
-
-        {/* Super Admin Profile Snippet */}
-        <div className="admin-profile-card">
-          <div className="admin-avatar">
-            {currentUser.first_name?.[0] || currentUser.email?.[0] || "A"}
-          </div>
-          <div className="admin-profile-meta">
-            <div className="admin-name">
-              {currentUser.first_name || currentUser.email?.split("@")[0] || "Super Admin"}
-            </div>
-            <span className="admin-role-badge">Root Operator</span>
-          </div>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="admin-nav-menu">
-          <button type="button" className="admin-nav-item active">
-            <div className="admin-nav-left">
-              <span>📊</span>
-              <span>Dashboard</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>👥</span>
-              <span>Users</span>
-            </div>
-            <span className="admin-nav-badge">{stats.registered_users}</span>
-          </button>
-
-          <button
-            type="button"
-            className="admin-nav-item"
-            onClick={() => setActiveTab("ALL")}
-          >
-            <div className="admin-nav-left">
-              <span>🏪</span>
-              <span>Salons</span>
-            </div>
-            <span className="admin-nav-badge">{salons.length || stats.total_salons}</span>
-          </button>
-
-          <button
-            type="button"
-            className="admin-nav-item"
-            onClick={() => {
-              setActiveTab("PENDING");
-              const queue = document.getElementById("approvals-queue");
-              if (queue) queue.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            <div className="admin-nav-left">
-              <span>⚡</span>
-              <span>Salon Approvals</span>
-            </div>
-            {pendingCount > 0 ? (
-              <span className="admin-nav-badge urgent">{pendingCount} Urgent</span>
-            ) : (
-              <span className="admin-nav-badge">0</span>
-            )}
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>📅</span>
-              <span>Bookings</span>
-            </div>
-            <span className="admin-nav-badge">{stats.month_bookings}</span>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>✂️</span>
-              <span>Services</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>💰</span>
-              <span>Earnings</span>
-            </div>
-            <span className="admin-nav-badge">₹45K</span>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>📈</span>
-              <span>Analytics</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>⭐</span>
-              <span>Reviews</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>🏷️</span>
-              <span>Offers</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>🛡️</span>
-              <span>Security</span>
-            </div>
-          </button>
-
-          <button type="button" className="admin-nav-item">
-            <div className="admin-nav-left">
-              <span>⚙️</span>
-              <span>Settings</span>
-            </div>
-          </button>
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div className="admin-sidebar-footer">
-          <div className="admin-system-status-btn">
-            <span className="admin-system-dot" />
-            <span>All Systems Operational</span>
-          </div>
-          <div className="admin-system-version">Version v3.2.1 • US-East-1</div>
-          <button type="button" className="admin-logout-btn" onClick={handleLogout}>
-            Sign Out
-          </button>
-        </div>
-      </aside>
+      {/* Left Sidebar Navigation */}
+      <AdminSidebar
+        pendingCount={pendingCount}
+        salonsCount={salons.length || stats.total_salons}
+        usersCount={stats.registered_users}
+        bookingsCount={stats.month_bookings}
+        activeTab={activeTab}
+        onSelectPendingTab={() => {
+          setActiveTab("PENDING");
+          const queue = document.getElementById("approvals-queue");
+          if (queue) queue.scrollIntoView({ behavior: "smooth" });
+        }}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content Area */}
       <main className="admin-main">
@@ -582,13 +459,34 @@ export default function AdminDashboard() {
           <div className="admin-queue-card" id="approvals-queue">
             <div className="admin-queue-header">
               <div className="admin-queue-title-wrap">
-                <div className="admin-queue-title-row">
-                  <h2>Priority Salon Approvals Queue</h2>
-                  {pendingCount > 0 && (
-                    <span className="admin-queue-urgent-pill">
-                      {pendingCount} Pending Review
-                    </span>
-                  )}
+                <div className="admin-queue-title-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <h2>Priority Salon Approvals Queue</h2>
+                    {pendingCount > 0 && (
+                      <span className="admin-queue-urgent-pill">
+                        {pendingCount} Pending Review
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    to="/admin/salons"
+                    className="admin-btn-view"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      background: "rgba(35,77,52,0.08)",
+                      color: "#234d34",
+                      textDecoration: "none",
+                      border: "1px solid rgba(35,77,52,0.2)",
+                    }}
+                  >
+                    Manage Full Directory →
+                  </Link>
                 </div>
                 <p className="admin-queue-desc">
                   Applications waiting for Super Admin inspection, background verification, compliance check, and platform credentials dispatch.
@@ -662,11 +560,9 @@ export default function AdminDashboard() {
                           <div className="admin-salon-cell">
                             <div className="admin-salon-thumb">
                               <img
-                                src={
-                                  salon.cover_image ||
-                                  (salon.images && salon.images[0]) ||
-                                  "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&q=80"
-                                }
+                                src={resolveImageUrl(
+                                  salon.cover_image || (salon.images && salon.images[0])
+                                )}
                                 alt={salon.name}
                               />
                             </div>
@@ -916,12 +812,15 @@ export default function AdminDashboard() {
       {/* Review & Approve / Reject Modal */}
       {selectedSalon && (
         <div className="admin-modal-backdrop">
-          <div className="admin-review-modal">
+          <div className="admin-review-modal" style={{ maxWidth: "800px" }}>
             <div className="admin-modal-header">
               <div>
                 <h3>Salon Application Inspection</h3>
                 <span style={{ fontSize: "11px", color: "#6a7d71" }}>
                   ID #{selectedSalon.id} · Submitted by {selectedSalon.email}
+                  {selectedSalon.created_at && (
+                    <> • Registered {new Date(selectedSalon.created_at).toLocaleDateString()}</>
+                  )}
                 </span>
               </div>
               <button
@@ -940,17 +839,40 @@ export default function AdminDashboard() {
               {/* Hero Cover */}
               <div className="admin-modal-hero">
                 <img
-                  src={
-                    selectedSalon.cover_image ||
-                    (selectedSalon.images && selectedSalon.images[0]) ||
-                    "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
-                  }
+                  src={resolveImageUrl(
+                    selectedSalon.cover_image || (selectedSalon.images && selectedSalon.images[0])
+                  )}
                   alt={selectedSalon.name}
+                  onError={(e) => {
+                    e.target.src =
+                      "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80";
+                  }}
                 />
                 <span className="admin-modal-hero-badge">
                   Status: {selectedSalon.approval_status}
                 </span>
               </div>
+
+              {/* Photo Gallery Strip */}
+              {Array.isArray(selectedSalon.images) && selectedSalon.images.length > 0 && (
+                <div>
+                  <div className="admin-modal-info-label" style={{ marginBottom: 6 }}>
+                    Photo Gallery ({selectedSalon.images.length} photos)
+                  </div>
+                  <div className="admin-gallery-strip">
+                    {selectedSalon.images.map((imgUrl, idx) => (
+                      <img
+                        key={idx}
+                        src={resolveImageUrl(imgUrl)}
+                        alt={`Gallery photo ${idx + 1}`}
+                        className="admin-gallery-thumb"
+                        onClick={() => window.open(resolveImageUrl(imgUrl), "_blank")}
+                        title="Click to view full size in new tab"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Core Information Cards */}
               <div className="admin-modal-grid-2">
@@ -958,31 +880,130 @@ export default function AdminDashboard() {
                   <div className="admin-modal-info-label">Salon Title & Specialization</div>
                   <div className="admin-modal-info-value">{selectedSalon.name}</div>
                   <div style={{ fontSize: "11px", color: "#667a6e", marginTop: 4 }}>
-                    Category: {selectedSalon.category}
+                    Category: <strong>{selectedSalon.category || "General"}</strong>
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#667a6e", marginTop: 2 }}>
+                    Venue ID: <code>#{selectedSalon.id}</code>
                   </div>
                 </div>
 
                 <div className="admin-modal-info-card">
-                  <div className="admin-modal-info-label">Contact Details</div>
-                  <div className="admin-modal-info-value">{selectedSalon.phone}</div>
+                  <div className="admin-modal-info-label">Contact & Owner Details</div>
+                  <div className="admin-modal-info-value">📞 {selectedSalon.phone || "No phone"}</div>
                   <div style={{ fontSize: "11px", color: "#667a6e", marginTop: 4 }}>
-                    Official Email: {selectedSalon.email}
+                    ✉️ {selectedSalon.email}
+                  </div>
+                  <div style={{ fontSize: "11px", marginTop: 6 }}>
+                    <strong>Owner Account:</strong>{" "}
+                    {selectedSalon.owner ? (
+                      <span style={{ color: "#065f46", fontWeight: "600" }}>
+                        Linked (User ID #{selectedSalon.owner})
+                      </span>
+                    ) : (
+                      <span style={{ color: "#b45309", fontWeight: "600" }}>
+                        Pending Account Dispatch
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="admin-modal-info-card">
                   <div className="admin-modal-info-label">Physical Address</div>
                   <div className="admin-modal-info-value">
-                    {selectedSalon.address}, {selectedSalon.city}, {selectedSalon.state} - {selectedSalon.pincode}
+                    {selectedSalon.address}, {selectedSalon.city}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#667a6e", marginTop: 4 }}>
+                    {selectedSalon.state || "Karnataka"}, PIN: {selectedSalon.pincode || "N/A"}
                   </div>
                 </div>
 
                 <div className="admin-modal-info-card">
-                  <div className="admin-modal-info-label">GPS Geolocation</div>
+                  <div className="admin-modal-info-label">GPS Geolocation & Map</div>
                   <div className="admin-modal-info-value">
                     {selectedSalon.latitude || "12.9716"}° N, {selectedSalon.longitude || "77.5946"}° E
                   </div>
+                  {selectedSalon.latitude && selectedSalon.longitude && (
+                    <div style={{ marginTop: 6 }}>
+                      <a
+                        href={`https://maps.google.com/?q=${selectedSalon.latitude},${selectedSalon.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#234d34", fontWeight: "700", fontSize: "11px", textDecoration: "underline" }}
+                      >
+                        📍 View on Google Maps ↗
+                      </a>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Weekly Operating Schedule */}
+              <div>
+                <div className="admin-modal-info-label" style={{ marginBottom: 6 }}>
+                  Weekly Operating Schedule
+                </div>
+                {selectedSalon.opening_hours?.days &&
+                Array.isArray(selectedSalon.opening_hours.days) &&
+                selectedSalon.opening_hours.days.length > 0 ? (
+                  <div className="admin-schedule-grid">
+                    {selectedSalon.opening_hours.days.map((day) => (
+                      <div
+                        key={day.day}
+                        className={`admin-day-chip ${day.isOpen ? "open" : "closed"}`}
+                      >
+                        <div className="admin-day-name">{day.day.slice(0, 3)}</div>
+                        <div className="admin-day-hours">
+                          {day.isOpen
+                            ? `${day.openTime || "09:00"} - ${day.closeTime || "20:00"}`
+                            : "Closed"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: "12px", color: "#61796b" }}>
+                    Standard Business Schedule: Monday to Saturday, 09:00 AM – 08:00 PM (Default).
+                  </p>
+                )}
+              </div>
+
+              {/* Services & Pricing Menu */}
+              <div>
+                <div className="admin-modal-info-label" style={{ marginBottom: 6 }}>
+                  Services & Pricing Menu ({Array.isArray(selectedSalon.services) ? selectedSalon.services.length : 0} configured)
+                </div>
+                {Array.isArray(selectedSalon.services) && selectedSalon.services.length > 0 ? (
+                  <div className="admin-services-table-wrap">
+                    <table className="admin-services-table">
+                      <thead>
+                        <tr>
+                          <th>Service Name</th>
+                          <th>Category</th>
+                          <th>Duration</th>
+                          <th style={{ textAlign: "right" }}>Price (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedSalon.services.map((srv, idx) => (
+                          <tr key={srv.id || idx}>
+                            <td style={{ fontWeight: "600", color: "#172a1d" }}>{srv.name}</td>
+                            <td style={{ color: "#546e5f" }}>{srv.category || selectedSalon.category}</td>
+                            <td style={{ color: "#6c8577" }}>{srv.duration || "30 mins"}</td>
+                            <td style={{ textAlign: "right" }}>
+                              <span className="admin-service-price-pill">
+                                {String(srv.price).startsWith("₹") ? srv.price : `₹${srv.price}`}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "12px", color: "#728779", fontStyle: "italic" }}>
+                    No custom pricing services configured for this salon.
+                  </div>
+                )}
               </div>
 
               {/* Description */}
@@ -998,7 +1019,9 @@ export default function AdminDashboard() {
               {/* Amenities */}
               {selectedSalon.amenities && selectedSalon.amenities.length > 0 && (
                 <div className="admin-modal-info-card">
-                  <div className="admin-modal-info-label">Configured Amenities</div>
+                  <div className="admin-modal-info-label">
+                    Configured Amenities ({selectedSalon.amenities.length})
+                  </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                     {selectedSalon.amenities.map((a, i) => (
                       <span
@@ -1016,6 +1039,13 @@ export default function AdminDashboard() {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Previous Admin Notes if present */}
+              {selectedSalon.admin_notes && (
+                <div className="admin-modal-notes-box">
+                  <strong>Previous Admin Feedback / Notes:</strong> {selectedSalon.admin_notes}
                 </div>
               )}
 
@@ -1053,18 +1083,24 @@ export default function AdminDashboard() {
 
             {/* Modal Footer Actions */}
             <div className="admin-modal-footer">
-              <button
-                type="button"
-                className="admin-btn-view"
-                onClick={() => {
-                  setSelectedSalon(null);
-                  setShowRejectInput(false);
-                }}
-              >
-                Close
-              </button>
+              <div style={{ fontSize: "11px", color: "#7a8e80" }}>
+                {selectedSalon.updated_at
+                  ? `Last updated: ${new Date(selectedSalon.updated_at).toLocaleString()}`
+                  : `Venue ID #${selectedSalon.id}`}
+              </div>
 
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="admin-btn-view"
+                  onClick={() => {
+                    setSelectedSalon(null);
+                    setShowRejectInput(false);
+                  }}
+                >
+                  Close
+                </button>
+
                 {showRejectInput ? (
                   <button
                     type="button"

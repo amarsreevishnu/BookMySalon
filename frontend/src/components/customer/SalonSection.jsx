@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SalonCard from "./SalonCard";
 import api from "../../api/axios";
+import { resolveImageUrl } from "../../utils/imageUtils";
 
 const DEFAULT_SALONS = [
   {
@@ -108,10 +109,9 @@ function SalonSection({
               s.amenities && s.amenities.length > 0
                 ? s.amenities.slice(0, 3)
                 : [s.category || "Hair"],
-            image:
-              s.cover_image ||
-              (s.images && s.images[0]) ||
-              "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85",
+            image: resolveImageUrl(
+              s.cover_image || (s.images && s.images[0])
+            ),
           }));
           setSalons(mapped);
         }

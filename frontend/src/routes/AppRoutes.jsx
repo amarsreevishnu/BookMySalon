@@ -14,6 +14,8 @@ import SalonsExplore from "../pages/customer/SalonsExplore";
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
 import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminSalonsList from "../pages/admin/AdminSalonsList";
+import AdminUserList from "../pages/admin/AdminUserList";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -43,6 +45,8 @@ function AppRoutes() {
 
       <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/salons" element={<AdminSalonsList />} />
+        <Route path="/admin/users" element={<AdminUserList />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 

@@ -1,0 +1,537 @@
+/* ==========================================================================
+   Super Admin - Customer Users Management Stylesheet
+   Luxury BookMySalon Admin Design Language
+   ========================================================================== */
+
+/* User Thumbnail Avatar */
+.asl-user-thumb-wrap {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.asl-user-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #d8e5dc;
+  background: #234d34;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.asl-user-thumb-online {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+}
+
+.asl-user-thumb-blocked {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #ffffff;
+}
+
+.asl-user-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.asl-user-name-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #172a1d;
+  line-height: 1.3;
+}
+
+.asl-user-id-sub {
+  font-size: 11px;
+  color: #7b9183;
+}
+
+/* Icon-Only Action Buttons */
+.asl-icon-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asl-action-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d5e2d8;
+  background: #ffffff;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+  color: #2d4c38;
+}
+
+.asl-action-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+.asl-action-icon-btn:active {
+  transform: translateY(0);
+}
+
+.asl-action-icon-btn.view {
+  color: #1b4d30;
+  background: #f7faf8;
+  border-color: #c8dacd;
+}
+
+.asl-action-icon-btn.view:hover {
+  background: #ebf5ee;
+  border-color: #234d34;
+  color: #234d34;
+}
+
+.asl-action-icon-btn.block {
+  color: #dc2626;
+  background: #fffafa;
+  border-color: #fed7d7;
+}
+
+.asl-action-icon-btn.block:hover {
+  background: #fee2e2;
+  border-color: #dc2626;
+}
+
+.asl-action-icon-btn.unblock {
+  color: #059669;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.asl-action-icon-btn.unblock:hover {
+  background: #dcfce7;
+  border-color: #059669;
+}
+
+/* ==========================================================================
+   View User Modal Styles
+   ========================================================================== */
+.asl-modal-backdrop.user-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(14, 26, 18, 0.72) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+}
+
+.asl-modal-panel.user-modal-panel {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  width: 100% !important;
+  max-width: 600px !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3) !important;
+  overflow: hidden !important;
+  animation: userModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  position: relative !important;
+  margin: auto !important;
+  border: 1px solid #e0ebe3 !important;
+}
+
+@keyframes userModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.asl-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e8f0ea;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fbfdfb;
+}
+
+.asl-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.asl-modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #798f81;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.asl-modal-close-btn:hover {
+  background: #edf2ee;
+  color: #172a1d;
+}
+
+.asl-modal-body {
+  padding: 22px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Modal User Profile Hero */
+.asl-modal-user-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 20px;
+  background: #f4f8f5;
+  border-radius: 12px;
+  border: 1px solid #e0ebe3;
+}
+
+.asl-modal-user-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #234d34;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.asl-modal-user-titles h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #16291c;
+}
+
+.asl-modal-user-titles p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #556c5e;
+}
+
+.asl-modal-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.asl-badge-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+}
+
+.asl-badge-pill.customer {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.asl-badge-pill.active {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.asl-badge-pill.blocked {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* User Info Box Grids */
+.asl-info-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 600px) {
+  .asl-info-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.asl-info-box {
+  background: #f8faf8;
+  border: 1px solid #e3ebe5;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.asl-info-box-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #63796c;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.asl-info-box-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a3022;
+  word-break: break-word;
+}
+
+.asl-info-box-sub {
+  font-size: 11px;
+  color: #71887a;
+  margin-top: 3px;
+}
+
+.asl-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e8f0ea;
+  background: #fbfdfb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.asl-modal-footer-left {
+  font-size: 12px;
+  color: #728a7b;
+}
+
+.asl-modal-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   User Confirmation Dialog Modal
+   ========================================================================== */
+.asl-dialog-panel.user-confirm-panel {
+  max-width: 460px !important;
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+  animation: userModalFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border: 1px solid #e2ece5 !important;
+}
+
+.user-confirm-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.user-confirm-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.user-confirm-text h3 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #172a1d;
+}
+
+.user-confirm-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #556c5e;
+  line-height: 1.5;
+}
+
+.user-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ==========================================================================
+   Admin Pagination Bar
+   ========================================================================== */
+.asl-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #ffffff;
+  border-top: 1px solid #e8f0ea;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.asl-pagination-info {
+  font-size: 13px;
+  color: #556c5e;
+}
+
+.asl-pagination-info strong {
+  color: #172a1d;
+  font-weight: 700;
+}
+
+.asl-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.asl-pagination-size-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #617769;
+  font-weight: 500;
+}
+
+.asl-select-compact {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #d5e2d8;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a29;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.asl-select-compact:focus {
+  border-color: #234d34;
+}
+
+.asl-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.asl-pagination-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #d5e2d8;
+  background: #ffffff;
+  color: #234d34;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.asl-pagination-btn:hover:not(:disabled):not(.active) {
+  background: #f0f5f1;
+  border-color: #b7cebf;
+  color: #16291c;
+}
+
+.asl-pagination-btn.active {
+  background: #234d34;
+  color: #ffffff;
+  border-color: #234d34;
+  cursor: default;
+}
+
+.asl-pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: #e5ece7;
+  color: #8fa396;
+}
+
+.asl-pagination-ellipsis {
+  padding: 0 4px;
+  font-size: 14px;
+  color: #7b9183;
+}
+
+@media (max-width: 768px) {
+  .asl-pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .asl-pagination-controls {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+

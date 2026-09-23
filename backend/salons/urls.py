@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AdminDashboardStatsView,
+    AdminSalonDetailView,
     AdminSalonListView,
     ApprovedSalonListView,
     CustomerSalonExploreView,
@@ -10,6 +11,8 @@ from .views import (
     PendingSalonListView,
     SalonApprovalView,
     SalonCreateView,
+    SalonResubmitDataView,
+    SalonResubmitView,
 )
 
 
@@ -35,6 +38,16 @@ urlpatterns = [
         name="salon-create",
     ),
     path(
+        "<int:pk>/resubmit-data/",
+        SalonResubmitDataView.as_view(),
+        name="salon-resubmit-data",
+    ),
+    path(
+        "<int:pk>/resubmit/",
+        SalonResubmitView.as_view(),
+        name="salon-resubmit",
+    ),
+    path(
         "admin/stats/",
         AdminDashboardStatsView.as_view(),
         name="admin-dashboard-stats",
@@ -43,6 +56,11 @@ urlpatterns = [
         "admin/salons/",
         AdminSalonListView.as_view(),
         name="admin-salon-list",
+    ),
+    path(
+        "admin/salons/<int:pk>/",
+        AdminSalonDetailView.as_view(),
+        name="admin-salon-detail",
     ),
     path(
         "admin/<int:pk>/decision/",

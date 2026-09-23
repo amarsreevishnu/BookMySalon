@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
+import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonsExplore.css";
 
 export default function SalonsExplore() {
@@ -774,7 +775,7 @@ export default function SalonsExplore() {
                   {/* Media Left */}
                   <div className="salon-card-media">
                     <img
-                      src={salon.image || "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85"}
+                      src={resolveImageUrl(salon.image)}
                       alt={salon.name}
                       className="salon-card-img"
                     />

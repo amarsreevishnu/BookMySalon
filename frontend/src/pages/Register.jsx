@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import GoogleButton from "../components/auth/GoogleButton";
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 function Register() {
     const navigate = useNavigate();

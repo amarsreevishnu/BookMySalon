@@ -7,6 +7,7 @@ class Salon(models.Model):
         PENDING = "PENDING", "Pending"
         APPROVED = "APPROVED", "Approved"
         REJECTED = "REJECTED", "Rejected"
+        BLOCKED = "BLOCKED", "Blocked"
 
     # Owner account is assigned upon Super Admin approval
     owner = models.ForeignKey(
@@ -42,6 +43,7 @@ class Salon(models.Model):
     # Operating Hours & Amenities (JSON storage for flexibility)
     opening_hours = models.JSONField(default=dict, blank=True)
     amenities = models.JSONField(default=list, blank=True)
+    services = models.JSONField(default=list, blank=True)
 
     # Photos
     cover_image = models.TextField(blank=True, default="")

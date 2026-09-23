@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 
 import CustomerHeader from "../components/customer/CustomerHeader";
 import CustomerHero from "../components/customer/CustomerHero";
@@ -13,8 +12,6 @@ import "../styles/customer-home.css";
 
 function CustomerHome() {
   const navigate = useNavigate();
-
-  const { logout } = useAuth();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");

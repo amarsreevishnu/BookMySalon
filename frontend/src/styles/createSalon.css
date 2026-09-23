@@ -304,6 +304,11 @@
   color: #6a449d;
 }
 
+.cs-card-icon.coral {
+  background: #fff1ec;
+  color: #c2410c;
+}
+
 .cs-card-header h2 {
   margin: 0 0 3px 0;
   font-family: "Playfair Display", Georgia, serif;
@@ -1269,6 +1274,360 @@
 }
 
 /* --------------------------------------------------------------------------
+   Services & Pricing Menu Builder (Card 4)
+   -------------------------------------------------------------------------- */
+.cs-service-builder-box {
+  background: #f8faf8;
+  border: 1px solid #dce6de;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cs-service-builder-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cs-builder-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: #eaf3ed;
+  color: #245037;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.cs-builder-subtitle {
+  font-size: 12px;
+  color: #64756b;
+}
+
+.cs-service-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cs-service-form-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.3fr 1fr;
+  gap: 12px;
+}
+
+.cs-price-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cs-currency-prefix {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #245037;
+  pointer-events: none;
+}
+
+.cs-price-input {
+  padding-left: 28px !important;
+}
+
+.cs-service-error-msg {
+  font-size: 12px;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.cs-service-form-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.cs-add-service-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1b3d2f;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(27, 61, 47, 0.2);
+}
+
+.cs-add-service-btn:hover {
+  background: #245037;
+  transform: translateY(-1px);
+}
+
+.cs-service-hint {
+  font-size: 11px;
+  color: #6c7c72;
+}
+
+.cs-presets-area {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #d6e2d8;
+}
+
+.cs-presets-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: #55675b;
+  margin-bottom: 8px;
+}
+
+.cs-presets-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cs-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #d5dfd7;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #2d4536;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-preset-chip:hover {
+  background: #eaf3ed;
+  border-color: #245037;
+  color: #172c1f;
+  transform: translateY(-1px);
+}
+
+.cs-preset-chip.is-added {
+  background: #edf5ee;
+  border-color: #9eccaa;
+  color: #1e3f2b;
+}
+
+.cs-preset-name {
+  font-weight: 500;
+}
+
+.cs-preset-price {
+  font-weight: 700;
+  color: #15803d;
+}
+
+/* Services active list */
+.cs-services-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cs-services-list-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.cs-services-list-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3426;
+}
+
+.cs-services-help {
+  font-size: 11px;
+  color: #6c7c72;
+}
+
+.cs-services-empty-state {
+  text-align: center;
+  padding: 32px 20px;
+  background: #fbfcfb;
+  border: 1px dashed #cbdad0;
+  border-radius: 10px;
+}
+
+.cs-empty-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+
+.cs-services-empty-state h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #22372a;
+}
+
+.cs-services-empty-state p {
+  margin: 0;
+  font-size: 12px;
+  color: #65756b;
+}
+
+.cs-services-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.cs-service-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #e1e8e3;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.cs-service-card-item:hover {
+  border-color: #245037;
+  box-shadow: 0 2px 6px rgba(36, 80, 55, 0.08);
+}
+
+.cs-service-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cs-service-item-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eaf3ed;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cs-service-item-details {
+  min-width: 0;
+}
+
+.cs-service-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #172a1e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-service-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.cs-service-cat-pill {
+  font-size: 10px;
+  font-weight: 500;
+  background: #f0f4f1;
+  color: #4b6253;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cs-service-dur-pill {
+  font-size: 10px;
+  color: #718277;
+}
+
+.cs-service-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.cs-service-item-price {
+  font-size: 14px;
+  font-weight: 700;
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.cs-service-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cs-service-delete-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+/* Live Preview Card additions */
+.cs-preview-services-preview {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  background: #f7faf8;
+  border-radius: 8px;
+  border: 1px solid #e7efe9;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cs-preview-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.cs-preview-service-name {
+  color: #3b5043;
+  font-weight: 500;
+  max-width: 170px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-preview-service-price {
+  font-weight: 700;
+  color: #15803d;
+}
+
+/* --------------------------------------------------------------------------
    Responsive Design
    -------------------------------------------------------------------------- */
 @media (max-width: 1024px) {
@@ -1294,7 +1653,8 @@
 
   .cs-form-row-2,
   .cs-form-row-3,
-  .cs-amenities-grid {
+  .cs-amenities-grid,
+  .cs-service-form-grid {
     grid-template-columns: 1fr;
   }
 

@@ -28,3 +28,63 @@ class OTPUtilsTestCase(TestCase):
             otp_created_at=timezone.now() - timedelta(seconds=30),
         )
         self.assertFalse(fresh_pending.is_otp_expired())
+
+
+from rest_framework.test import APITestCase
+from rest_framework import status
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class AdminUserManagementTestCase(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email="admin@example.com",
+            password="adminpassword123",
+            first_name="Admin",
+            last_name="Super",
+        )
+        self.customer = User.objects.create_user(
+            email="customer@example.com",
+            password="customerpassword123",
+            first_name="John",
+            last_name="Doe",
+            role=User.Role.CUSTOMER,
+        )
+        self.owner = User.objects.create_user(
+            email="owner@example.com",
+            password="ownerpassword123",
+            first_name="Jane",
+            last_name="Owner",
+            role=User.Role.OWNER,
+        )
+
+    def test_list_users_unauthorized(self):
+        res = self.client.get("/api/v1/accounts/admin/users/")
+        self.assertIn(res.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    def test_list_customers_only(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get("/api/v1/accounts/admin/users/?role=CUSTOMER")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # Should contain customer, but not owner
+        emails = [u["email"] for u in res.data]
+        self.assertIn(self.customer.email, emails)
+        self.assertNotIn(self.owner.email, emails)
+
+    def test_toggle_block_user(self):
+        self.client.force_authenticate(user=self.admin)
+        self.assertTrue(self.customer.is_active)
+
+        # Block customer
+        res = self.client.post(f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+
+        # Unblock customer
+        res = self.client.post(f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertTrue(self.customer.is_active)
+

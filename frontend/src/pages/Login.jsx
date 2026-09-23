@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 // import { loginUser } from "../services/authService";
 
 import api from "../api/axios";

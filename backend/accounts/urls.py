@@ -1,6 +1,11 @@
 from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+
 
 from .views import (
+    AdminUserDetailView,
+    AdminUserListView,
+    AdminUserToggleBlockView,
     ForgotPasswordRequestView,
     ForgotPasswordResendOTPView,
     ForgotPasswordVerifyOTPView,
@@ -54,8 +59,28 @@ urlpatterns = [
         name="login",
     ),
     path(
+        "token/refresh/",
+        TokenRefreshView.as_view(),
+        name="token_refresh",
+    ),
+    path(
         "google-success/",
         google_success,
         name="google_success",
+    ),
+    path(
+        "admin/users/",
+        AdminUserListView.as_view(),
+        name="admin_user_list",
+    ),
+    path(
+        "admin/users/<int:pk>/",
+        AdminUserDetailView.as_view(),
+        name="admin_user_detail",
+    ),
+    path(
+        "admin/users/<int:pk>/toggle-block/",
+        AdminUserToggleBlockView.as_view(),
+        name="admin_user_toggle_block",
     ),
 ]

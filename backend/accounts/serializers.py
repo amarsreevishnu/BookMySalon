@@ -1,12 +1,16 @@
 import secrets
+import re
+
 from datetime import timedelta
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
+
 from rest_framework import serializers
 
 from .models import PasswordResetOTP, PendingRegistration
 from .utils import generate_otp, send_otp_email, send_password_reset_otp_email
+from .validators import validate_name
 
 User = get_user_model()
 
@@ -17,14 +21,16 @@ class RegisterSerializer(serializers.Serializer):
         write_only=True,
         min_length=8,
     )
-    first_name = serializers.CharField(max_length=100, required=True)
-    last_name = serializers.CharField(max_length=100, required=True)
+    first_name = serializers.CharField(max_length=100, required=True, validators=[validate_name])
+    last_name = serializers.CharField(max_length=100, required=True, validators=[validate_name])
 
     def validate_email(self, value):
         email = value.strip().lower()
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return email
+
+
 
     def create(self, validated_data):
         email = validated_data["email"].lower()
@@ -353,3 +359,55 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
         # Delete the reset record so token can never be reused
         reset_record.delete()
         return user
+
+
+class UserSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "role",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "date_joined",
+            "last_login",
+            "avatar",
+        ]
+        read_only_fields = [
+            "id",
+            "date_joined",
+            "last_login",
+            "avatar",
+            "full_name",
+        ]
+
+    def get_full_name(self, obj):
+        name = f"{obj.first_name or ''} {obj.last_name or ''}".strip()
+        return name if name else (obj.email.split("@")[0] if obj.email else "User")
+
+    def get_avatar(self, obj):
+        try:
+            from allauth.socialaccount.models import SocialAccount
+
+            social = SocialAccount.objects.filter(user=obj).first()
+            if social and social.extra_data:
+                picture = (
+                    social.extra_data.get("picture")
+                    or social.extra_data.get("avatar_url")
+                    or social.extra_data.get("photo")
+                )
+                if picture:
+                    return picture
+        except Exception:
+            pass
+        return None
+
+

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SalonCard from "./SalonCard";
 import api from "../api/axios";
+import { resolveImageUrl } from "../utils/imageUtils";
 
 const DEFAULT_SALONS = [
   {
@@ -67,10 +68,9 @@ function PopularSalons() {
             price: "From ₹349",
             rating: "4.9",
             category: s.category || "Hair & Styling",
-            image:
-              s.cover_image ||
-              (s.images && s.images[0]) ||
-              "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=85",
+            image: resolveImageUrl(
+              s.cover_image || (s.images && s.images[0])
+            ),
           }));
           setSalons(mapped);
         }

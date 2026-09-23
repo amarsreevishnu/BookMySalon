@@ -7,28 +7,27 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import Salon
 from .serializers import SalonSerializer
 
-
-class OptionalJWTAuthentication(JWTAuthentication):
-    """
-    Authenticate if a valid token is provided, but do not fail with 401
-    if token is expired/invalid for AllowAny onboarding endpoints.
-    """
-    def authenticate(self, request):
-        try:
-            return super().authenticate(request)
-        except Exception:
-            return None
-
-
 import secrets
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.views import APIView
-from .email_utils import send_salon_approval_email, send_salon_rejection_email
+from .email_utils import (
+    send_salon_approval_email,
+    send_salon_rejection_email,
+    verify_salon_resubmit_token,
+)
+from .media_utils import build_full_media_url
 
 User = get_user_model()
 
+class OptionalJWTAuthentication(JWTAuthentication):
+    
+    def authenticate(self, request):
+        try:
+            return super().authenticate(request)
+        except Exception:
+            return None
 
 class IsOwner(IsAuthenticated):
     def has_permission(self, request, view):
@@ -55,7 +54,13 @@ class SalonCreateView(generics.CreateAPIView):
     authentication_classes = [OptionalJWTAuthentication]
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        if "cover_image" in request.FILES:
+            data["cover_image"] = request.FILES["cover_image"]
+        if "images" in request.FILES:
+            data["images"] = request.FILES.getlist("images")
+
+        serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
         owner = None
@@ -82,11 +87,147 @@ class SalonCreateView(generics.CreateAPIView):
         )
 
 
+class SalonResubmitDataView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get(self, request, pk):
+        try:
+            salon = Salon.objects.get(pk=pk)
+        except Salon.DoesNotExist:
+            return Response(
+                {"error": "Salon not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Resubmission links are strictly one-time and expire once the salon is resubmitted
+        if salon.approval_status != Salon.ApprovalStatus.REJECTED:
+            if salon.approval_status == Salon.ApprovalStatus.PENDING:
+                return Response(
+                    {
+                        "error": (
+                            "This resubmission link has expired because your application has already "
+                            "been resubmitted and is currently pending review by our Super Admin team."
+                        ),
+                        "status_code": "ALREADY_SUBMITTED",
+                        "salon_name": salon.name,
+                    },
+                    status=status.HTTP_410_GONE,
+                )
+            elif salon.approval_status == Salon.ApprovalStatus.APPROVED:
+                return Response(
+                    {
+                        "error": "This salon has already been approved! You can log in to your owner dashboard.",
+                        "status_code": "ALREADY_APPROVED",
+                        "salon_name": salon.name,
+                    },
+                    status=status.HTTP_410_GONE,
+                )
+            else:
+                return Response(
+                    {
+                        "error": "This resubmission link is no longer active.",
+                        "status_code": "LINK_INACTIVE",
+                        "salon_name": salon.name,
+                    },
+                    status=status.HTTP_410_GONE,
+                )
+
+        token = request.query_params.get("token")
+        is_owner = request.user.is_authenticated and salon.owner == request.user
+        is_admin = request.user.is_authenticated and (
+            getattr(request.user, "role", None) == "ADMIN"
+            or request.user.is_superuser
+            or request.user.is_staff
+        )
+        is_valid_token = token and verify_salon_resubmit_token(salon, token)
+
+        if not (is_valid_token or is_owner or is_admin):
+            return Response(
+                {"error": "Invalid or expired resubmission link. Please use the link sent to your email."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = SalonSerializer(salon, context={"request": request})
+        return Response(serializer.data)
+
+
+class SalonResubmitView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request, pk):
+        try:
+            salon = Salon.objects.get(pk=pk)
+        except Salon.DoesNotExist:
+            return Response(
+                {"error": "Salon not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if salon.approval_status != Salon.ApprovalStatus.REJECTED:
+            return Response(
+                {
+                    "error": (
+                        "This application cannot be resubmitted because it is no longer in rejected status "
+                        f"(current status: {salon.approval_status.lower()})."
+                    ),
+                    "status_code": "NOT_REJECTED",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token = request.query_params.get("token") or request.data.get("token")
+        is_owner = request.user.is_authenticated and salon.owner == request.user
+        is_admin = request.user.is_authenticated and (
+            getattr(request.user, "role", None) == "ADMIN"
+            or request.user.is_superuser
+            or request.user.is_staff
+        )
+        is_valid_token = token and verify_salon_resubmit_token(salon, token)
+
+        if not (is_valid_token or is_owner or is_admin):
+            return Response(
+                {"error": "Invalid or expired resubmission token."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        if "cover_image" in request.FILES:
+            data["cover_image"] = request.FILES["cover_image"]
+        if "images" in request.FILES:
+            data["images"] = request.FILES.getlist("images")
+
+        serializer = SalonSerializer(
+            salon,
+            data=data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        updated_salon = serializer.save(approval_status=Salon.ApprovalStatus.PENDING)
+
+        return Response(
+            {
+                "message": (
+                    "Application updated and resubmitted successfully! Our super admin team "
+                    "will re-review your updated details."
+                ),
+                "salon": SalonSerializer(updated_salon, context={"request": request}).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, pk):
+        return self.post(request, pk)
+
+
 class AdminDashboardStatsView(APIView):
     permission_classes = [IsAdminUserRole]
 
     def get(self, request):
-        total_users = User.objects.count()
+        total_users = User.objects.filter(role=User.Role.CUSTOMER).count()
         total_salons = Salon.objects.count()
         pending_salons = Salon.objects.filter(
             approval_status=Salon.ApprovalStatus.PENDING
@@ -97,6 +238,9 @@ class AdminDashboardStatsView(APIView):
         rejected_salons = Salon.objects.filter(
             approval_status=Salon.ApprovalStatus.REJECTED
         ).count()
+        blocked_salons = Salon.objects.filter(
+            approval_status=Salon.ApprovalStatus.BLOCKED
+        ).count()
 
         return Response(
             {
@@ -104,6 +248,7 @@ class AdminDashboardStatsView(APIView):
                 "active_salons": approved_salons,
                 "pending_salons": pending_salons,
                 "rejected_salons": rejected_salons,
+                "blocked_salons": blocked_salons,
                 "total_salons": total_salons,
                 "month_bookings": 1280,
                 "completed_sessions": 32500,
@@ -119,12 +264,18 @@ class AdminSalonListView(generics.ListAPIView):
     def get_queryset(self):
         queryset = Salon.objects.all().order_by("-created_at")
         status_param = self.request.query_params.get("status")
-        search = self.request.query_params.get("q")
+        search = self.request.query_params.get("search") or self.request.query_params.get("q")
+        category = self.request.query_params.get("category")
+        ordering = self.request.query_params.get("ordering")
 
-        if status_param and status_param != "all":
+        if status_param and status_param.lower() != "all":
             queryset = queryset.filter(approval_status=status_param.upper())
 
+        if category and category.lower() != "all":
+            queryset = queryset.filter(category__iexact=category)
+
         if search:
+            search = search.strip()
             queryset = queryset.filter(
                 Q(name__icontains=search)
                 | Q(city__icontains=search)
@@ -133,7 +284,18 @@ class AdminSalonListView(generics.ListAPIView):
                 | Q(category__icontains=search)
             )
 
+        if ordering:
+            allowed_orderings = ["-created_at", "created_at", "name", "-name", "city", "-city"]
+            if ordering in allowed_orderings:
+                queryset = queryset.order_by(ordering)
+
         return queryset
+
+
+class AdminSalonDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SalonSerializer
+    permission_classes = [IsAdminUserRole]
+    queryset = Salon.objects.all()
 
 
 class SalonApprovalView(generics.UpdateAPIView):
@@ -156,11 +318,13 @@ class SalonApprovalView(generics.UpdateAPIView):
         allowed_statuses = [
             Salon.ApprovalStatus.APPROVED,
             Salon.ApprovalStatus.REJECTED,
+            Salon.ApprovalStatus.PENDING,
+            Salon.ApprovalStatus.BLOCKED,
         ]
 
         if approval_status not in allowed_statuses:
             return Response(
-                {"error": "Status must be APPROVED or REJECTED."},
+                {"error": "Status must be APPROVED, REJECTED, PENDING, or BLOCKED."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -208,11 +372,23 @@ class SalonApprovalView(generics.UpdateAPIView):
             if salon.email:
                 send_salon_rejection_email(salon, admin_notes)
 
+        elif approval_status == Salon.ApprovalStatus.BLOCKED:
+            salon.approval_status = Salon.ApprovalStatus.BLOCKED
+            if admin_notes:
+                salon.admin_notes = admin_notes
+            salon.save()
+
+        elif approval_status == Salon.ApprovalStatus.PENDING:
+            salon.approval_status = Salon.ApprovalStatus.PENDING
+            if admin_notes:
+                salon.admin_notes = admin_notes
+            salon.save()
+
         serializer = self.get_serializer(salon)
         return Response(
             {
                 "message": (
-                    f"Salon {salon.name} has been {approval_status.lower()} successfully."
+                    f"Salon {salon.name} status updated to {approval_status.lower()} successfully."
                 ),
                 "salon": serializer.data,
                 "temp_password": temp_password if owner_created else None,
@@ -490,7 +666,10 @@ class CustomerSalonExploreView(APIView):
                 "price_tier": 2,
                 "services": services,
                 "purity_note": "Certified clean & botanical hygiene standards",
-                "image": s.cover_image or (s.images[0] if s.images else "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"),
+                "image": build_full_media_url(
+                    request,
+                    s.cover_image or (s.images[0] if s.images else "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80")
+                ),
                 "is_clean_purity": True,
                 "phone": s.phone or "+91 88481 94536",
                 "opening_hours": "9:00 AM – 8:30 PM",
