@@ -52,7 +52,7 @@ class RegisterSerializer(serializers.Serializer):
             },
         )
 
-        # Ensure otp_created_at is updated even on update_or_create
+        
         pending.otp_created_at = timezone.now()
         pending.save(update_fields=["otp_created_at"])
 

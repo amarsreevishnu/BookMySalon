@@ -472,16 +472,82 @@
 }
 
 /* --------------------------------------------------------------------------
-   AVAILABLE SALONS GRID & CARDS
+   AVAILABLE SALONS HORIZONTAL SCROLL & CARDS
    -------------------------------------------------------------------------- */
 
+.salon-scroll-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.salon-scroll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid #d4e0d7;
+  background: var(--customer-white);
+  color: var(--customer-dark);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--customer-shadow-sm);
+  padding: 0;
+}
+
+.salon-scroll-btn:hover:not(:disabled) {
+  background: var(--customer-dark);
+  color: #ffffff;
+  border-color: var(--customer-dark);
+  transform: scale(1.06);
+  box-shadow: var(--customer-shadow-md);
+}
+
+.salon-scroll-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.salon-scroll-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+  border-color: #e2e8e4;
+  background: #f8faf8;
+}
+
+.customer-salon-scroll-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+  padding: 4px 0 16px;
+}
+
 .customer-salon-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 22px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  padding: 10px 4px 18px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.customer-salon-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .customer-salon-card {
+  flex: 0 0 310px;
+  width: 310px;
+  min-width: 310px;
+  scroll-snap-align: start;
   overflow: hidden;
   border: 1.5px solid #e7eee9;
   border-radius: 16px;
@@ -890,10 +956,6 @@
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .customer-salon-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .offers-grid {
     grid-template-columns: 1fr;
   }
@@ -940,8 +1002,10 @@
     grid-template-columns: 1fr;
   }
 
-  .customer-salon-grid {
-    grid-template-columns: 1fr;
+  .customer-salon-card {
+    flex: 0 0 280px;
+    width: 280px;
+    min-width: 280px;
   }
 
   .customer-search {

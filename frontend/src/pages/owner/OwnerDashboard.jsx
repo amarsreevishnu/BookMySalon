@@ -9,6 +9,11 @@ export default function OwnerDashboard() {
   const { logout } = useAuth();
   const searchInputRef = useRef(null);
 
+  // for Modal 
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  
+  
+
   // Active sub-navigation tab
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [searchQuery, setSearchQuery] = useState("");
@@ -444,17 +449,56 @@ export default function OwnerDashboard() {
               alt="Owner Avatar"
               className="studio-user-avatar"
               title="Salon Manager"
-              onClick={() => {
-                if (window.confirm("Do you want to log out from Salon Studio?")) {
-                  logout();
-                  navigate("/login");
-                }
-              }}
+              onClick={() => setShowLogoutModal(true)}
             />
           </div>
         </div>
       </header>
+              {showLogoutModal && (
+                <div className="logout-modal-overlay">
+                  <div className="logout-modal">
 
+                    <div className="logout-modal-icon">
+                      <span>
+                        <img
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
+              alt="Owner Avatar"
+              className="studio-user-avatar"
+              title="Salon Manager"
+              
+            />
+                      </span>
+                    </div>
+
+                    <h3>Logout</h3>
+
+                    <p>
+                      Are you sure you want to logout from Salon Studio?
+                    </p>
+
+                    <div className="logout-modal-actions">
+                      <button
+                        className="cancel-btn"
+                        onClick={() => setShowLogoutModal(false)}
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        className="logout-btn"
+                        onClick={() => {
+                          logout();
+                          setShowLogoutModal(false);
+                          navigate("/login");
+                        }}
+                      >
+                        Logout
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+              )}
       {/* --------------------------------------------------------------------
           HORIZONTAL SUB-NAVIGATION TABS
           -------------------------------------------------------------------- */}

@@ -57,7 +57,7 @@ function Register() {
     // Step 1: Submit Details & Request OTP
     const handleDetailsSubmit = async (event) => {
         event.preventDefault();
-
+        
         setError("");
         setSuccessMessage("");
         setLoading(true);

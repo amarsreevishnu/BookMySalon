@@ -23,16 +23,16 @@ export default function SalonsExplore() {
   const searchParams = useMemo(() => new URLSearchParams(routeLocation.search), [routeLocation.search]);
 
   // Top Bar Search & Booking Inputs
-  const [locationParam, setLocationParam] = useState("Indiranagar, Bengaluru");
+  const [locationParam, setLocationParam] = useState("All Locations");
   const [treatmentQuery, setTreatmentQuery] = useState(() => searchParams.get("search") || "");
-  const [selectedDate, setSelectedDate] = useState("Today, 24 Oct");
-  const [timeWindow, setTimeWindow] = useState("2:00 PM – 5:00 PM");
+  const [selectedDate, setSelectedDate] = useState("Today");
+  const [timeWindow, setTimeWindow] = useState("All Day Slots");
 
   // Sidebar Filter States (clean defaults so all approved salons appear immediately)
   const [instantSlots, setInstantSlots] = useState(false);
   const [distanceRadius, setDistanceRadius] = useState("Any");
   const [minRating, setMinRating] = useState(0);
-  const [priceTier, setPriceTier] = useState(null); // null = all, 1 = <500, 2 = 500-1500, 3 = 1500+
+  const [priceTier, setPriceTier] = useState(null);
   const [atmosphere, setAtmosphere] = useState("All Salons");
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPurity, setSelectedPurity] = useState([]);
@@ -40,6 +40,10 @@ export default function SalonsExplore() {
   // Sorting & View mode
   const [sortBy, setSortBy] = useState("Recommended for You");
   const [viewMode, setViewMode] = useState("list");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
 
   // Favorites state
   const [savedFavorites, setSavedFavorites] = useState(new Set([1]));
@@ -77,8 +81,7 @@ export default function SalonsExplore() {
           setSalonsList(res.data.salons);
         }
       } catch (err) {
-        // Fallback to local curated items matching reference
-        console.log("Using curated partner salons for exploration", err);
+        console.log("Error loading salons for exploration", err);
       } finally {
         setLoading(false);
       }
@@ -86,145 +89,54 @@ export default function SalonsExplore() {
     fetchSalons();
   }, []);
 
+  // Dynamically extract locations from fetched salons
+  const availableLocations = useMemo(() => {
+    const locs = new Set();
+    salonsList.forEach((s) => {
+      if (s.city) locs.add(s.city);
+    });
+    return ["All Locations", ...Array.from(locs)];
+  }, [salonsList]);
+
+  // Dynamically extract categories & service tags from fetched salons
+  const availableCategories = useMemo(() => {
+    const catSet = new Set();
+    salonsList.forEach((s) => {
+      if (s.category) catSet.add(s.category);
+      if (s.tags && Array.isArray(s.tags)) {
+        s.tags.forEach((t) => catSet.add(t));
+      }
+    });
+    if (catSet.size === 0) {
+      return ["Hair & Styling", "AC", "Certified"];
+    }
+    return Array.from(catSet).slice(0, 6);
+  }, [salonsList]);
+
   // Filter salons dynamically
   const filteredSalons = useMemo(() => {
-    let list = salonsList.length > 0 ? [...salonsList] : [
-      {
-        id: 5,
-        name: "Apple Salon Sreekariyam",
-        badge: "● Verified Partner",
-        badge_type: "partner",
-        distance_km: 1.5,
-        address_line: "Sreekariyam Gandhipuarm",
-        city: "sreekariyam, Kerala",
-        tags: ["Hair & Styling", "Air Conditioned", "Card & UPI"],
-        gender_category: "unisex",
-        rating: 4.9,
-        review_count: 42,
-        has_instant_slot: true,
-        instant_slot_text: "Instant slot available today • Verified Partner",
-        price_tier: 2,
-        services: [
-          { name: "Haircut & Styling", price: "₹349", category: "hair" },
-          { name: "Organic Detox Spa", price: "₹899", category: "spa" },
-          { name: "Hydra Facial Glow", price: "₹999", category: "skin" },
-        ],
-        purity_note: "Certified clean & botanical hygiene standards",
-        image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
-        phone: "8848194536",
-        opening_hours: "9:00 AM – 8:30 PM",
-      },
-      {
-        id: 1,
-        name: "Aura Luxe Salon & Spa",
-        badge: "● Verified Organic",
-        badge_type: "organic",
-        distance_km: 1.2,
-        address_line: "12th Main, Indiranagar",
-        city: "Indiranagar, Bengaluru",
-        tags: ["Unisex", "AC"],
-        gender_category: "unisex",
-        rating: 4.9,
-        review_count: 128,
-        has_instant_slot: true,
-        instant_slot_text: "Instant Slot available in 15 mins (2:30 PM)",
-        price_tier: 2,
-        services: [
-          {"name": "Haircut & Styling", "price": "₹300", "category": "hair"},
-          {"name": "Organic Hair Spa", "price": "₹1,000", "category": "spa"},
-          {"name": "Deep Tissue Massage", "price": "₹1,400", "category": "massage"},
-        ],
-        purity_note: "Botanical products only",
-        image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85",
-        phone: "+91 98450 12345",
-        opening_hours: "9:00 AM – 9:00 PM",
-      },
-      {
-        id: 2,
-        name: "Urban Glow Hair Studio",
-        badge: "🏷 20% OFF",
-        badge_type: "promo",
-        distance_km: 2.1,
-        address_line: "CMH Road, Indiranagar",
-        city: "Indiranagar, Bengaluru",
-        tags: ["Women-Only", "Organic Hair-Care"],
-        gender_category: "women-only",
-        rating: 4.7,
-        review_count: 94,
-        has_instant_slot: true,
-        instant_slot_text: "Next slot at 3:15 PM • Flat 20% OFF on first booking",
-        price_tier: 2,
-        services: [
-          {"name": "Haircut & Blowdry", "price": "₹450", "category": "hair"},
-          {"name": "Botanical Facial", "price": "₹850", "category": "skin"},
-          {"name": "Nourishing Hair Spa", "price": "₹950", "category": "spa"},
-        ],
-        purity_note: "Cruelty-free botanical dyes only",
-        image: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=85",
-        phone: "+91 98450 23456",
-        opening_hours: "9:30 AM – 8:30 PM",
-      },
-      {
-        id: 3,
-        name: "The Grooming Club",
-        badge: "👑 Men's Luxury",
-        badge_type: "luxury",
-        distance_km: 2.4,
-        address_line: "100 Feet Road, Indiranagar",
-        city: "Indiranagar, Bengaluru",
-        tags: ["Men's Luxury Grooming"],
-        gender_category: "men's care",
-        rating: 4.8,
-        review_count: 107,
-        has_instant_slot: true,
-        instant_slot_text: "Instant Slot available now • Zero waiting",
-        price_tier: 1,
-        services: [
-          {"name": "Precision Haircut", "price": "₹350", "category": "hair"},
-          {"name": "Deluxe Beard Trim", "price": "₹200", "category": "beard"},
-          {"name": "Head & Shoulder Spa", "price": "₹800", "category": "spa"},
-        ],
-        purity_note: "Cold-pressed & jojoba oils ritual",
-        image: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=85",
-        phone: "+91 98450 34567",
-        opening_hours: "10:00 AM – 9:30 PM",
-      },
-      {
-        id: 4,
-        name: "Verdant Nail & Skin Sanctuary",
-        badge: "🌿 Cruelty-Free & Eco",
-        badge_type: "eco",
-        distance_km: 2.8,
-        address_line: "Defence Colony, Indiranagar",
-        city: "Indiranagar, Bengaluru",
-        tags: ["Unisex", "Eco Studio"],
-        gender_category: "unisex",
-        rating: 5.0,
-        review_count: 219,
-        has_instant_slot: true,
-        instant_slot_text: "Available today from 4:00 PM • 🎁 Free Herbal Tea & Scalp Massage",
-        price_tier: 2,
-        services: [
-          {"name": "Botanical Facial", "price": "₹750", "category": "skin"},
-          {"name": "Ayurvedic Spa Ritual", "price": "₹1,200", "category": "spa"},
-          {"name": "Gel Manicure", "price": "₹400", "category": "nails"},
-        ],
-        purity_note: "100% Vegan non-toxic formulas",
-        image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=85",
-        phone: "+91 98450 45678",
-        opening_hours: "9:00 AM – 8:00 PM",
-      },
-    ];
+    let list = salonsList.length > 0 ? [...salonsList] : [];
 
     // Filter by text search
     if (treatmentQuery.trim()) {
       const q = treatmentQuery.toLowerCase();
       list = list.filter(
         (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.address_line.toLowerCase().includes(q) ||
-          s.services.some((srv) => srv.name.toLowerCase().includes(q)) ||
-          s.tags.some((t) => t.toLowerCase().includes(q))
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (s.address_line && s.address_line.toLowerCase().includes(q)) ||
+          (s.city && s.city.toLowerCase().includes(q)) ||
+          (s.services && Array.isArray(s.services) && s.services.some((srv) => srv.name && srv.name.toLowerCase().includes(q))) ||
+          (s.tags && Array.isArray(s.tags) && s.tags.some((t) => t.toLowerCase().includes(q)))
+      );
+    }
+
+    // Filter by location
+    if (locationParam !== "All Locations") {
+      const loc = locationParam.toLowerCase();
+      list = list.filter(
+        (s) =>
+          (s.city && s.city.toLowerCase().includes(loc)) ||
+          (s.address_line && s.address_line.toLowerCase().includes(loc))
       );
     }
 
@@ -235,7 +147,18 @@ export default function SalonsExplore() {
       list = list.filter(
         (s) =>
           s.tags?.some((t) => t.toLowerCase().includes(cat)) ||
-          s.services?.some((srv) => srv.name.toLowerCase().includes(cat) || (srv.category && srv.category.toLowerCase().includes(cat)))
+          s.services?.some((srv) => srv.name?.toLowerCase().includes(cat) || (srv.category && srv.category.toLowerCase().includes(cat)))
+      );
+    }
+
+    // Filter by selected services / tags from sidebar
+    if (selectedServices.length > 0) {
+      list = list.filter((s) =>
+        selectedServices.some(
+          (sel) =>
+            s.tags?.some((t) => t.toLowerCase().includes(sel.toLowerCase())) ||
+            s.services?.some((srv) => srv.name?.toLowerCase().includes(sel.toLowerCase()))
+        )
       );
     }
 
@@ -245,7 +168,7 @@ export default function SalonsExplore() {
       list = list.filter(
         (s) =>
           s.gender_category?.toLowerCase().includes(atm) ||
-          s.tags.some((t) => t.toLowerCase().includes(atm))
+          s.tags?.some((t) => t.toLowerCase().includes(atm))
       );
     }
 
@@ -254,15 +177,9 @@ export default function SalonsExplore() {
       list = list.filter((s) => s.has_instant_slot);
     }
 
-    // Filter by distance
-    if (distanceRadius !== "Any") {
-      const maxKm = parseInt(distanceRadius, 10) || 5;
-      list = list.filter((s) => s.distance_km <= maxKm);
-    }
-
     // Filter by Min Rating
     if (minRating > 0) {
-      list = list.filter((s) => s.rating >= minRating);
+      list = list.filter((s) => (s.rating || 0) >= minRating);
     }
 
     // Filter by Price Tier
@@ -272,16 +189,18 @@ export default function SalonsExplore() {
 
     // Sorting
     if (sortBy === "Highest Rated") {
-      list.sort((a, b) => b.rating - a.rating);
+      list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     } else if (sortBy === "Nearest Distance") {
-      list.sort((a, b) => a.distance_km - b.distance_km);
+      list.sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
     }
 
     return list;
   }, [
     salonsList,
     treatmentQuery,
+    locationParam,
     searchParams,
+    selectedServices,
     atmosphere,
     instantSlots,
     distanceRadius,
@@ -289,6 +208,65 @@ export default function SalonsExplore() {
     priceTier,
     sortBy,
   ]);
+
+  // Reset pagination when search, filters, or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    treatmentQuery,
+    locationParam,
+    searchParams,
+    selectedServices,
+    atmosphere,
+    instantSlots,
+    distanceRadius,
+    minRating,
+    priceTier,
+    sortBy,
+    pageSize,
+  ]);
+
+  // Pagination Calculations
+  const totalPages = Math.max(1, Math.ceil(filteredSalons.length / pageSize));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredSalons.length);
+  const paginatedSalons = filteredSalons.slice(startIndex, endIndex);
+
+ 
+  
+  // Helper for generating page numbers with smart ellipsis
+  const getPageNumbers = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (validCurrentPage <= 3) {
+      return [1, 2, 3, 4, "...", totalPages];
+    }
+    if (validCurrentPage >= totalPages - 2) {
+      return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [
+      1,
+      "...",
+      validCurrentPage - 1,
+      validCurrentPage,
+      validCurrentPage + 1,
+      "...",
+      totalPages,
+    ];
+  };
+
+  const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages || page === validCurrentPage) return;
+    setCurrentPage(page);
+    const colEl = document.querySelector(".explore-results-column");
+    if (colEl) {
+      colEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   // Active filter count
   const activeFilterCount = useMemo(() => {
@@ -329,6 +307,7 @@ export default function SalonsExplore() {
     setAtmosphere("All Salons");
     setSelectedServices([]);
     setSelectedPurity([]);
+    setCurrentPage(1);
     setToastMessage("All filters cleared.");
   };
 
@@ -429,10 +408,11 @@ export default function SalonsExplore() {
                 value={locationParam}
                 onChange={(e) => setLocationParam(e.target.value)}
               >
-                <option value="Indiranagar, Bengaluru">Indiranagar, Bengaluru</option>
-                <option value="Koramangala, Bengaluru">Koramangala, Bengaluru</option>
-                <option value="Whitefield, Bengaluru">Whitefield, Bengaluru</option>
-                <option value="HSR Layout, Bengaluru">HSR Layout, Bengaluru</option>
+                {availableLocations.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -446,7 +426,7 @@ export default function SalonsExplore() {
                 <input
                   type="text"
                   className="filter-segment-input"
-                  placeholder="Haircut, Organic Spa, Herbal Facial"
+                  placeholder="Haircut, Styling, Facial..."
                   value={treatmentQuery}
                   onChange={(e) => setTreatmentQuery(e.target.value)}
                 />
@@ -472,36 +452,47 @@ export default function SalonsExplore() {
           </div>
 
           {/* Segment 3: Date */}
-          <div className="filter-bar-segment">
+          <div className="filter-bar-segment" title="Date scheduling coming soon">
             <div className="filter-segment-icon gray">📅</div>
             <div className="filter-segment-content">
-              <span className="filter-segment-label">DATE</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span className="filter-segment-label">DATE</span>
+                <span className="coming-soon-pill">Coming Soon</span>
+              </div>
               <select
                 className="filter-segment-select"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setToastMessage("Online date scheduler is coming soon!");
+                }}
               >
-                <option value="Today, 24 Oct">Today, 24 Oct</option>
-                <option value="Tomorrow, 25 Oct">Tomorrow, 25 Oct</option>
-                <option value="Saturday, 26 Oct">Saturday, 26 Oct</option>
+                <option value="Today">Today (Live)</option>
+                <option value="Tomorrow">Tomorrow</option>
               </select>
             </div>
           </div>
 
           {/* Segment 4: Time Window */}
-          <div className="filter-bar-segment">
+          <div className="filter-bar-segment" title="Slot scheduling coming soon">
             <div className="filter-segment-icon gray">⏱</div>
             <div className="filter-segment-content">
-              <span className="filter-segment-label">TIME WINDOW</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span className="filter-segment-label">TIME WINDOW</span>
+                <span className="coming-soon-pill">Coming Soon</span>
+              </div>
               <select
                 className="filter-segment-select"
                 value={timeWindow}
-                onChange={(e) => setTimeWindow(e.target.value)}
+                onChange={(e) => {
+                  setTimeWindow(e.target.value);
+                  setToastMessage("Slot scheduling is coming soon!");
+                }}
               >
-                <option value="2:00 PM – 5:00 PM">2:00 PM – 5:00 PM</option>
-                <option value="9:00 AM – 12:00 PM">9:00 AM – 12:00 PM</option>
-                <option value="12:00 PM – 3:00 PM">12:00 PM – 3:00 PM</option>
-                <option value="5:00 PM – 8:00 PM">5:00 PM – 8:00 PM</option>
+                <option value="All Day Slots">All Day Slots</option>
+                <option value="Morning">Morning (9 AM – 12 PM)</option>
+                <option value="Afternoon">Afternoon (12 PM – 5 PM)</option>
+                <option value="Evening">Evening (5 PM – 9 PM)</option>
               </select>
             </div>
           </div>
@@ -510,7 +501,7 @@ export default function SalonsExplore() {
           <button
             type="button"
             className="btn-search-salons"
-            onClick={() => setToastMessage("Filtered salons for " + (treatmentQuery || "all treatments"))}
+            onClick={() => setToastMessage(filteredSalons.length > 0 ? `Showing ${filteredSalons.length} open salon(s)` : "No salons found matching your search")}
           >
             <span>🔍</span>
             <span>Search Salons</span>
@@ -550,6 +541,7 @@ export default function SalonsExplore() {
               <div className="instant-slots-title">
                 <span>⚡</span>
                 <span>Instant Slots</span>
+                <span className="coming-soon-pill">Coming Soon</span>
               </div>
               <div className="instant-slots-sub">
                 Available in next 30 mins
@@ -560,7 +552,10 @@ export default function SalonsExplore() {
               <input
                 type="checkbox"
                 checked={instantSlots}
-                onChange={(e) => setInstantSlots(e.target.checked)}
+                onChange={(e) => {
+                  setInstantSlots(e.target.checked);
+                  setToastMessage("Instant slots booking is coming soon!");
+                }}
               />
               <span className="slider-round" />
             </label>
@@ -569,7 +564,10 @@ export default function SalonsExplore() {
           {/* Section 2: Distance Radius */}
           <div className="filter-section-block">
             <div className="filter-section-header">
-              <span className="filter-section-label">Distance Radius</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span className="filter-section-label">Distance Radius</span>
+                <span className="coming-soon-pill">Coming Soon</span>
+              </div>
               <span className="filter-section-subtext">Under {distanceRadius}</span>
             </div>
             <div className="filter-segmented-pills">
@@ -578,7 +576,10 @@ export default function SalonsExplore() {
                   key={dist}
                   type="button"
                   className={`filter-pill ${distanceRadius === dist ? "active" : ""}`}
-                  onClick={() => setDistanceRadius(dist)}
+                  onClick={() => {
+                    setDistanceRadius(dist);
+                    setToastMessage("GPS radius calculation coming soon!");
+                  }}
                 >
                   {dist}
                 </button>
@@ -651,14 +652,7 @@ export default function SalonsExplore() {
           <div className="filter-section-block">
             <span className="filter-section-label">Holistic Services</span>
             <div className="filter-checkbox-list">
-              {[
-                "Hair Cut & Styling",
-                "Organic Hair Spa",
-                "Ayurvedic Herbal Facial",
-                "Botanical Manicure & Pedicure",
-                "Full Body Holistic Massage",
-                "Artisan Beard Grooming",
-              ].map((srv) => (
+              {availableCategories.map((srv) => (
                 <label key={srv} className="filter-checkbox-item">
                   <input
                     type="checkbox"
@@ -677,12 +671,15 @@ export default function SalonsExplore() {
 
           {/* Section 7: Offers & Purity */}
           <div className="filter-section-block">
-            <span className="filter-section-label">Offers & Purity</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span className="filter-section-label">Offers & Purity</span>
+              <span className="coming-soon-pill">Coming Soon</span>
+            </div>
             <div className="filter-checkbox-list">
               {[
-                "Verified Non-Toxic / Clean",
+                "Verified Clean / Non-Toxic",
                 "First Booking Promo Active",
-                "Free Scalp & Tea Ritual",
+                "Complimentary Scalp Ritual",
               ].map((purity) => (
                 <label key={purity} className="filter-checkbox-item">
                   <input
@@ -692,6 +689,7 @@ export default function SalonsExplore() {
                       setSelectedPurity((prev) =>
                         prev.includes(purity) ? prev.filter((i) => i !== purity) : [...prev, purity]
                       );
+                      setToastMessage("Purity & offers filter coming soon!");
                     }}
                   />
                   <span>{purity}</span>
@@ -770,7 +768,7 @@ export default function SalonsExplore() {
             </div>
           ) : (
             <div className={`salons-cards-list ${viewMode === "grid" ? "grid-mode" : ""}`}>
-              {filteredSalons.map((salon) => (
+              {paginatedSalons.map((salon) => (
                 <article key={salon.id} className="salon-explore-card">
                   {/* Media Left */}
                   <div className="salon-card-media">
@@ -779,6 +777,7 @@ export default function SalonsExplore() {
                       alt={salon.name}
                       className="salon-card-img"
                     />
+                    
                     <span className={`salon-badge-overlay ${salon.badge_type || "organic"}`}>
                       {salon.badge || "● Verified Organic"}
                     </span>
@@ -799,70 +798,49 @@ export default function SalonsExplore() {
                         <h3 className="salon-card-name" title={salon.name}>{salon.name}</h3>
                         <span className="salon-card-rating">
                           <span className="rating-star">★</span>
-                          <span className="rating-val">{salon.rating || "4.8"}</span>
-                          <span className="rating-count">({salon.review_count || "48"})</span>
+                          <span className="rating-val">{salon.rating || "4.9"}</span>
+                          <span className="rating-count">({salon.review_count ? salon.review_count : "Verified"})</span>
                         </span>
                       </div>
 
                       <p className="salon-card-meta">
-                        <span>📍 {salon.distance_km || "2.4"} km away</span>
+                        <span>📍 {salon.address_line || salon.city || "Kerala"}</span>
                         <span>•</span>
-                        <span>{salon.address_line || salon.city || "Bengaluru"}</span>
-                        <span>•</span>
-                        <span>{(salon.tags && salon.tags.length > 0 ? salon.tags : ["Unisex", "AC"]).slice(0, 2).join(" • ")}</span>
+                        <span>{(salon.tags && salon.tags.length > 0 ? salon.tags : ["Hair & Styling", "AC"]).slice(0, 3).join(" • ")}</span>
                       </p>
                     </div>
 
                     {/* Slot availability inline badges matching reference */}
                     <div className="salon-slot-row">
-                      {(() => {
-                        const text = salon.instant_slot_text || "Instant Slot available today • Guaranteed reservation";
-                        if (text.includes(" • ") && (text.includes("OFF") || text.includes("🎁") || text.includes("Free"))) {
-                          const [slotPart, promoPart] = text.split(" • ");
-                          return (
-                            <>
-                              <span className="salon-slot-pill grey">
-                                <span className="slot-pill-icon">🕒</span>
-                                <span>{slotPart}</span>
-                              </span>
-                              <span className={promoPart.includes("OFF") ? "salon-slot-promo red" : "salon-slot-pill gold"}>
-                                {promoPart}
-                              </span>
-                            </>
-                          );
-                        } else {
-                          const isInstant = salon.has_instant_slot || text.toLowerCase().includes("instant");
-                          return (
-                            <span className={`salon-slot-pill ${isInstant ? "green" : "grey"}`}>
-                              <span className="slot-pill-icon">{isInstant ? "⚡" : "🕒"}</span>
-                              <span>{text}</span>
-                            </span>
-                          );
-                        }
-                      })()}
+                      <span className="salon-slot-pill green">
+                        <span className="slot-pill-icon">●</span>
+                        <span>{salon.instant_slot_text || "Open today • Verified Partner"}</span>
+                      </span>
+                      {salon.opening_hours && (
+                        <span className="salon-slot-pill grey">
+                          <span className="slot-pill-icon">⏱</span>
+                          <span>{salon.opening_hours}</span>
+                        </span>
+                      )}
                     </div>
 
                     {/* Pricing row (borderless clean 3 uniform columns) */}
                     <div className="salon-services-pricing-grid">
-                      {(() => {
-                        const sList = (salon.services && salon.services.length > 0) ? [...salon.services] : [];
-                        const defaults = [
-                          { name: "Haircut & Styling", price: "₹349" },
-                          { name: "Organic Hair Spa", price: "₹899" },
-                          { name: "Hydra Facial Glow", price: "₹999" },
-                        ];
-                        while (sList.length < 3) {
-                          sList.push(defaults[sList.length]);
-                        }
-                        return sList.slice(0, 3).map((srv, idx) => (
-                          <div key={idx} className="service-tariff-col">
-                            <span className="service-tariff-name" title={srv.name}>{srv.name}</span>
-                            <span className="service-tariff-price">{srv.price}</span>
+                      {salon.services && salon.services.length > 0 ? (
+                        salon.services.slice(0, 3).map((item, idx) => (
+                          <div key={item.id || item.name || idx} className="service-tariff-col">
+                            <span className="service-tariff-name" title={item.name}>{item.name}</span>
+                            <span className="service-tariff-price">{item.price}</span>
                           </div>
-                        ));
-                      })()}
+                        ))
+                      ) : (
+                        <div className="service-tariff-col" style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--explore-text-muted)" }}>
+                          <span className="service-tariff-name">Services available upon inquiry</span>
+                          <span className="service-tariff-price">₹299+</span>
+                        </div>
+                      )}
                     </div>
-
+                      
                     {/* Footer & Actions */}
                     <div className="salon-card-bottom-row">
                       <span className="salon-purity-text" title={salon.purity_note}>
@@ -896,27 +874,71 @@ export default function SalonsExplore() {
             </div>
           )}
 
-          {/* Pagination / Load More Footer */}
-          <div className="explore-pagination-row">
-            <span className="pagination-counter">
-              Showing {filteredSalons.length} of 28 partner salons
-            </span>
+          {/* Pagination Controls */}
+          {filteredSalons.length > 0 && (
+            <div className="explore-pagination-row">
+              <div className="pagination-info-group">
+                <span className="pagination-counter">
+                  Showing <strong>{startIndex + 1}–{endIndex}</strong> of{" "}
+                  <strong>{filteredSalons.length}</strong> partner salons
+                </span>
 
-            <button
-              type="button"
-              className="btn-load-more"
-              onClick={() => setToastMessage("Loading additional curated salons near you...")}
-            >
-              <span>⌄</span>
-              <span>Load 8 More Salons</span>
-            </button>
+                <div className="pagination-per-page">
+                  <label htmlFor="salon-page-size">Per page:</label>
+                  <select
+                    id="salon-page-size"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="pagination-select"
+                  >
+                    <option value={4}>4</option>
+                    <option value={6}>6</option>
+                    <option value={8}>8</option>
+                    <option value={12}>12</option>
+                  </select>
+                </div>
+              </div>
 
-            <div className="pagination-pages-group">
-              <button type="button" className="page-num-btn active">1</button>
-              <button type="button" className="page-num-btn" onClick={() => setToastMessage("Page 2 loaded")}>2</button>
-              <button type="button" className="page-num-btn" onClick={() => setToastMessage("Page 3 loaded")}>3</button>
+              <div className="pagination-pages-group">
+                <button
+                  type="button"
+                  className="page-nav-btn"
+                  onClick={() => handlePageChange(validCurrentPage - 1)}
+                  disabled={validCurrentPage <= 1}
+                  aria-label="Previous page"
+                >
+                  ‹ Prev
+                </button>
+
+                {getPageNumbers().map((num, idx) =>
+                  num === "..." ? (
+                    <span key={`dots-${idx}`} className="page-ellipsis">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={num}
+                      type="button"
+                      className={`page-num-btn ${num === validCurrentPage ? "active" : ""}`}
+                      onClick={() => handlePageChange(num)}
+                    >
+                      {num}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  className="page-nav-btn"
+                  onClick={() => handlePageChange(validCurrentPage + 1)}
+                  disabled={validCurrentPage >= totalPages}
+                  aria-label="Next page"
+                >
+                  Next ›
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </section>
       </main>
 
@@ -968,7 +990,7 @@ export default function SalonsExplore() {
       </footer>
 
       {/* --------------------------------------------------------------------
-          MODAL: BOOK SLOT
+          MODAL: BOOK SLOT / CONTACT SALON
           -------------------------------------------------------------------- */}
       {bookingModalSalon && (
         <div className="explore-modal-overlay" onClick={() => setBookingModalSalon(null)}>
@@ -988,50 +1010,54 @@ export default function SalonsExplore() {
               </button>
             </div>
 
-            <form className="modal-body" onSubmit={handleConfirmBooking}>
+            <div className="modal-body">
               <div>
-                <span className="modal-rating-badge">★ {bookingModalSalon.rating}</span>
+                <span className="modal-rating-badge">★ {bookingModalSalon.rating || "4.9"}</span>
                 <h2 className="modal-title" style={{ marginTop: "6px" }}>Book Slot at {bookingModalSalon.name}</h2>
                 <p style={{ fontSize: "12px", color: "var(--explore-text-muted)", margin: "4px 0 0" }}>
-                  📍 {bookingModalSalon.address_line}
+                  📍 {bookingModalSalon.address_line || bookingModalSalon.city}
                 </p>
               </div>
 
-              <div>
-                <h4 className="modal-section-title">Select Treatment Service</h4>
-                <div className="modal-service-list">
-                  {bookingModalSalon.services.map((srv, idx) => (
-                    <div
-                      key={idx}
-                      className={`modal-service-row selectable ${bookingService === srv.name ? "selected" : ""}`}
-                      onClick={() => setBookingService(srv.name)}
-                    >
-                      <span>{srv.name}</span>
-                      <strong>{srv.price}</strong>
-                    </div>
-                  ))}
-                </div>
+              <div className="coming-soon-call-box">
+                <span className="coming-soon-pill" style={{ marginBottom: "8px" }}>Online Booking Coming Soon</span>
+                <p>
+                  Instant online slot booking is launching soon! You can contact the salon directly to reserve your slot today.
+                </p>
+                {bookingModalSalon.phone && (
+                  <a
+                    href={`tel:${bookingModalSalon.phone}`}
+                    className="coming-soon-call-link"
+                  >
+                    <span>📞 Call {bookingModalSalon.phone}</span>
+                  </a>
+                )}
               </div>
 
               <div className="modal-info-grid">
                 <div className="modal-info-item">
-                  <strong>Date</strong>
-                  <span>{selectedDate}</span>
+                  <strong>Operating Hours</strong>
+                  <span>{bookingModalSalon.opening_hours || "9:00 AM – 8:30 PM"}</span>
                 </div>
                 <div className="modal-info-item">
-                  <strong>Slot Time</strong>
-                  <select
-                    value={bookingTime}
-                    onChange={(e) => setBookingTime(e.target.value)}
-                    style={{ border: "none", background: "transparent", fontWeight: 600, outline: "none", cursor: "pointer" }}
-                  >
-                    <option value="2:30 PM">2:30 PM (Instant Slot)</option>
-                    <option value="3:15 PM">3:15 PM</option>
-                    <option value="4:00 PM">4:00 PM</option>
-                    <option value="5:30 PM">5:30 PM</option>
-                  </select>
+                  <strong>Atmosphere</strong>
+                  <span>{bookingModalSalon.gender_category || "Unisex"}</span>
                 </div>
               </div>
+
+              {bookingModalSalon.services && bookingModalSalon.services.length > 0 && (
+                <div>
+                  <h4 className="modal-section-title">Verified Services</h4>
+                  <div className="modal-service-list">
+                    {bookingModalSalon.services.map((srv, idx) => (
+                      <div key={idx} className="modal-service-row">
+                        <span>{srv.name}</span>
+                        <strong>{srv.price}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="modal-footer-actions">
                 <button
@@ -1039,13 +1065,20 @@ export default function SalonsExplore() {
                   className="btn-view-salon"
                   onClick={() => setBookingModalSalon(null)}
                 >
-                  Cancel
+                  Close
                 </button>
-                <button type="submit" className="btn-book-slot">
-                  Confirm Reservation →
-                </button>
+                {bookingModalSalon.phone && (
+                  <a
+                    href={`tel:${bookingModalSalon.phone}`}
+                    className="btn-book-slot"
+                    style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <span>Call to Book</span>
+                    <span>→</span>
+                  </a>
+                )}
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -1073,21 +1106,21 @@ export default function SalonsExplore() {
 
             <div className="modal-body">
               <div>
-                <span className="modal-rating-badge">★ {detailsModalSalon.rating} ({detailsModalSalon.review_count} verified reviews)</span>
+                <span className="modal-rating-badge">★ {detailsModalSalon.rating || "4.9"} ({detailsModalSalon.review_count ? `${detailsModalSalon.review_count} verified reviews` : "Verified Partner"})</span>
                 <h2 className="modal-title" style={{ marginTop: "6px" }}>{detailsModalSalon.name}</h2>
                 <p style={{ fontSize: "12px", color: "var(--explore-text-muted)", margin: "4px 0 0" }}>
-                  📍 {detailsModalSalon.address_line}, {detailsModalSalon.city}
+                  📍 {detailsModalSalon.address_line || detailsModalSalon.city}
                 </p>
               </div>
 
               <div className="modal-info-grid">
                 <div className="modal-info-item">
                   <strong>Operating Hours</strong>
-                  <span>{detailsModalSalon.opening_hours || "9:00 AM – 9:00 PM"}</span>
+                  <span>{detailsModalSalon.opening_hours || "9:00 AM – 8:30 PM"}</span>
                 </div>
                 <div className="modal-info-item">
                   <strong>Contact Phone</strong>
-                  <span>{detailsModalSalon.phone || "+91 98450 12345"}</span>
+                  <span>{detailsModalSalon.phone || "Contact upon arrival"}</span>
                 </div>
                 <div className="modal-info-item">
                   <strong>Atmosphere</strong>
@@ -1095,21 +1128,23 @@ export default function SalonsExplore() {
                 </div>
                 <div className="modal-info-item">
                   <strong>Purity Standard</strong>
-                  <span>{detailsModalSalon.purity_note}</span>
+                  <span>{detailsModalSalon.purity_note || detailsModalSalon.description || "Certified clean standards"}</span>
                 </div>
               </div>
 
-              <div>
-                <h4 className="modal-section-title">Verified Services Menu</h4>
-                <div className="modal-service-list">
-                  {detailsModalSalon.services.map((srv, idx) => (
-                    <div key={idx} className="modal-service-row">
-                      <span>{srv.name}</span>
-                      <strong>{srv.price}</strong>
-                    </div>
-                  ))}
+              {detailsModalSalon.services && detailsModalSalon.services.length > 0 && (
+                <div>
+                  <h4 className="modal-section-title">Verified Services Menu</h4>
+                  <div className="modal-service-list">
+                    {detailsModalSalon.services.map((srv, idx) => (
+                      <div key={idx} className="modal-service-row">
+                        <span>{srv.name}</span>
+                        <strong>{srv.price}</strong>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="modal-footer-actions">
                 <button
@@ -1126,7 +1161,7 @@ export default function SalonsExplore() {
                     const sel = detailsModalSalon;
                     setDetailsModalSalon(null);
                     setBookingModalSalon(sel);
-                    setBookingService(sel.services[0]?.name || "Haircut & Styling");
+                    setBookingService(sel.services?.[0]?.name || "Haircut & Styling");
                   }}
                 >
                   <span>Book Slot Now</span>

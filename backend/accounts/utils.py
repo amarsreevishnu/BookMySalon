@@ -7,14 +7,10 @@ logger = logging.getLogger(__name__)
 
 
 def generate_otp() -> str:
-    """Generate a cryptographically secure 6-digit numeric OTP."""
     return f"{secrets.randbelow(900000) + 100000}"
 
 
 def send_otp_email(email: str, otp: str, first_name: str = "") -> bool:
-    """
-    Send a 6-digit OTP verification code to the specified email address.
-    """
     greeting = f"Hi {first_name}," if first_name else "Hello,"
     subject = f"{otp} is your BookMySalon verification code"
 

@@ -1165,11 +1165,21 @@ input:checked + .slider-round:before {
    PAGINATION FOOTER ROW
    -------------------------------------------------------------------------- */
 .explore-pagination-row {
-  margin-top: 14px;
+  margin-top: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
+  padding: 16px 4px;
+  border-top: 1px solid var(--explore-border);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.pagination-info-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .pagination-counter {
@@ -1177,35 +1187,21 @@ input:checked + .slider-round:before {
   color: var(--explore-text-muted);
 }
 
-.btn-load-more {
-  background-color: #ffffff;
-  border: 1px solid var(--explore-border);
+.pagination-counter strong {
   color: var(--explore-text-dark);
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+  font-weight: 700;
+}
+
+.pagination-per-page {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.15s ease;
+  font-size: 12px;
+  color: var(--explore-text-muted);
 }
 
-.btn-load-more:hover {
-  background-color: var(--explore-border-light);
-  border-color: #cbd5ce;
-}
-
-.pagination-pages-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.page-num-btn {
-  width: 32px;
-  height: 32px;
+.pagination-select {
+  padding: 5px 10px;
   border-radius: var(--explore-radius-sm);
   border: 1px solid var(--explore-border);
   background-color: #ffffff;
@@ -1213,9 +1209,68 @@ input:checked + .slider-round:before {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.pagination-select:focus {
+  border-color: var(--explore-primary);
+  box-shadow: 0 0 0 2px rgba(45, 106, 79, 0.15);
+}
+
+.pagination-pages-group {
   display: flex;
   align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.page-nav-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--explore-radius-sm);
+  border: 1px solid var(--explore-border);
+  background-color: #ffffff;
+  color: var(--explore-text-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.page-nav-btn:hover:not(:disabled) {
+  background-color: var(--explore-border-light);
+  border-color: #cbd5ce;
+  color: var(--explore-primary);
+}
+
+.page-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background-color: #f8faf8;
+}
+
+.page-num-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--explore-radius-sm);
+  border: 1px solid var(--explore-border);
+  background-color: #ffffff;
+  color: var(--explore-text-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .page-num-btn.active {
@@ -1226,6 +1281,18 @@ input:checked + .slider-round:before {
 
 .page-num-btn:hover:not(.active) {
   background-color: var(--explore-border-light);
+  border-color: #cbd5ce;
+}
+
+.page-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  color: var(--explore-text-muted);
+  font-size: 13px;
+  user-select: none;
 }
 
 /* --------------------------------------------------------------------------
@@ -1619,3 +1686,58 @@ input:checked + .slider-round:before {
   box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
   transform: translateY(-1px);
 }
+
+/* --------------------------------------------------------------------------
+   COMING SOON BADGE & DIRECT CALL BOX
+   -------------------------------------------------------------------------- */
+.coming-soon-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: rgba(82, 183, 136, 0.15);
+  color: var(--explore-primary);
+  border: 1px solid rgba(82, 183, 136, 0.3);
+}
+
+.coming-soon-call-box {
+  background: var(--explore-border-light);
+  border: 1.5px dashed #b7e4c7;
+  border-radius: var(--explore-radius-md);
+  padding: 16px;
+  margin: 14px 0;
+  text-align: center;
+}
+
+.coming-soon-call-box p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--explore-text-muted);
+  line-height: 1.5;
+}
+
+.coming-soon-call-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  background: var(--explore-primary);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(45, 106, 79, 0.25);
+}
+
+.coming-soon-call-link:hover {
+  background: #1b4332;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(45, 106, 79, 0.35);
+}
+

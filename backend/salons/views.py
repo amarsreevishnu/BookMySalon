@@ -391,7 +391,7 @@ class SalonApprovalView(generics.UpdateAPIView):
                     f"Salon {salon.name} status updated to {approval_status.lower()} successfully."
                 ),
                 "salon": serializer.data,
-                "temp_password": temp_password if owner_created else None,
+                "temp_password": "Send through Email",
             }
         )
 
@@ -611,21 +611,24 @@ class CustomerSalonExploreView(APIView):
         price_tier_param = request.query_params.get("price_tier", "") # 1, 2, 3
         atmosphere_param = request.query_params.get("atmosphere", "").strip().lower()
 
-        # Dynamically fetch approved database registered salons first (newest first)
+       
         db_salons = Salon.objects.filter(
             approval_status=Salon.ApprovalStatus.APPROVED
         ).order_by("-created_at")
 
         registered_salons = []
         for s in db_salons:
-            # Build tags from amenities and category
+           
             tags = []
+
             if s.category:
                 tags.append(s.category)
-            if s.amenities:
+
+            if s.amenities and isinstance(s.amenities, list):
                 for am in s.amenities[:2]:
                     if am not in tags:
                         tags.append(am)
+
             if not tags:
                 tags = ["Hair & Beauty", "AC", "Certified"]
 
@@ -648,6 +651,54 @@ class CustomerSalonExploreView(APIView):
                     {"name": "Aromatherapy Massage", "price": "₹1,400", "category": "spa"},
                     {"name": "Head & Shoulder Spa", "price": "₹600", "category": "spa"},
                 ]
+            # Service list: use real registered salon services or fallback by category
+            services = []
+            if isinstance(s.services, list) and s.services:
+                for item in s.services:
+                    if isinstance(item, dict):
+                        services.append({
+                            "id": item.get("id") or item.get("name"),
+                            "name": item.get("name") or "Service",
+                            "price": str(item.get("price") or "₹349+"),
+                            "category": item.get("category") or (s.category or "hair"),
+                        })
+                    elif isinstance(item, str):
+                        services.append({
+                            "name": item,
+                            "price": "₹349+",
+                            "category": s.category or "hair",
+                        })
+
+            if not services:
+                cat_lower = (s.category or "").lower()
+                if "nail" in cat_lower:
+                    services = [
+                        {"name": "Gel Manicure", "price": "₹399", "category": "nails"},
+                        {"name": "Pedicure Spa", "price": "₹599", "category": "nails"},
+                        {"name": "Nail Art Custom", "price": "₹799", "category": "nails"},
+                    ]
+                elif "spa" in cat_lower or "massage" in cat_lower:
+                    services = [
+                        {"name": "Ayurvedic Spa Ritual", "price": "₹1,200", "category": "spa"},
+                        {"name": "Aromatherapy Massage", "price": "₹1,400", "category": "spa"},
+                        {"name": "Head & Shoulder Spa", "price": "₹600", "category": "spa"},
+                    ]
+                else:
+                    services = [
+                        {"name": "Haircut & Styling", "price": "₹349", "category": "hair"},
+                        {"name": "Organic Detox Spa", "price": "₹899", "category": "spa"},
+                        {"name": "Hydra Facial Glow", "price": "₹999", "category": "skin"},
+                    ]
+
+            # Format opening hours
+            opening_hours_text = "9:00 AM – 8:30 PM"
+            if isinstance(s.opening_hours, dict) and s.opening_hours:
+                open_t = s.opening_hours.get("open")
+                close_t = s.opening_hours.get("close")
+                if open_t and close_t:
+                    opening_hours_text = f"{open_t} – {close_t}"
+            elif isinstance(s.opening_hours, str) and s.opening_hours:
+                opening_hours_text = s.opening_hours
 
             registered_salons.append({
                 "id": s.id,
@@ -656,138 +707,43 @@ class CustomerSalonExploreView(APIView):
                 "badge_type": "partner",
                 "distance_km": 1.5,
                 "address_line": s.address or s.city,
-                "city": f"{s.city}, {s.state}" if s.city and s.state else (s.city or "Kerala"),
+                "city": (
+                    f"{s.city}, {s.state}".strip().replace(",,", ",").strip(", ")
+                    if s.city or s.state
+                    else "Kerala"
+                ),
                 "tags": tags,
                 "gender_category": "unisex",
                 "rating": 4.9,
-                "review_count": 42,
+                
+                "review_count": 0,
                 "has_instant_slot": True,
                 "instant_slot_text": "Instant slot available today • Verified Partner",
+                
                 "price_tier": 2,
                 "services": services,
-                "purity_note": "Certified clean & botanical hygiene standards",
+                
+                "purity_note": s.description or "Certified clean & botanical hygiene standards",
                 "image": build_full_media_url(
                     request,
-                    s.cover_image or (s.images[0] if s.images else "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80")
+                    s.cover_image or (
+                        s.images[0]
+                        if s.images and isinstance(s.images, list)
+                        else "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
+                    )
                 ),
                 "is_clean_purity": True,
                 "phone": s.phone or "+91 88481 94536",
-                "opening_hours": "9:00 AM – 8:30 PM",
+                
+                "opening_hours": opening_hours_text,
             })
 
         # Curated mockup partner salons
-        curated_salons = [
-            {
-                "id": 101,
-                "name": "Aura Luxe Salon & Spa",
-                "badge": "● Verified Organic",
-                "badge_type": "organic",
-                "distance_km": 1.2,
-                "address_line": "12th Main, Indiranagar",
-                "city": "Indiranagar, Bengaluru",
-                "tags": ["Unisex", "AC"],
-                "gender_category": "unisex",
-                "rating": 4.9,
-                "review_count": 128,
-                "has_instant_slot": True,
-                "instant_slot_text": "Instant Slot available in 15 mins (2:30 PM)",
-                "price_tier": 2, # ₹500–₹1,500
-                "services": [
-                    {"name": "Haircut & Styling", "price": "₹300", "category": "hair"},
-                    {"name": "Organic Hair Spa", "price": "₹1,000", "category": "spa"},
-                    {"name": "Deep Tissue Massage", "price": "₹1,400", "category": "massage"},
-                ],
-                "purity_note": "Botanical products only",
-                "image": "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85",
-                "is_clean_purity": True,
-                "phone": "+91 98450 12345",
-                "opening_hours": "9:00 AM – 9:00 PM",
-            },
-            {
-                "id": 102,
-                "name": "Urban Glow Hair Studio",
-                "badge": "🏷 20% OFF",
-                "badge_type": "promo",
-                "distance_km": 2.1,
-                "address_line": "CMH Road, Indiranagar",
-                "city": "Indiranagar, Bengaluru",
-                "tags": ["Women-Only", "Organic Hair-Care"],
-                "gender_category": "women-only",
-                "rating": 4.7,
-                "review_count": 94,
-                "has_instant_slot": True,
-                "instant_slot_text": "Next slot at 3:15 PM • Flat 20% OFF on first booking",
-                "price_tier": 2,
-                "services": [
-                    {"name": "Haircut & Blowdry", "price": "₹450", "category": "hair"},
-                    {"name": "Botanical Facial", "price": "₹850", "category": "skin"},
-                    {"name": "Nourishing Hair Spa", "price": "₹950", "category": "spa"},
-                ],
-                "purity_note": "Cruelty-free botanical dyes only",
-                "image": "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=85",
-                "is_clean_purity": True,
-                "phone": "+91 98450 23456",
-                "opening_hours": "9:30 AM – 8:30 PM",
-            },
-            {
-                "id": 103,
-                "name": "The Grooming Club",
-                "badge": "👑 Men's Luxury",
-                "badge_type": "luxury",
-                "distance_km": 2.4,
-                "address_line": "100 Feet Road, Indiranagar",
-                "city": "Indiranagar, Bengaluru",
-                "tags": ["Men's Luxury Grooming"],
-                "gender_category": "men's care",
-                "rating": 4.8,
-                "review_count": 107,
-                "has_instant_slot": True,
-                "instant_slot_text": "Instant Slot available now • Zero waiting",
-                "price_tier": 1, # < ₹500 starting
-                "services": [
-                    {"name": "Precision Haircut", "price": "₹350", "category": "hair"},
-                    {"name": "Deluxe Beard Trim", "price": "₹200", "category": "beard"},
-                    {"name": "Head & Shoulder Spa", "price": "₹800", "category": "spa"},
-                ],
-                "purity_note": "Cold-pressed & jojoba oils ritual",
-                "image": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=85",
-                "is_clean_purity": True,
-                "phone": "+91 98450 34567",
-                "opening_hours": "10:00 AM – 9:30 PM",
-            },
-            {
-                "id": 104,
-                "name": "Verdant Nail & Skin Sanctuary",
-                "badge": "🌿 Cruelty-Free & Eco",
-                "badge_type": "eco",
-                "distance_km": 2.8,
-                "address_line": "Defence Colony, Indiranagar",
-                "city": "Indiranagar, Bengaluru",
-                "tags": ["Unisex", "Eco Studio"],
-                "gender_category": "unisex",
-                "rating": 5.0,
-                "review_count": 219,
-                "has_instant_slot": True,
-                "instant_slot_text": "Available today from 4:00 PM • 🎁 Free Herbal Tea & Scalp Massage",
-                "price_tier": 2,
-                "services": [
-                    {"name": "Botanical Facial", "price": "₹750", "category": "skin"},
-                    {"name": "Ayurvedic Spa Ritual", "price": "₹1,200", "category": "spa"},
-                    {"name": "Gel Manicure", "price": "₹400", "category": "nails"},
-                ],
-                "purity_note": "100% Vegan non-toxic formulas",
-                "image": "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=85",
-                "is_clean_purity": True,
-                "phone": "+91 98450 45678",
-                "opening_hours": "9:00 AM – 8:00 PM",
-            },
-        ]
+        
+        # Apply filtering on real registered salons
+        results = registered_salons
 
-        # Prioritize real registered salons at the top
-        all_salons = registered_salons + curated_salons
-
-        # Apply in-memory filtering
-        results = all_salons
+        
 
         if search:
             results = [
@@ -834,8 +790,10 @@ class CustomerSalonExploreView(APIView):
             {
                 "salons": results,
                 "total_count": 28, # Display matching target total count in UI
+                "total_count": len(results),
                 "visible_count": len(results),
                 "location_default": "Indiranagar, Bengaluru",
+                "location_default": "All Locations",
             },
             status=status.HTTP_200_OK,
         )

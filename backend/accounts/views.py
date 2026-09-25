@@ -2,8 +2,10 @@ import json
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
+
 from rest_framework import generics, status, viewsets
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
@@ -63,10 +65,7 @@ class VerifyOTPView(generics.GenericAPIView):
         user.password = pending.password
         user.save()
 
-        # Delete pending registration record
         pending.delete()
-
-        # Generate tokens
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -136,7 +135,8 @@ class LoginView(generics.GenericAPIView):
 def google_success(request):
     if not request.user.is_authenticated:
         return redirect(
-            "http://localhost:5173/login?error=Google+login+failed.+Please+try+again."
+            f"{settings.FRONTEND_URL}/login"
+            "?error=Google+login+failed.+Please+try+again."
         )
 
     user = request.user
@@ -166,7 +166,7 @@ def google_success(request):
         }
     )
 
-    return redirect(f"http://localhost:5173/google-callback?{params}")
+    return redirect(f"{settings.FRONTEND_URL}/google-callback?{params}")
 
 
 class ForgotPasswordRequestView(generics.GenericAPIView):
@@ -262,7 +262,6 @@ class AdminUserListView(generics.ListAPIView):
     permission_classes = [IsAdminUserRole]
 
     def get_queryset(self):
-        # Default to CUSTOMER role as requested
         role = self.request.query_params.get("role", "CUSTOMER")
         qs = User.objects.all()
         if role and role.upper() != "ALL":
@@ -297,7 +296,6 @@ class AdminUserToggleBlockView(APIView):
     def post(self, request, pk):
         user = get_object_or_404(User, pk=pk)
 
-        # Do not allow blocking superusers or oneself
         if user == request.user:
             return Response(
                 {"error": "You cannot block your own super admin account."},

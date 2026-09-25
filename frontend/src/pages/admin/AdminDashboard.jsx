@@ -173,14 +173,7 @@ export default function AdminDashboard() {
   };
 
   const handleExportData = () => {
-    const jsonStr = JSON.stringify(salons, null, 2);
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `bookmysalon-salons-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+   alert("Coming Soon ")
   };
 
   const handleLogout = () => {
@@ -317,7 +310,7 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 className="admin-emergency-btn"
-                onClick={() => alert("Platform lockdown feature enabled in production mode.")}
+                
               >
                 ⚠️ Emergency Lock Down
               </button>
