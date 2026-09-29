@@ -659,17 +659,25 @@ export default function OwnerDashboard() {
                   Worker accounts can log in to view their assigned appointments.
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn-add-worker-primary"
-                onClick={() => {
-                  setWorkerError("");
-                  setIsAddWorkerOpen(true);
-                }}
-              >
-                <span>➕</span>
-                <span>Add Worker</span>
-              </button>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn-add-worker-primary"
+                  style={{ background: "#ffffff", color: "#1e392a", border: "1px solid #c9d8cf" }}
+                  onClick={() => navigate("/owner/workers")}
+                >
+                  <span>👥</span>
+                  <span>Full Worker Roster</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-add-worker-primary"
+                  onClick={() => navigate("/owner/add-worker")}
+                >
+                  <span>➕</span>
+                  <span>Add Worker</span>
+                </button>
+              </div>
             </div>
 
             {/* Filter & Search Toolbar */}

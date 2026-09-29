@@ -61,6 +61,7 @@ function AppRoutes() {
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
         <Route path="/worker-dashboard" element={<WorkerDashboard />} />
         <Route path="/worker" element={<WorkerDashboard />} />
+        <Route path="/owner/add-worker" element={<AddWorker />} />
       </Route>
 
       {/* <Route path="*" element={<NotFound />} /> */}

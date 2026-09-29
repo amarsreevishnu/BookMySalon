@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 from .email_utils import (
     send_salon_approval_email,
     send_salon_rejection_email,
+    send_worker_credentials_email,
     verify_salon_resubmit_token,
 )
 
@@ -724,6 +725,7 @@ class OwnerWorkerListCreateView(APIView):
                 "id": salon.id,
                 "name": salon.name,
                 "city": salon.city,
+                "services": salon.services or [],
             },
         }, status=status.HTTP_200_OK)
 
@@ -758,15 +760,30 @@ class OwnerWorkerListCreateView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         worker = serializer.save()
+        temp_pwd = getattr(worker, "_temporary_password", "Worker@123")
+
+        # Send worker ID and password through email
+        email_sent = False
+        try:
+            email_sent = send_worker_credentials_email(
+                worker=worker,
+                temp_password=temp_pwd,
+                salon=salon,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to dispatch worker email: {e}")
+
         worker_data = WorkerProfileSerializer(worker, context={"request": request}).data
 
         return Response(
             {
-                "message": "Worker added successfully",
+                "message": "Worker created successfully! Login credentials have been sent via email.",
                 "worker": worker_data,
+                "email_sent": email_sent,
                 "credentials": {
                     "email": worker.user.email,
-                    "password": getattr(worker, "_temporary_password", "Worker@123"),
+                    "password": temp_pwd,
                 },
             },
             status=status.HTTP_201_CREATED,
@@ -807,6 +824,20 @@ class OwnerWorkerDetailView(APIView):
             worker.experience = data["experience"].strip()
         if "phone_number" in data:
             worker.phone_number = data["phone_number"].strip()
+        if "station" in data:
+            worker.station = data["station"].strip()
+        if "employment_status" in data:
+            worker.employment_status = data["employment_status"].strip()
+        if "bio" in data:
+            worker.bio = data["bio"].strip()
+        if "specializations" in data:
+            worker.specializations = data["specializations"]
+        if "assigned_services" in data:
+            worker.assigned_services = data["assigned_services"]
+        if "shift_hours" in data:
+            worker.shift_hours = data["shift_hours"]
+        if "commission_tier" in data:
+            worker.commission_tier = data["commission_tier"].strip()
         if "is_active" in data:
             worker.is_active = bool(data["is_active"])
             worker.user.is_active = worker.is_active

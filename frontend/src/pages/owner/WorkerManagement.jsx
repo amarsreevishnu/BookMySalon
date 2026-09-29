@@ -409,6 +409,9 @@ export default function WorkerManagement() {
           {/* Nav Tabs */}
           <nav className="wm-nav-links">
             <Link to="/owner/dashboard" className="wm-nav-link-btn">
+              Dashboard
+            </Link>
+            <Link to="/owner/dashboard" className="wm-nav-link-btn">
               Floor Plan
             </Link>
             <Link to="/owner/dashboard" className="wm-nav-link-btn">
@@ -459,7 +462,9 @@ export default function WorkerManagement() {
             Owner Suite
           </Link>
           <span>/</span>
-          <span className="wm-breadcrumb-item">Staff & Operations</span>
+          <Link to="/owner/dashboard" className="wm-breadcrumb-item">
+            Staff & Operations
+          </Link>
           <span>/</span>
           <span className="wm-breadcrumb-item active">Worker Management</span>
         </div>
@@ -474,18 +479,14 @@ export default function WorkerManagement() {
           </div>
 
           <div className="wm-header-actions">
-            <button
-              type="button"
-              className="btn-wm-add-worker"
-              onClick={() => {
-                setWorkerError("");
-                setIsAddWorkerOpen(true);
-              }}
-            >
+            <Link to="/owner/add-worker" className="btn-wm-add-worker">
               <span>+ Add Worker</span>
-            </button>
+            </Link>
 
             <div className="wm-view-actions-row">
+              <Link to="/owner/dashboard" className="btn-wm-dashboard-link">
+                ← Dashboard
+              </Link>
               <button
                 type="button"
                 className="btn-wm-secondary"

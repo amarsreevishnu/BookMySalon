@@ -113,6 +113,13 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             "phone_number",
             "specialization",
             "experience",
+            "station",
+            "employment_status",
+            "bio",
+            "specializations",
+            "assigned_services",
+            "shift_hours",
+            "commission_tier",
             "profile_photo",
             "is_active",
             "salon",
@@ -144,6 +151,13 @@ class WorkerCreateSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
     specialization = serializers.CharField(max_length=150, required=False, allow_blank=True)
     experience = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    station = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    employment_status = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
+    specializations = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    assigned_services = serializers.ListField(required=False, default=list)
+    shift_hours = serializers.DictField(required=False, default=dict)
+    commission_tier = serializers.CharField(max_length=100, required=False, allow_blank=True)
     profile_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
@@ -163,8 +177,19 @@ class WorkerCreateSerializer(serializers.Serializer):
         phone_number = validated_data.get("phone_number", "").strip()
         specialization = validated_data.get("specialization", "").strip()
         experience = validated_data.get("experience", "").strip()
+        station = validated_data.get("station", "").strip() or "Chair #01"
+        employment_status = validated_data.get("employment_status", "").strip() or "Full-Time Specialist"
+        bio = validated_data.get("bio", "").strip()
+        specializations = validated_data.get("specializations", [])
+        assigned_services = validated_data.get("assigned_services", [])
+        shift_hours = validated_data.get("shift_hours", {})
+        commission_tier = validated_data.get("commission_tier", "").strip() or "Tier 2 • Senior Specialist"
         profile_photo = validated_data.get("profile_photo", "")
-        raw_password = validated_data.get("password", "").strip() or "Worker@123"
+
+        raw_password = validated_data.get("password", "").strip()
+        if not raw_password:
+            import secrets
+            raw_password = f"Worker@{secrets.randbelow(9000) + 1000}"
 
         name_parts = full_name.split(" ", 1)
         first_name = name_parts[0]
@@ -192,11 +217,18 @@ class WorkerCreateSerializer(serializers.Serializer):
             phone_number=phone_number,
             specialization=specialization,
             experience=experience,
+            station=station,
+            employment_status=employment_status,
+            bio=bio,
+            specializations=specializations,
+            assigned_services=assigned_services,
+            shift_hours=shift_hours,
+            commission_tier=commission_tier,
             profile_photo=saved_photo,
             is_active=True,
         )
 
-        # Attach raw password for one-time response display
+        # Attach raw password for one-time response display and email sending
         profile._temporary_password = raw_password
         return profile
 

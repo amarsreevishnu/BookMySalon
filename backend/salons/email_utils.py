@@ -248,3 +248,111 @@ BookMySalon Super Admin Operations
     except Exception as e:
         logger.error(f"Failed to send rejection email to {recipient}: {e}")
         return False
+
+
+def send_worker_credentials_email(worker, temp_password, salon=None, login_url=None):
+    """
+    Sends the worker their login ID (email) and password via email upon creation
+    by the salon owner.
+    """
+    if not worker or not getattr(worker, "user", None):
+        return False
+
+    recipient = worker.user.email
+    if not recipient:
+        return False
+
+    salon_obj = salon or getattr(worker, "salon", None)
+    salon_name = salon_obj.name if salon_obj else "BookMySalon Partner"
+    staff_name = worker.user.get_full_name() or worker.user.email
+    station = getattr(worker, "station", "Assigned Station")
+    specialization = getattr(worker, "specialization", "Specialist")
+
+    frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+    if not login_url:
+        login_url = f"{frontend_base}/login"
+
+    subject = f"Welcome to {salon_name}! Your Staff Login Credentials"
+
+    plain_message = f"""
+Dear {staff_name},
+
+You have been registered as a staff specialist at {salon_name} on the BookMySalon platform.
+
+Your Staff Account Credentials:
+--------------------------------------------------
+Salon: {salon_name}
+Role / Specialization: {specialization}
+Station / Chair: {station}
+Login Portal: {login_url}
+Worker ID (Email): {recipient}
+Temporary Password: {temp_password}
+--------------------------------------------------
+
+You can sign in to your Worker Dashboard to view your appointments, schedule, assigned services, and daily clients.
+For security, please change your password upon your first login.
+
+Best regards,
+{salon_name} Management & BookMySalon Operations
+"""
+
+    html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f6f4; margin: 0; padding: 24px; color: #1a2a1e; }}
+    .card {{ max-width: 540px; margin: 0 auto; background: #ffffff; border: 1px solid #d2e0d6; border-radius: 14px; padding: 36px; box-shadow: 0 4px 16px rgba(18, 40, 26, 0.06); }}
+    .header-badge {{ display: inline-block; background: #eaf5ee; color: #1e5c38; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 12px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 14px; }}
+    .title {{ font-size: 22px; font-weight: 700; color: #132b1c; margin-top: 0; margin-bottom: 12px; }}
+    .text {{ font-size: 14px; line-height: 1.6; color: #3d5646; margin-bottom: 20px; }}
+    .credentials-box {{ background: #f6faf7; border: 1.5px dashed #285e3a; border-radius: 10px; padding: 20px; margin: 24px 0; }}
+    .cred-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }}
+    .cred-label {{ color: #506e59; font-weight: 600; }}
+    .cred-val {{ font-family: monospace; font-size: 14px; font-weight: 700; color: #13301d; }}
+    .btn {{ display: block; text-align: center; background: #1e4d30; color: #ffffff !important; padding: 13px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; margin-top: 24px; }}
+    .footer {{ margin-top: 30px; border-top: 1px solid #e5ede7; padding-top: 16px; font-size: 11px; color: #7f9385; text-align: center; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="header-badge">Staff Onboarding &bull; {salon_name}</span>
+    <h1 class="title">Welcome, {staff_name}!</h1>
+    <p class="text">
+      You have been officially registered as a specialist at <strong>{salon_name}</strong> on the BookMySalon partner platform.
+    </p>
+    <div class="credentials-box">
+      <div style="font-size: 12px; font-weight: 700; color: #1e5c38; text-transform: uppercase; margin-bottom: 14px;">Your Staff Login Credentials</div>
+      <div class="cred-row"><span class="cred-label">Salon:</span> <span class="cred-val">{salon_name}</span></div>
+      <div class="cred-row"><span class="cred-label">Role:</span> <span class="cred-val">{specialization}</span></div>
+      <div class="cred-row"><span class="cred-label">Assigned Station:</span> <span class="cred-val">{station}</span></div>
+      <div class="cred-row"><span class="cred-label">Worker ID (Email):</span> <span class="cred-val">{recipient}</span></div>
+      <div class="cred-row" style="margin-bottom: 0;"><span class="cred-label">Temporary Password:</span> <span class="cred-val">{temp_password}</span></div>
+    </div>
+    <a href="{login_url}" target="_blank" rel="noopener noreferrer" class="btn">Log In to Worker Dashboard &rarr;</a>
+    <p class="text" style="font-size: 12px; color: #6f8576; margin-top: 18px; text-align: center;">
+      Use your Worker ID and password to access appointments, client queues, and daily schedules.
+    </p>
+    <div class="footer">
+      BookMySalon Partner Operations &bull; {salon_name} &bull; Need help? Contact your salon administrator.
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        logger.info(f"Worker welcome email sent to {recipient} for salon {getattr(salon_obj, 'id', None)}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send worker credentials email to {recipient}: {e}")
+        return False
