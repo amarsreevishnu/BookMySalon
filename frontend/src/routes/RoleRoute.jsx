@@ -11,14 +11,17 @@ function RoleRoute({ allowedRoles = [] }) {
 
   const isAdmin = user.role === "ADMIN" || Boolean(user.is_superuser);
   const isOwner = user.role === "OWNER";
-  const isCustomer = user.role === "CUSTOMER" || (!isAdmin && !isOwner);
+  const isWorker = user.role === "WORKER";
+  const isCustomer = user.role === "CUSTOMER" || (!isAdmin && !isOwner && !isWorker);
 
   let hasPermission = false;
   if (allowedRoles.includes("ADMIN") && isAdmin) {
     hasPermission = true;
   } else if (allowedRoles.includes("OWNER") && isOwner) {
     hasPermission = true;
-  } else if (allowedRoles.includes("CUSTOMER") && isCustomer && !isAdmin) {
+  } else if (allowedRoles.includes("WORKER") && isWorker) {
+    hasPermission = true;
+  } else if (allowedRoles.includes("CUSTOMER") && isCustomer && !isAdmin && !isWorker) {
     hasPermission = true;
   }
 

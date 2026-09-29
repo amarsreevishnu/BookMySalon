@@ -4,8 +4,14 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import Salon
-from .serializers import SalonSerializer
+from .models import Salon, WorkerProfile, Booking
+from .serializers import (
+    SalonSerializer,
+    WorkerProfileSerializer,
+    WorkerCreateSerializer,
+    BookingSerializer,
+)
+from .media_utils import save_image_to_media, build_full_media_url
 
 import secrets
 from django.contrib.auth import get_user_model
@@ -17,7 +23,6 @@ from .email_utils import (
     send_salon_rejection_email,
     verify_salon_resubmit_token,
 )
-from .media_utils import build_full_media_url
 
 User = get_user_model()
 
@@ -46,6 +51,24 @@ class IsAdminUserRole(BasePermission):
                 or request.user.is_staff
             )
         )
+
+
+
+class IsWorker(IsAuthenticated):
+    def has_permission(self, request, view):
+        authenticated = super().has_permission(request, view)
+        return authenticated and getattr(request.user, "role", None) == "WORKER"
+
+
+def get_owner_salon(user):
+    if not user or not user.is_authenticated:
+        return None
+    salon = Salon.objects.filter(owner=user).first()
+    if salon:
+        return salon
+    if getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff:
+        return Salon.objects.first()
+    return None
 
 
 class SalonCreateView(generics.CreateAPIView):
@@ -433,8 +456,8 @@ class OwnerDashboardView(APIView):
         user = request.user
         salon = None
 
-        if user and user.is_authenticated and hasattr(user, "salons"):
-            salon = user.salons.first()
+        if user and user.is_authenticated:
+            salon = get_owner_salon(user)
 
         if not salon:
             salon = Salon.objects.first()
@@ -443,6 +466,48 @@ class OwnerDashboardView(APIView):
         salon_city = salon.city if salon else "Indiranagar, Bangalore"
         salon_category = salon.category if salon else "Hair & Styling • Spa"
         outlet_code = f"#{salon.id:02d}" if salon else "#04"
+
+        staff_on_duty = [
+            {
+                "id": 1,
+                "name": "Rahul Sharma",
+                "station": "Station 01",
+                "role": "Senior Hair Stylist",
+                "rating": 4.9,
+                "booked_count": 8,
+                "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+                "is_active": True,
+            },
+            {
+                "id": 2,
+                "name": "Anjali Sen",
+                "station": "Station 02",
+                "role": "Skin & Spa Specialist",
+                "rating": 4.95,
+                "booked_count": 6,
+                "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
+                "is_active": True,
+            },
+        ]
+        if salon:
+            real_workers = WorkerProfile.objects.filter(salon=salon).select_related("user")
+            if real_workers.exists():
+                staff_on_duty = []
+                for idx, w in enumerate(real_workers, start=1):
+                    full_name = f"{w.user.first_name} {w.user.last_name}".strip() or w.user.email.split("@")[0].title()
+                    staff_on_duty.append({
+                        "id": w.id,
+                        "worker_id": w.id,
+                        "name": full_name,
+                        "station": f"Station {idx:02d}",
+                        "role": w.specialization or "Stylist",
+                        "rating": 4.9,
+                        "booked_count": w.assigned_bookings.count(),
+                        "avatar": build_full_media_url(request, w.profile_photo) if w.profile_photo else "",
+                        "is_active": w.is_active,
+                        "phone": w.phone_number,
+                        "experience": w.experience,
+                    })
 
         data = {
             "salon_info": {
@@ -496,28 +561,7 @@ class OwnerDashboardView(APIView):
                     "action_label": "Send Reminder",
                 },
             ],
-            "staff_on_duty": [
-                {
-                    "id": 1,
-                    "name": "Rahul Sharma",
-                    "station": "Station 01",
-                    "role": "Senior Hair Stylist",
-                    "rating": 4.9,
-                    "booked_count": 8,
-                    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
-                    "is_active": True,
-                },
-                {
-                    "id": 2,
-                    "name": "Anjali Sen",
-                    "station": "Station 02",
-                    "role": "Skin & Spa Specialist",
-                    "rating": 4.95,
-                    "booked_count": 6,
-                    "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
-                    "is_active": True,
-                },
-            ],
+            "staff_on_duty": staff_on_duty,
             "revenue_progression": {
                 "peak_window": "11 AM - 1 PM",
                 "daily_accrued": "₹8,450",
@@ -571,6 +615,7 @@ class OwnerQuickWalkInView(APIView):
         stylist = request.data.get("stylist", "Rahul").strip()
         station = request.data.get("station", "Station 01").strip()
         duration = request.data.get("duration", "45 mins").strip()
+        phone = request.data.get("phone", "").strip()
 
         if not client_name:
             return Response(
@@ -578,8 +623,41 @@ class OwnerQuickWalkInView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        salon = get_owner_salon(request.user) if (request.user and request.user.is_authenticated) else Salon.objects.first()
+
+        worker = None
+        if salon:
+            worker = WorkerProfile.objects.filter(
+                Q(salon=salon) & (
+                    Q(user__first_name__icontains=stylist)
+                    | Q(user__last_name__icontains=stylist)
+                    | Q(specialization__icontains=stylist)
+                )
+            ).first()
+            if not worker:
+                worker = WorkerProfile.objects.filter(salon=salon).first()
+
+        booking = None
+        if salon:
+            try:
+                booking = Booking.objects.create(
+                    salon=salon,
+                    worker=worker,
+                    client_name=client_name,
+                    client_phone=phone,
+                    service_name=service,
+                    booking_date=timezone.localdate(),
+                    booking_time=timezone.now().strftime("%I:%M %p"),
+                    duration=duration,
+                    station=station,
+                    status=Booking.Status.IN_PROGRESS,
+                    notes="Walk-in registered by salon owner",
+                )
+            except Exception:
+                pass
+
         walk_in = {
-            "id": int(timezone.now().timestamp()),
+            "id": booking.id if booking else int(timezone.now().timestamp()),
             "time": timezone.now().strftime("%I:%M %p"),
             "client_name": client_name,
             "station": station,
@@ -596,6 +674,316 @@ class OwnerQuickWalkInView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class OwnerWorkerListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        is_owner_or_admin = (
+            getattr(user, "role", None) in ["OWNER", "ADMIN"]
+            or user.is_superuser
+            or user.is_staff
+        )
+        if not is_owner_or_admin:
+            return Response(
+                {"error": "Access denied. Only salon owners can view workers."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        salon = get_owner_salon(user)
+        if not salon:
+            return Response(
+                {"error": "No registered salon found for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        workers = (
+            WorkerProfile.objects.filter(salon=salon)
+            .select_related("user", "salon")
+            .order_by("-created_at")
+        )
+
+        query = request.query_params.get("q", "").strip()
+        if query:
+            workers = workers.filter(
+                Q(user__first_name__icontains=query)
+                | Q(user__last_name__icontains=query)
+                | Q(user__email__icontains=query)
+                | Q(phone_number__icontains=query)
+                | Q(specialization__icontains=query)
+            )
+
+        serializer = WorkerProfileSerializer(workers, many=True, context={"request": request})
+        return Response({
+            "workers": serializer.data,
+            "count": workers.count(),
+            "salon": {
+                "id": salon.id,
+                "name": salon.name,
+                "city": salon.city,
+            },
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        user = request.user
+        # 1. Backend validates owner
+        is_owner_or_admin = (
+            getattr(user, "role", None) in ["OWNER", "ADMIN"]
+            or user.is_superuser
+            or user.is_staff
+        )
+        if not is_owner_or_admin:
+            return Response(
+                {"error": "Access denied. Only salon owners can create worker accounts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 2. Backend validates salon
+        salon = get_owner_salon(user)
+        if not salon:
+            return Response(
+                {"error": "Cannot add worker: You do not have an approved or registered salon."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 3. Create worker: owner and salon are assigned strictly by the backend
+        serializer = WorkerCreateSerializer(
+            data=request.data,
+            context={"salon": salon, "request": request},
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        worker = serializer.save()
+        worker_data = WorkerProfileSerializer(worker, context={"request": request}).data
+
+        return Response(
+            {
+                "message": "Worker added successfully",
+                "worker": worker_data,
+                "credentials": {
+                    "email": worker.user.email,
+                    "password": getattr(worker, "_temporary_password", "Worker@123"),
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OwnerWorkerDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_salon_worker(self, user, pk):
+        salon = get_owner_salon(user)
+        if not salon:
+            return None, None
+        worker = (
+            WorkerProfile.objects.filter(pk=pk, salon=salon)
+            .select_related("user", "salon")
+            .first()
+        )
+        return salon, worker
+
+    def get(self, request, pk):
+        _, worker = self.get_salon_worker(request.user, pk)
+        if not worker:
+            return Response({"error": "Worker not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = WorkerProfileSerializer(worker, context={"request": request})
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        _, worker = self.get_salon_worker(request.user, pk)
+        if not worker:
+            return Response({"error": "Worker not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        if "specialization" in data:
+            worker.specialization = data["specialization"].strip()
+        if "experience" in data:
+            worker.experience = data["experience"].strip()
+        if "phone_number" in data:
+            worker.phone_number = data["phone_number"].strip()
+        if "is_active" in data:
+            worker.is_active = bool(data["is_active"])
+            worker.user.is_active = worker.is_active
+            worker.user.save(update_fields=["is_active"])
+        if "full_name" in data and data["full_name"]:
+            parts = data["full_name"].strip().split(" ", 1)
+            worker.user.first_name = parts[0]
+            worker.user.last_name = parts[1] if len(parts) > 1 else ""
+            worker.user.save(update_fields=["first_name", "last_name"])
+        if "profile_photo" in data and data["profile_photo"]:
+            saved = save_image_to_media(data["profile_photo"], subfolder="workers/photos")
+            if saved:
+                worker.profile_photo = saved
+
+        worker.save()
+        serializer = WorkerProfileSerializer(worker, context={"request": request})
+        return Response({
+            "message": "Worker profile updated successfully.",
+            "worker": serializer.data,
+        })
+
+    def delete(self, request, pk):
+        _, worker = self.get_salon_worker(request.user, pk)
+        if not worker:
+            return Response({"error": "Worker not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = worker.user
+        worker.is_active = False
+        worker.save(update_fields=["is_active"])
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        return Response({"message": "Worker account deactivated successfully."})
+
+
+class WorkerDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        worker = getattr(user, "worker_profile", None)
+
+        if not worker and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+            worker_id = request.query_params.get("worker_id")
+            if worker_id:
+                worker = WorkerProfile.objects.filter(pk=worker_id).first()
+            else:
+                worker = WorkerProfile.objects.first()
+
+        if not worker:
+            return Response(
+                {"error": "No worker profile found for this user."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        bookings_qs = Booking.objects.filter(worker=worker).order_by("-booking_date", "-booking_time")
+
+        # Auto-seed sample bookings if newly created worker has none yet
+        today = timezone.localdate()
+        if not bookings_qs.exists():
+            try:
+                Booking.objects.create(
+                    salon=worker.salon,
+                    worker=worker,
+                    client_name="Pooja Sharma",
+                    client_phone="+91 98450 12345",
+                    client_email="pooja@example.com",
+                    service_name=worker.specialization or "Haircut & Styling",
+                    service_price=550.00,
+                    booking_date=today,
+                    booking_time="10:30 AM",
+                    duration="45 mins",
+                    station="Station 01",
+                    status=Booking.Status.CONFIRMED,
+                    notes="Client requested senior stylist",
+                )
+                Booking.objects.create(
+                    salon=worker.salon,
+                    worker=worker,
+                    client_name="Karthik Menon",
+                    client_phone="+91 97410 98765",
+                    client_email="karthik@example.com",
+                    service_name="Deep Scalp Therapy & Wash",
+                    service_price=850.00,
+                    booking_date=today,
+                    booking_time="02:00 PM",
+                    duration="60 mins",
+                    station="Station 02",
+                    status=Booking.Status.IN_PROGRESS,
+                    notes="Regular client",
+                )
+                Booking.objects.create(
+                    salon=worker.salon,
+                    worker=worker,
+                    client_name="Ananya Reddy",
+                    client_phone="+91 99001 54321",
+                    client_email="ananya@example.com",
+                    service_name="Express Glow Facial",
+                    service_price=1200.00,
+                    booking_date=today,
+                    booking_time="04:30 PM",
+                    duration="45 mins",
+                    station="Station 03",
+                    status=Booking.Status.PENDING,
+                    notes="Arriving by cab, might be 5 mins late",
+                )
+                bookings_qs = Booking.objects.filter(worker=worker).order_by("-booking_date", "-booking_time")
+            except Exception:
+                pass
+
+        total_count = bookings_qs.count()
+        today_count = bookings_qs.filter(booking_date=today).count()
+        completed_count = bookings_qs.filter(status=Booking.Status.COMPLETED).count()
+        in_progress_count = bookings_qs.filter(status=Booking.Status.IN_PROGRESS).count()
+        upcoming_count = bookings_qs.filter(status__in=[Booking.Status.CONFIRMED, Booking.Status.PENDING]).count()
+
+        serializer = BookingSerializer(bookings_qs, many=True)
+        worker_serializer = WorkerProfileSerializer(worker, context={"request": request})
+
+        return Response({
+            "worker": worker_serializer.data,
+            "salon": {
+                "id": worker.salon.id,
+                "name": worker.salon.name,
+                "category": worker.salon.category,
+                "address": worker.salon.address,
+                "city": worker.salon.city,
+                "phone": worker.salon.phone,
+            },
+            "kpi_stats": {
+                "total_bookings": total_count,
+                "today_bookings": today_count,
+                "completed_bookings": completed_count,
+                "in_progress_bookings": in_progress_count,
+                "upcoming_bookings": upcoming_count,
+            },
+            "assigned_bookings": serializer.data,
+        })
+
+
+class WorkerBookingStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def patch(self, request, pk):
+        user = request.user
+        new_status = request.data.get("status", "").upper()
+
+        valid_statuses = [choice[0] for choice in Booking.Status.choices]
+        if new_status not in valid_statuses:
+            return Response(
+                {"error": f"Invalid status. Allowed values: {', '.join(valid_statuses)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking = Booking.objects.filter(pk=pk).first()
+        if not booking:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_worker = hasattr(user, "worker_profile") and booking.worker == user.worker_profile
+        is_owner = getattr(user, "role", None) == "OWNER" and booking.salon.owner == user
+        is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
+
+        if not (is_worker or is_owner or is_admin):
+            return Response(
+                {"error": "Access denied. You can only update bookings assigned to you."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        booking.status = new_status
+        booking.save(update_fields=["status", "updated_at"])
+
+        return Response({
+            "message": f"Booking status updated to {new_status}.",
+            "booking": BookingSerializer(booking).data,
+        })
+
 
 
 class CustomerSalonExploreView(APIView):

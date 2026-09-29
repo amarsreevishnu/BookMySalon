@@ -8,15 +8,39 @@ from .views import (
     CustomerSalonExploreView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
+    OwnerWorkerDetailView,
+    OwnerWorkerListCreateView,
     PendingSalonListView,
     SalonApprovalView,
     SalonCreateView,
     SalonResubmitDataView,
     SalonResubmitView,
+    WorkerBookingStatusUpdateView,
+    WorkerDashboardView,
 )
 
 
 urlpatterns = [
+    path(
+        "owner/workers/",
+        OwnerWorkerListCreateView.as_view(),
+        name="owner-worker-list-create",
+    ),
+    path(
+        "owner/workers/<int:pk>/",
+        OwnerWorkerDetailView.as_view(),
+        name="owner-worker-detail",
+    ),
+    path(
+        "worker/dashboard/",
+        WorkerDashboardView.as_view(),
+        name="worker-dashboard",
+    ),
+    path(
+        "worker/bookings/<int:pk>/status/",
+        WorkerBookingStatusUpdateView.as_view(),
+        name="worker-booking-status-update",
+    ),
     path(
         "explore/",
         CustomerSalonExploreView.as_view(),

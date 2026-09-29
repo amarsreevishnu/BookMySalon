@@ -63,6 +63,8 @@ function Login() {
                 navigate("/admin/dashboard");
             } else if (user.role === "OWNER") {
                 navigate("/owner/dashboard");
+            } else if (user.role === "WORKER") {
+                navigate("/worker/dashboard");
             } else {
                 navigate("/customer-home");
             }

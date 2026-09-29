@@ -1,8 +1,11 @@
 import json
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Salon
+from .models import Salon, WorkerProfile, Booking
 from .media_utils import save_image_to_media, build_full_media_url
+
+User = get_user_model()
 
 
 class SalonSerializer(serializers.ModelSerializer):
@@ -88,3 +91,152 @@ class SalonSerializer(serializers.ModelSerializer):
         if isinstance(ret.get("images"), list):
             ret["images"] = [build_full_media_url(request, img) for img in ret["images"]]
         return ret
+
+
+class WorkerProfileSerializer(serializers.ModelSerializer):
+    email = serializers.ReadOnlyField(source="user.email")
+    first_name = serializers.ReadOnlyField(source="user.first_name")
+    last_name = serializers.ReadOnlyField(source="user.last_name")
+    full_name = serializers.SerializerMethodField()
+    salon_name = serializers.ReadOnlyField(source="salon.name")
+    assigned_bookings_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkerProfile
+        fields = [
+            "id",
+            "user_id",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "phone_number",
+            "specialization",
+            "experience",
+            "profile_photo",
+            "is_active",
+            "salon",
+            "salon_name",
+            "assigned_bookings_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user_id", "email", "salon", "salon_name", "created_at", "updated_at"]
+
+    def get_full_name(self, obj):
+        name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return name if name else obj.user.email
+
+    def get_assigned_bookings_count(self, obj):
+        return obj.assigned_bookings.count()
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get("request")
+        if ret.get("profile_photo"):
+            ret["profile_photo"] = build_full_media_url(request, ret["profile_photo"])
+        return ret
+
+
+class WorkerCreateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150, write_only=True)
+    email = serializers.EmailField(write_only=True)
+    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    specialization = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    experience = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    profile_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate_email(self, value):
+        normalized = value.strip().lower()
+        if User.objects.filter(email__iexact=normalized).exists():
+            raise serializers.ValidationError("An account with this email address already exists.")
+        return normalized
+
+    def create(self, validated_data):
+        salon = self.context.get("salon")
+        if not salon:
+            raise serializers.ValidationError({"detail": "Owner and salon must be assigned by the backend."})
+
+        full_name = validated_data.get("full_name", "").strip()
+        email = validated_data.get("email", "").strip().lower()
+        phone_number = validated_data.get("phone_number", "").strip()
+        specialization = validated_data.get("specialization", "").strip()
+        experience = validated_data.get("experience", "").strip()
+        profile_photo = validated_data.get("profile_photo", "")
+        raw_password = validated_data.get("password", "").strip() or "Worker@123"
+
+        name_parts = full_name.split(" ", 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        # 1. Create worker authentication account using existing User model
+        user = User.objects.create_user(
+            email=email,
+            password=raw_password,
+            first_name=first_name,
+            last_name=last_name,
+            role=User.Role.WORKER,
+            is_active=True,
+        )
+
+        # 2. Process profile photo if provided
+        saved_photo = ""
+        if profile_photo:
+            saved_photo = save_image_to_media(profile_photo, subfolder="workers/photos") or profile_photo
+
+        # 3. Create worker-specific profile attached to backend salon
+        profile = WorkerProfile.objects.create(
+            user=user,
+            salon=salon,
+            phone_number=phone_number,
+            specialization=specialization,
+            experience=experience,
+            profile_photo=saved_photo,
+            is_active=True,
+        )
+
+        # Attach raw password for one-time response display
+        profile._temporary_password = raw_password
+        return profile
+
+    def to_representation(self, instance):
+        data = WorkerProfileSerializer(instance, context=self.context).data
+        if hasattr(instance, "_temporary_password"):
+            data["temporary_password"] = instance._temporary_password
+        return data
+
+
+class BookingSerializer(serializers.ModelSerializer):
+    worker_name = serializers.SerializerMethodField()
+    salon_name = serializers.ReadOnlyField(source="salon.name")
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id",
+            "salon",
+            "salon_name",
+            "worker",
+            "worker_name",
+            "customer",
+            "client_name",
+            "client_phone",
+            "client_email",
+            "service_name",
+            "service_price",
+            "booking_date",
+            "booking_time",
+            "duration",
+            "station",
+            "status",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_worker_name(self, obj):
+        if obj.worker and obj.worker.user:
+            return obj.worker.user.get_full_name() or obj.worker.user.email
+        return "Unassigned"

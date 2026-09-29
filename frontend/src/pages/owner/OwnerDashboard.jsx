@@ -8,6 +8,108 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const searchInputRef = useRef(null);
+  // Worker management state
+  const [workersList, setWorkersList] = useState([]);
+  const [workerSearch, setWorkerSearch] = useState("");
+  const [workerFilterRole, setWorkerFilterRole] = useState("all");
+  const [workerFilterStatus, setWorkerFilterStatus] = useState("all");
+  const [loadingWorkers, setLoadingWorkers] = useState(false);
+  const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
+  const [workerError, setWorkerError] = useState("");
+  const [submittingWorker, setSubmittingWorker] = useState(false);
+  const [workerSuccessModal, setWorkerSuccessModal] = useState(null);
+  const [workerForm, setWorkerForm] = useState({
+    full_name: "", email: "", phone_number: "", specialization: "Senior Hair Stylist",
+    experience: "1-2 Years (Junior Stylist)", profile_photo: "", password: "",
+  });
+
+  const filteredWorkers = useMemo(() => {
+    const q = workerSearch.trim().toLowerCase();
+    return workersList.filter((w) => {
+      const matchesSearch = !q || [w.full_name, w.email, w.phone_number, w.specialization]
+        .some((v) => String(v || "").toLowerCase().includes(q));
+      const role = String(w.specialization || "").toLowerCase();
+      const matchesRole = workerFilterRole === "all" ||
+        (workerFilterRole === "hair" && role.includes("hair")) ||
+        (workerFilterRole === "color" && role.includes("color")) ||
+        (workerFilterRole === "spa" && (role.includes("spa") || role.includes("massage"))) ||
+        (workerFilterRole === "skin" && (role.includes("skin") || role.includes("facial"))) ||
+        (workerFilterRole === "nail" && role.includes("nail")) ||
+        (workerFilterRole === "barber" && role.includes("barber"));
+      const matchesStatus = workerFilterStatus === "all" ||
+        (workerFilterStatus === "active" && w.is_active) ||
+        (workerFilterStatus === "inactive" && !w.is_active);
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [workersList, workerSearch, workerFilterRole, workerFilterStatus]);
+
+  const fetchWorkers = async () => {
+    setLoadingWorkers(true);
+    try {
+      const res = await api.get("/salons/owner/workers/");
+      const data = res.data;
+      setWorkersList(Array.isArray(data) ? data : (data.results || data.workers || []));
+    } catch (err) {
+      setWorkerError(err.response?.data?.detail || "Could not load workers. Check the workers API endpoint.");
+    } finally {
+      setLoadingWorkers(false);
+    }
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setWorkerForm((prev) => ({ ...prev, profile_photo: String(reader.result || "") }));
+    reader.onerror = () => setWorkerError("Could not read the selected image.");
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddWorkerSubmit = async (e) => {
+    e.preventDefault();
+    setWorkerError("");
+    setSubmittingWorker(true);
+    try {
+      const res = await api.post("/salons/owner/workers/", workerForm);
+      const data = res.data;
+      const worker = data.worker || data;
+      setWorkersList((prev) => [worker, ...prev.filter((w) => w.id !== worker.id)]);
+      setWorkerSuccessModal({
+        name: worker.full_name || workerForm.full_name,
+        email: worker.email || workerForm.email,
+        password: data.password || workerForm.password || "Use the password set during creation",
+      });
+      setWorkerForm({
+        full_name: "", email: "", phone_number: "", specialization: "Senior Hair Stylist",
+        experience: "1-2 Years (Junior Stylist)", profile_photo: "", password: "",
+      });
+      setIsAddWorkerOpen(false);
+    } catch (err) {
+      const data = err.response?.data;
+      setWorkerError(typeof data === "string" ? data : data?.detail || Object.values(data || {}).flat().join(" ") || "Failed to create worker.");
+    } finally {
+      setSubmittingWorker(false);
+    }
+  };
+
+  const handleToggleWorkerStatus = async (workerId, isActive) => {
+    try {
+      const res = await api.patch(`/salons/owner/workers/${workerId}/`, { is_active: !isActive });
+      const updated = res.data;
+      setWorkersList((prev) => prev.map((w) => w.id === workerId ? { ...w, ...updated, is_active: updated.is_active ?? !isActive } : w));
+    } catch (err) {
+      setWorkerError(err.response?.data?.detail || "Could not update worker status.");
+    }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!workerSuccessModal) return;
+    navigator.clipboard?.writeText(
+      `Name: ${workerSuccessModal.name}\nEmail: ${workerSuccessModal.email}\nPassword: ${workerSuccessModal.password}`
+    );
+    setToastMessage("Worker credentials copied.");
+  };
+
 
   // for Modal 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -511,12 +613,29 @@ export default function OwnerDashboard() {
               className={`studio-nav-tab ${activeTab === tab ? "active" : ""}`}
               onClick={() => {
                 setActiveTab(tab);
-                if (tab !== "Dashboard") {
+                if (tab === "Workers") {
+                  fetchWorkers();
+                } else if (tab !== "Dashboard") {
                   setToastMessage(`Switched view to ${tab}`);
                 }
               }}
             >
               {tab}
+              {tab === "Workers" && workersList.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: "6px",
+                    background: "#eef7f2",
+                    color: "#1e824c",
+                    padding: "1px 6px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {workersList.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -526,7 +645,229 @@ export default function OwnerDashboard() {
           MAIN DASHBOARD BODY
           -------------------------------------------------------------------- */}
       <main className="studio-main-body">
-        {/* Banner Row: Greeting & Operations State */}
+        {activeTab === "Workers" ? (
+          /* ================================================================
+             WORKERS MANAGEMENT VIEW
+             ================================================================ */
+          <div className="owner-workers-view">
+            {/* Hero Header Banner */}
+            <div className="workers-hero-banner">
+              <div>
+                <h1 className="workers-hero-title">Salon Team & Stylists</h1>
+                <p className="workers-hero-subtitle">
+                  Manage professional staff, active status, specializations and assigned client bookings.
+                  Worker accounts can log in to view their assigned appointments.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-add-worker-primary"
+                onClick={() => {
+                  setWorkerError("");
+                  setIsAddWorkerOpen(true);
+                }}
+              >
+                <span>➕</span>
+                <span>Add Worker</span>
+              </button>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="workers-controls-bar">
+              <div className="workers-controls-left">
+                <input
+                  type="text"
+                  className="workers-search-input"
+                  placeholder="Search worker by name, email, phone, role..."
+                  value={workerSearch}
+                  onChange={(e) => setWorkerSearch(e.target.value)}
+                />
+
+                <select
+                  className="workers-filter-select"
+                  value={workerFilterRole}
+                  onChange={(e) => setWorkerFilterRole(e.target.value)}
+                >
+                  <option value="all">All Specializations</option>
+                  <option value="hair">Hair Styling</option>
+                  <option value="color">Colorist</option>
+                  <option value="spa">Spa & Massage</option>
+                  <option value="skin">Skin & Facial</option>
+                  <option value="nail">Nails</option>
+                  <option value="barber">Barber</option>
+                </select>
+              </div>
+
+              <div className="workers-status-tabs">
+                <button
+                  type="button"
+                  className={`workers-tab-btn ${workerFilterStatus === "all" ? "active" : ""}`}
+                  onClick={() => setWorkerFilterStatus("all")}
+                >
+                  All ({workersList.length})
+                </button>
+                <button
+                  type="button"
+                  className={`workers-tab-btn ${workerFilterStatus === "active" ? "active" : ""}`}
+                  onClick={() => setWorkerFilterStatus("active")}
+                >
+                  Active ({workersList.filter((w) => w.is_active).length})
+                </button>
+                <button
+                  type="button"
+                  className={`workers-tab-btn ${workerFilterStatus === "inactive" ? "active" : ""}`}
+                  onClick={() => setWorkerFilterStatus("inactive")}
+                >
+                  Inactive ({workersList.filter((w) => !w.is_active).length})
+                </button>
+              </div>
+            </div>
+
+            {/* Workers Cards Grid */}
+            {loadingWorkers ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#627267" }}>
+                <p>Loading salon staff members...</p>
+              </div>
+            ) : filteredWorkers.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "60px 20px",
+                  background: "#ffffff",
+                  borderRadius: "16px",
+                  border: "1px solid #e8edea",
+                }}
+              >
+                <div style={{ fontSize: "42px", marginBottom: "12px" }}>👥</div>
+                <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#1d2922" }}>
+                  {workersList.length === 0 ? "No Salon Workers Added Yet" : "No Matching Workers Found"}
+                </h3>
+                <p
+                  style={{
+                    margin: "0 0 20px",
+                    fontSize: "14px",
+                    color: "#627267",
+                    maxWidth: "480px",
+                    marginInline: "auto",
+                  }}
+                >
+                  {workersList.length === 0
+                    ? "Add stylists and staff members to your salon. They will receive worker credentials to log in and manage assigned appointments."
+                    : "No workers match your filter or search query. Try clearing filters."}
+                </p>
+                {workersList.length === 0 ? (
+                  <button
+                    type="button"
+                    className="btn-add-worker-primary"
+                    style={{ margin: "0 auto" }}
+                    onClick={() => {
+                      setWorkerError("");
+                      setIsAddWorkerOpen(true);
+                    }}
+                  >
+                    <span>➕ Add First Worker</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
+                    onClick={() => {
+                      setWorkerSearch("");
+                      setWorkerFilterRole("all");
+                      setWorkerFilterStatus("all");
+                    }}
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="workers-grid">
+                {filteredWorkers.map((worker) => (
+                  <div key={worker.id} className="worker-profile-card">
+                    <div>
+                      <div className="worker-card-top">
+                        {worker.profile_photo ? (
+                          <img
+                            src={worker.profile_photo}
+                            alt={worker.full_name}
+                            className="worker-card-avatar"
+                          />
+                        ) : (
+                          <div className="worker-card-avatar">
+                            {worker.full_name?.charAt(0).toUpperCase() || "W"}
+                          </div>
+                        )}
+
+                        <div className="worker-card-info">
+                          <h3 className="worker-card-name">{worker.full_name}</h3>
+                          <span className="worker-card-role">
+                            {worker.specialization || "Salon Stylist"}
+                          </span>
+                          <div className="worker-tags-row">
+                            {worker.experience && (
+                              <span className="worker-tag-pill">
+                                ⏳ {worker.experience}
+                              </span>
+                            )}
+                            <span
+                              className={`worker-status-badge ${
+                                worker.is_active ? "active" : "inactive"
+                              }`}
+                            >
+                              <span
+                                style={{
+                                  width: "6px",
+                                  height: "6px",
+                                  borderRadius: "50%",
+                                  background: worker.is_active ? "#1e824c" : "#888",
+                                }}
+                              />
+                              {worker.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="worker-card-body">
+                        <div className="worker-contact-row">
+                          <span>📧</span>
+                          <span>{worker.email}</span>
+                        </div>
+                        {worker.phone_number && (
+                          <div className="worker-contact-row">
+                            <span>📞</span>
+                            <span>{worker.phone_number}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="worker-card-footer">
+                      <div className="worker-bookings-counter">
+                        📅 {worker.assigned_bookings_count ?? 0} Bookings
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`btn-toggle-worker ${
+                          worker.is_active ? "deactivate" : "activate"
+                        }`}
+                        onClick={() =>
+                          handleToggleWorkerStatus(worker.id, worker.is_active)
+                        }
+                      >
+                        {worker.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeTab === "Dashboard" ? (
+          <>
+            {/* Banner Row: Greeting & Operations State */}
         <div className="studio-banner-row">
           <div>
             <div className="studio-live-badge">
@@ -684,16 +1025,45 @@ export default function OwnerDashboard() {
                   <span style={{ fontSize: "18px" }}>👥</span>
                   <h2 className="studio-widget-title">Staff On Duty Today</h2>
                 </div>
-                <span className="studio-widget-badge pill">
-                  {dashboardData.staff_on_duty.length} Active Stylists
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <button
+                    type="button"
+                    className="btn-add-worker-small"
+                    onClick={() => {
+                      setWorkerError("");
+                      setIsAddWorkerOpen(true);
+                    }}
+                  >
+                    + Add Worker
+                  </button>
+                  <span className="studio-widget-badge pill">
+                    {dashboardData.staff_on_duty.length} Stylists
+                  </span>
+                </div>
               </div>
 
               <div className="staff-duty-grid">
                 {dashboardData.staff_on_duty.map((staff) => (
                   <div key={staff.id} className="staff-card">
                     <div className="staff-avatar-wrapper">
-                      <img src={staff.avatar} alt={staff.name} className="staff-avatar-img" />
+                      {staff.avatar ? (
+                        <img src={staff.avatar} alt={staff.name} className="staff-avatar-img" />
+                      ) : (
+                        <div
+                          className="staff-avatar-img"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "#eef7f2",
+                            color: "#1e392a",
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {staff.name?.charAt(0).toUpperCase() || "S"}
+                        </div>
+                      )}
                       {staff.is_active && <span className="staff-online-dot" />}
                     </div>
 
@@ -713,6 +1083,7 @@ export default function OwnerDashboard() {
                 ))}
               </div>
             </section>
+
           </div>
 
           {/* ===================== RIGHT COLUMN ===================== */}
@@ -830,7 +1201,49 @@ export default function OwnerDashboard() {
             </section>
           </div>
         </div>
+          </>
+        ) : (
+          /* ================================================================
+             OTHER STUDIO TABS (PLACEHOLDER & QUICK JUMP)
+             ================================================================ */
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              background: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #e8edea",
+            }}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#1d2922" }}>
+              {activeTab} Management
+            </h3>
+            <p style={{ color: "#627267", margin: "0 0 16px" }}>
+              This section is part of your salon studio operations.
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              <button
+                type="button"
+                className="btn-modal-cancel"
+                onClick={() => setActiveTab("Dashboard")}
+              >
+                ← Back to Dashboard
+              </button>
+              <button
+                type="button"
+                className="btn-add-worker-primary"
+                onClick={() => {
+                  setActiveTab("Workers");
+                  fetchWorkers();
+                }}
+              >
+                View Salon Workers
+              </button>
+            </div>
+          </div>
+        )}
       </main>
+
 
       {/* --------------------------------------------------------------------
           STUDIO FOOTER
@@ -1107,7 +1520,361 @@ export default function OwnerDashboard() {
           </div>
         </div>
       )}
+
+      {/* --------------------------------------------------------------------
+          MODAL: ADD NEW WORKER
+          -------------------------------------------------------------------- */}
+      {isAddWorkerOpen && (
+        <div
+          className="studio-modal-backdrop"
+          onClick={() => setIsAddWorkerOpen(false)}
+        >
+          <div
+            className="studio-modal-card"
+            style={{ maxWidth: "560px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="studio-modal-header">
+              <div>
+                <h3 className="studio-modal-title">Add Salon Worker</h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#627267" }}>
+                  Create a worker account with authentication & salon assignment.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="studio-modal-close-btn"
+                onClick={() => setIsAddWorkerOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddWorkerSubmit}>
+              <div
+                className="studio-modal-body"
+                style={{ maxHeight: "70vh", overflowY: "auto" }}
+              >
+                {workerError && (
+                  <div className="worker-error-banner">
+                    ⚠️ {workerError}
+                  </div>
+                )}
+
+                {/* 1. Full Name */}
+                <div className="form-group">
+                  <label className="form-label">
+                    Full Name <span style={{ color: "#c0392b" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Priya Sharma"
+                    required
+                    value={workerForm.full_name}
+                    onChange={(e) =>
+                      setWorkerForm({ ...workerForm, full_name: e.target.value })
+                    }
+                  />
+                </div>
+
+                {/* 2. Email & 3. Phone Number */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "12px",
+                  }}
+                >
+                  <div className="form-group">
+                    <label className="form-label">
+                      Email (Login ID) <span style={{ color: "#c0392b" }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="priya@gmail.com"
+                      required
+                      value={workerForm.email}
+                      onChange={(e) =>
+                        setWorkerForm({ ...workerForm, email: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      Phone Number <span style={{ color: "#c0392b" }}>*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      placeholder="+91 98765 43210"
+                      required
+                      value={workerForm.phone_number}
+                      onChange={(e) =>
+                        setWorkerForm({
+                          ...workerForm,
+                          phone_number: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Specialization & 5. Experience */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "12px",
+                  }}
+                >
+                  <div className="form-group">
+                    <label className="form-label">
+                      Specialization <span style={{ color: "#c0392b" }}>*</span>
+                    </label>
+                    <select
+                      className="form-select"
+                      value={workerForm.specialization}
+                      onChange={(e) =>
+                        setWorkerForm({
+                          ...workerForm,
+                          specialization: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="Senior Hair Stylist">Senior Hair Stylist</option>
+                      <option value="Hair Stylist & Barber">Hair Stylist & Barber</option>
+                      <option value="Colorist & Chemical Specialist">
+                        Colorist & Chemical Specialist
+                      </option>
+                      <option value="Skin & Esthetics Specialist">
+                        Skin & Esthetics Specialist
+                      </option>
+                      <option value="Spa & Massage Therapist">
+                        Spa & Massage Therapist
+                      </option>
+                      <option value="Nail Art & Manicurist">Nail Art & Manicurist</option>
+                      <option value="Bridal Makeup & Styling">
+                        Bridal Makeup & Styling
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      Experience <span style={{ color: "#c0392b" }}>*</span>
+                    </label>
+                    <select
+                      className="form-select"
+                      value={workerForm.experience}
+                      onChange={(e) =>
+                        setWorkerForm({ ...workerForm, experience: e.target.value })
+                      }
+                    >
+                      <option value="1-2 Years (Junior Stylist)">
+                        1-2 Years (Junior)
+                      </option>
+                      <option value="3-5 Years (Mid-level)">
+                        3-5 Years (Mid-level)
+                      </option>
+                      <option value="5+ Years (Senior Stylist)">
+                        5+ Years (Senior)
+                      </option>
+                      <option value="8+ Years (Master Stylist)">
+                        8+ Years (Master)
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 6. Profile Photo */}
+                <div className="form-group">
+                  <label className="form-label">Profile Photo</label>
+                  <div className="worker-photo-uploader">
+                    {workerForm.profile_photo ? (
+                      <img
+                        src={workerForm.profile_photo}
+                        alt="Preview"
+                        className="photo-preview-circle"
+                      />
+                    ) : (
+                      <div className="photo-preview-circle">📷</div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        style={{ fontSize: "12px" }}
+                      />
+                      <p
+                        style={{
+                          margin: "4px 0 0",
+                          fontSize: "11px",
+                          color: "#8a9990",
+                        }}
+                      >
+                        Upload photo file or paste image URL below
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="url"
+                    className="form-input"
+                    style={{ marginTop: "8px" }}
+                    placeholder="Or paste photo URL (https://...)"
+                    value={
+                      workerForm.profile_photo.startsWith("data:")
+                        ? ""
+                        : workerForm.profile_photo
+                    }
+                    onChange={(e) =>
+                      setWorkerForm({
+                        ...workerForm,
+                        profile_photo: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                {/* 7. Password */}
+                <div className="form-group">
+                  <label className="form-label">Worker Account Password</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={workerForm.password}
+                    onChange={(e) =>
+                      setWorkerForm({ ...workerForm, password: e.target.value })
+                    }
+                  />
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      fontSize: "11px",
+                      color: "#627267",
+                    }}
+                  >
+                    Worker will use this email and password to log in and view assigned bookings.
+                  </p>
+                </div>
+              </div>
+
+              <div className="studio-modal-footer">
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => setIsAddWorkerOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-modal-submit"
+                  disabled={submittingWorker}
+                >
+                  {submittingWorker ? "Creating Account..." : "Create worker account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------
+          MODAL: WORKER ADDED SUCCESSFULLY
+          -------------------------------------------------------------------- */}
+      {workerSuccessModal && (
+        <div
+          className="studio-modal-backdrop"
+          onClick={() => setWorkerSuccessModal(null)}
+        >
+          <div
+            className="studio-modal-card"
+            style={{ maxWidth: "480px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="studio-modal-header"
+              style={{ borderBottom: "none", paddingBottom: "0" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "24px" }}>🎉</span>
+                <h3 className="studio-modal-title" style={{ color: "#1e824c" }}>
+                  Worker Added Successfully!
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="studio-modal-close-btn"
+                onClick={() => setWorkerSuccessModal(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="studio-modal-body">
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "#496353",
+                  margin: "0 0 12px",
+                }}
+              >
+                The worker account has been created and assigned to your salon. Provide these login credentials to the worker:
+              </p>
+
+              <div className="worker-credentials-list">
+                <div className="worker-cred-item">
+                  <span style={{ color: "#627267" }}>Full Name:</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {workerSuccessModal.name}
+                  </span>
+                </div>
+                <div className="worker-cred-item">
+                  <span style={{ color: "#627267" }}>Email:</span>
+                  <strong>{workerSuccessModal.email}</strong>
+                </div>
+                <div className="worker-cred-item">
+                  <span style={{ color: "#627267" }}>Password:</span>
+                  <strong>{workerSuccessModal.password}</strong>
+                </div>
+                <div className="worker-cred-item">
+                  <span style={{ color: "#627267" }}>Login Portal:</span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#1e392a",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Worker Studio (/login)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="studio-modal-footer">
+              <button
+                type="button"
+                className="btn-modal-cancel"
+                onClick={handleCopyCredentials}
+              >
+                📋 Copy Credentials
+              </button>
+              <button
+                type="button"
+                className="btn-modal-submit"
+                onClick={() => setWorkerSuccessModal(null)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

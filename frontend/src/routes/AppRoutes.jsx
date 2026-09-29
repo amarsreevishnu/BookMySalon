@@ -13,6 +13,7 @@ import SalonsExplore from "../pages/customer/SalonsExplore";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
+import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
@@ -54,6 +55,12 @@ function AppRoutes() {
         <Route path="/owner/dashboard" element={<OwnerDashboard />} />
         <Route path="/owner-dashboard" element={<OwnerDashboard />} />
         <Route path="/owner" element={<OwnerDashboard />} />
+      </Route>
+
+      <Route element={<RoleRoute allowedRoles={["WORKER", "OWNER", "ADMIN"]} />}>
+        <Route path="/worker/dashboard" element={<WorkerDashboard />} />
+        <Route path="/worker-dashboard" element={<WorkerDashboard />} />
+        <Route path="/worker" element={<WorkerDashboard />} />
       </Route>
 
       {/* <Route path="*" element={<NotFound />} /> */}

@@ -10,6 +10,10 @@ export function getRoleDashboardPath(user) {
     return "/owner/dashboard";
   }
 
+  if (user.role === "WORKER") {
+    return "/worker/dashboard";
+  }
+
   return "/customer-home";
 }
 

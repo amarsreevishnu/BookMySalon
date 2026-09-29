@@ -62,3 +62,76 @@ class Salon(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class WorkerProfile(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="worker_profile",
+    )
+    salon = models.ForeignKey(
+        Salon,
+        on_delete=models.CASCADE,
+        related_name="workers",
+    )
+    phone_number = models.CharField(max_length=20, blank=True, default="")
+    specialization = models.CharField(max_length=150, blank=True, default="")
+    experience = models.CharField(max_length=100, blank=True, default="")
+    profile_photo = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        full_name = self.user.get_full_name() or self.user.email
+        return f"{full_name} - {self.specialization} ({self.salon.name})"
+
+
+class Booking(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    salon = models.ForeignKey(
+        Salon,
+        on_delete=models.CASCADE,
+        related_name="bookings",
+    )
+    worker = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_bookings",
+    )
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="customer_bookings",
+    )
+    client_name = models.CharField(max_length=150)
+    client_phone = models.CharField(max_length=20, blank=True, default="")
+    client_email = models.EmailField(blank=True, default="")
+    service_name = models.CharField(max_length=150)
+    service_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    booking_date = models.DateField()
+    booking_time = models.CharField(max_length=50)
+    duration = models.CharField(max_length=50, blank=True, default="45 mins")
+    station = models.CharField(max_length=50, blank=True, default="Station 01")
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.CONFIRMED,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Booking #{self.id} - {self.client_name} - {self.service_name} ({self.status})"
