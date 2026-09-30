@@ -65,7 +65,7 @@ INSTALLED_APPS = [
 
     'accounts',
     'salons',
-
+    'services',
 ]
 
 MIDDLEWARE = [
@@ -105,16 +105,36 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "bookmysalon_db",
-        "USER": "bookmysalon_user",
-        "PASSWORD": "admin123",
-        "HOST": "localhost",
-        "PORT": "5432",
+import socket
+
+def _is_service_reachable(host, port):
+    try:
+        with socket.create_connection((host, int(port)), timeout=0.8):
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        return False
+
+_pg_host = config("DB_HOST", default="localhost")
+_pg_port = config("DB_PORT", default="5432")
+
+if _is_service_reachable(_pg_host, _pg_port):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME", default="bookmysalon_db"),
+            "USER": config("DB_USER", default="bookmysalon_user"),
+            "PASSWORD": config("DB_PASSWORD", default="admin123"),
+            "HOST": _pg_host,
+            "PORT": _pg_port,
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation

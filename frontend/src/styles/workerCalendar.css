@@ -1,0 +1,1294 @@
+/* ==========================================================================
+   BOOKMYSALON PRO — WORKER CALENDAR / STYLIST SUITE CALENDAR
+   ========================================================================== */
+
+:root {
+  --wcal-bg: #f8fafc;
+  --wcal-surface: #ffffff;
+  --wcal-border: #e2e8f0;
+  --wcal-border-light: #f1f5f9;
+  --wcal-text-primary: #0f172a;
+  --wcal-text-secondary: #475569;
+  --wcal-text-muted: #64748b;
+  --wcal-text-subtle: #94a3b8;
+  --wcal-primary: #1b4332;
+  --wcal-primary-hover: #133326;
+  --wcal-primary-light: #e8f5ee;
+  --wcal-emerald: #10b981;
+  --wcal-emerald-bg: #ecfdf5;
+  --wcal-emerald-border: #a7f3d0;
+  --wcal-amber: #d97706;
+  --wcal-amber-bg: #fffbeb;
+  --wcal-amber-border: #fde68a;
+  --wcal-rose: #dc2626;
+  --wcal-rose-bg: #fee2e2;
+  --wcal-rose-border: #fca5a5;
+  --wcal-gold: #b45309;
+  --wcal-gold-bg: #fef3c7;
+}
+
+.wcal-container {
+  min-height: 100vh;
+  background-color: var(--wcal-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--wcal-text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   1. TOP NAVIGATION BAR & STATUS STRIP
+   ========================================================================== */
+.wcal-navbar {
+  background: var(--wcal-surface);
+  border-bottom: 1px solid var(--wcal-border);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.wcal-navbar-inner {
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.wcal-brand-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.wcal-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--wcal-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.wcal-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.wcal-brand-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.wcal-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--wcal-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wcal-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wcal-nav-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wcal-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.wcal-nav-btn:hover {
+  background: #f1f5f9;
+  color: var(--wcal-text-primary);
+}
+
+.wcal-nav-btn.active {
+  background: var(--wcal-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.wcal-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-block-leave-header {
+  background: #ffffff;
+  border: 1px solid var(--wcal-border);
+  color: var(--wcal-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-block-leave-header:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.wcal-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--wcal-border);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  font-size: 14px;
+  color: var(--wcal-text-secondary);
+  transition: all 0.15s ease;
+}
+
+.wcal-icon-btn:hover {
+  background: #f1f5f9;
+}
+
+.wcal-notif-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
+  border-radius: 50%;
+}
+
+.wcal-user-avatar-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--wcal-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Sub-header status bar */
+.wcal-sub-strip {
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 6px 24px;
+  font-size: 12px;
+  color: var(--wcal-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wcal-sub-strip-inner {
+  max-width: 1420px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wcal-live-dot-small {
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ==========================================================================
+   2. WORKER CALENDAR HERO TITLE CARD
+   ========================================================================== */
+.wcal-main {
+  max-width: 1420px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px 24px 80px;
+  box-sizing: border-box;
+}
+
+.wcal-header-card {
+  background: var(--wcal-surface);
+  border: 1px solid var(--wcal-border);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.wcal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.wcal-calendar-icon-box {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #065f46;
+  flex-shrink: 0;
+}
+
+.wcal-icon-live-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: #10b981;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+}
+
+.wcal-title-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wcal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wcal-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.wcal-pill-active-suite {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.wcal-pill-chair {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.wcal-stylist-meta {
+  font-size: 12.5px;
+  color: var(--wcal-text-secondary);
+}
+
+.wcal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wcal-view-segmented {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.btn-wcal-view-tab {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wcal-text-secondary);
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-wcal-view-tab.active {
+  background: #ffffff;
+  color: var(--wcal-text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-wcal-sync {
+  background: #ffffff;
+  border: 1px solid var(--wcal-border);
+  color: var(--wcal-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-wcal-sync:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-wcal-block-leave-main {
+  background: var(--wcal-primary);
+  border: 1px solid var(--wcal-primary);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(27, 67, 50, 0.2);
+}
+
+.btn-wcal-block-leave-main:hover {
+  background: var(--wcal-primary-hover);
+}
+
+/* ==========================================================================
+   3. TWO-COLUMN SPLIT LAYOUT
+   ========================================================================== */
+.wcal-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 440px;
+  gap: 22px;
+  align-items: start;
+}
+
+/* ==========================================================================
+   4. LEFT COLUMN: CALENDAR GRID & PROJECTIONS
+   ========================================================================== */
+.wcal-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.wcal-calendar-card {
+  background: var(--wcal-surface);
+  border: 1px solid var(--wcal-border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.wcal-cal-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.wcal-cal-month-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wcal-month-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+  margin: 0;
+}
+
+.wcal-badge-roster {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.wcal-cal-nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-cal-today {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: var(--wcal-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-cal-today:hover {
+  background: #e2e8f0;
+}
+
+.btn-cal-step {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: var(--wcal-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-cal-step:hover {
+  background: #e2e8f0;
+}
+
+/* Calendar Grid */
+.wcal-grid-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+
+.wcal-grid-header th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--wcal-text-muted);
+  text-align: center;
+  padding: 6px 0;
+  letter-spacing: 0.04em;
+}
+
+.wcal-day-cell {
+  background: #fafbfc;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  height: 64px;
+  padding: 6px 8px;
+  vertical-align: top;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  position: relative;
+}
+
+.wcal-day-cell:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.wcal-day-cell.other-month {
+  opacity: 0.35;
+  background: #ffffff;
+}
+
+.wcal-cell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.wcal-cell-day-num {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wcal-text-primary);
+}
+
+.wcal-cell-star {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.wcal-cell-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+}
+
+.wcal-bkg-text {
+  font-size: 10.5px;
+  color: var(--wcal-text-muted);
+}
+
+.wcal-pill-weekly-off {
+  background: var(--wcal-rose-bg);
+  color: var(--wcal-rose);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.wcal-pill-full-bar {
+  background: var(--wcal-gold-bg);
+  color: var(--wcal-gold);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: 100%;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* Selected / Today Active Day Highlight (Sep 5) */
+.wcal-day-cell.today-active {
+  background: #1b4332;
+  border: 1.5px solid #143628;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(27, 67, 50, 0.25);
+}
+
+.wcal-day-cell.today-active .wcal-cell-day-num {
+  color: #ffffff;
+  background: #2d6a4f;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wcal-day-cell.today-active .wcal-cell-star {
+  color: #a7f3d0;
+}
+
+.wcal-today-appts-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #ecfdf5;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.wcal-today-subtext {
+  font-size: 8.5px;
+  color: #a7f3d0;
+  margin-top: 2px;
+}
+
+/* Legend Footer */
+.wcal-legend-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20px;
+  border-top: 1px solid var(--wcal-border);
+  padding-top: 14px;
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--wcal-text-secondary);
+  flex-wrap: wrap;
+}
+
+.wcal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wcal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.wcal-dot.booked { background: #10b981; }
+.wcal-dot.buffer { background: #f59e0b; }
+.wcal-dot.off { background: #ef4444; }
+.wcal-dot.available { background: #cbd5e1; }
+
+/* ==========================================================================
+   5. BOTTOM TWO CARDS (MONTHLY PROJECTION & STATION HYGIENE)
+   ========================================================================== */
+.wcal-bottom-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.wcal-projection-card {
+  background: var(--wcal-surface);
+  border: 1px solid var(--wcal-border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.wcal-card-tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.wcal-card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--wcal-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.wcal-card-icon {
+  font-size: 13px;
+  color: var(--wcal-text-muted);
+}
+
+.wcal-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+  margin: 0 0 2px;
+}
+
+.wcal-card-desc {
+  font-size: 11.5px;
+  color: var(--wcal-text-muted);
+  margin-bottom: 12px;
+}
+
+.wcal-metrics-two-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wcal-metric-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.wcal-metric-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--wcal-text-muted);
+  margin-bottom: 2px;
+}
+
+.wcal-metric-big {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--wcal-text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.wcal-metric-trend {
+  font-size: 10px;
+  color: #15803d;
+  font-weight: 700;
+}
+
+.wcal-metric-unit {
+  font-size: 11px;
+  color: var(--wcal-text-muted);
+  font-weight: 500;
+}
+
+.wcal-projection-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--wcal-text-secondary);
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+}
+
+/* Station Hygiene & Inventory Card */
+.wcal-hygiene-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.wcal-hygiene-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+}
+
+.wcal-hygiene-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.wcal-pill-hygiene {
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.wcal-pill-hygiene.amber {
+  background: #fef3c7;
+  color: #b45309;
+  font-weight: 700;
+}
+
+.wcal-hygiene-footer {
+  font-size: 10.5px;
+  color: var(--wcal-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+}
+
+/* ==========================================================================
+   6. RIGHT COLUMN: SCHEDULED SHIFT TIMELINE
+   ========================================================================== */
+.wcal-right-column {
+  background: var(--wcal-surface);
+  border: 1px solid var(--wcal-border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wcal-shift-header {
+  border-bottom: 1px solid var(--wcal-border);
+  padding-bottom: 14px;
+}
+
+.wcal-shift-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #15803d;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.wcal-shift-date {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+  margin: 0 0 2px;
+}
+
+.wcal-shift-sub {
+  font-size: 11.5px;
+  color: var(--wcal-text-muted);
+  margin-bottom: 10px;
+}
+
+.wcal-shift-status-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--wcal-text-secondary);
+}
+
+.wcal-strip-confirmed {
+  font-weight: 600;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Timeline Cards */
+.wcal-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 1. Station Preparation Step */
+.wcal-timeline-step-done {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wcal-step-left {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.wcal-step-check-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wcal-step-info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wcal-step-time-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wcal-step-time {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+}
+
+.wcal-pill-commenced {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.wcal-step-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.wcal-step-desc {
+  font-size: 11px;
+  color: var(--wcal-text-muted);
+  line-height: 1.35;
+}
+
+.wcal-check-badge-ok {
+  color: #15803d;
+  font-size: 15px;
+}
+
+/* 2. Hero Active Appointment: Sarah Jenkins */
+.wcal-apt-card {
+  background: #ffffff;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(22, 91, 56, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wcal-apt-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wcal-apt-pill-time {
+  background: #1b4332;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.01em;
+}
+
+.wcal-apt-pill-lounge {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.wcal-apt-price-tag {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--wcal-text-primary);
+  text-align: right;
+  line-height: 1.1;
+}
+
+.wcal-apt-price-sub {
+  font-size: 9.5px;
+  color: var(--wcal-text-muted);
+  font-weight: 500;
+}
+
+.wcal-apt-client-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wcal-client-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wcal-client-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.wcal-client-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wcal-text-primary);
+}
+
+.wcal-client-patron-badge {
+  font-size: 10px;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.wcal-apt-service-line {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wcal-apt-basin-tag {
+  font-size: 10.5px;
+  color: var(--wcal-text-muted);
+  font-weight: 500;
+}
+
+.wcal-apt-note-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--wcal-text-secondary);
+  font-style: italic;
+  line-height: 1.35;
+}
+
+.wcal-apt-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-wcal-sub-action {
+  background: #ffffff;
+  border: 1px solid var(--wcal-border);
+  color: var(--wcal-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.btn-wcal-sub-action:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.btn-wcal-checkin-primary {
+  background: var(--wcal-primary);
+  border: 1px solid var(--wcal-primary);
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-wcal-checkin-primary:hover {
+  background: var(--wcal-primary-hover);
+}
+
+/* 3. Sanitization Buffer Bar (Amber) */
+.wcal-buffer-card {
+  background: #fffbeb;
+  border: 1px solid #fef08a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+}
+
+.wcal-buffer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #854d0e;
+}
+
+.wcal-buffer-pill {
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 4. Upcoming Appointment: Johnathon Doe */
+.wcal-apt-card.secondary {
+  border: 1px solid var(--wcal-border);
+}
+
+.wcal-apt-pill-time.slate {
+  background: #334155;
+}
+
+/* 5. Open Window for Walk-ins (Green Dashed) */
+.wcal-walkin-card {
+  background: #f0fdf4;
+  border: 1.5px dashed #86efac;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wcal-walkin-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wcal-walkin-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wcal-walkin-time {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.wcal-pill-window {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.wcal-walkin-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.wcal-walkin-desc {
+  font-size: 10.5px;
+  color: #166534;
+  line-height: 1.3;
+}
+
+.btn-assign-walkin {
+  background: #15803d;
+  border: none;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-assign-walkin:hover {
+  background: #166534;
+}
+
+/* 6. Shift Close / Handover */
+.wcal-shift-close-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--wcal-text-muted);
+  border-top: 1px solid var(--wcal-border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   7. PAGE FOOTER
+   ========================================================================== */
+.wcal-footer {
+  margin-top: auto;
+  background: #ffffff;
+  border-top: 1px solid var(--wcal-border);
+  padding: 14px 24px;
+  font-size: 11.5px;
+  color: var(--wcal-text-muted);
+}
+
+.wcal-footer-inner {
+  max-width: 1420px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   8. RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 1120px) {
+  .wcal-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .wcal-navbar-inner {
+    padding: 0 16px;
+  }
+
+  .wcal-nav-tabs {
+    display: none;
+  }
+
+  .wcal-main {
+    padding: 14px 14px 60px;
+  }
+
+  .wcal-header-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wcal-header-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .wcal-bottom-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

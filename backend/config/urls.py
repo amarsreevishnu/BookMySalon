@@ -29,6 +29,10 @@ urlpatterns = [
         "api/v1/salons/",
         include("salons.urls"),
     ),
+    path(
+        "api/v1/services/",
+        include("services.urls"),
+    ),
 
     # Allauth OAuth URLs
     path("accounts/", include("allauth.urls")),

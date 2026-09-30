@@ -5,7 +5,7 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import ForgotPassword from "../pages/ForgotPassword";
 import GoogleCallback from "../pages/GoogleCallback";
-// import NotFound from "../pages/public/NotFound";
+import NotFound from "../pages/NotFound";
 
 import CustomerHome from "../pages/CustomerHome";
 import SalonsExplore from "../pages/customer/SalonsExplore";
@@ -13,10 +13,14 @@ import SalonsExplore from "../pages/customer/SalonsExplore";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
+import AddWorker from "../pages/owner/AddWorker";
+import WorkerManagement from "../pages/owner/WorkerManagement";
 import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
+import AdminServicesList from "../pages/admin/AdminServicesList";
+import WorkerCalendar from "../pages/worker/WorkerCalendar";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -48,6 +52,7 @@ function AppRoutes() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/salons" element={<AdminSalonsList />} />
         <Route path="/admin/users" element={<AdminUserList />} />
+        <Route path="/admin/services" element={<AdminServicesList />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 
@@ -55,16 +60,22 @@ function AppRoutes() {
         <Route path="/owner/dashboard" element={<OwnerDashboard />} />
         <Route path="/owner-dashboard" element={<OwnerDashboard />} />
         <Route path="/owner" element={<OwnerDashboard />} />
+        <Route path="/owner/workers" element={<WorkerManagement />} />
+        <Route path="/owner/add-worker" element={<AddWorker />} />
+        <Route path="/owner/workers/new" element={<AddWorker />} />
+        <Route path="/owner/calendar" element={<WorkerCalendar />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={["WORKER", "OWNER", "ADMIN"]} />}>
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
         <Route path="/worker-dashboard" element={<WorkerDashboard />} />
         <Route path="/worker" element={<WorkerDashboard />} />
-        <Route path="/owner/add-worker" element={<AddWorker />} />
+        <Route path="/worker/calendar" element={<WorkerCalendar />} />
+        <Route path="/worker-calendar" element={<WorkerCalendar />} />
+        <Route path="/calendar" element={<WorkerCalendar />} />
       </Route>
 
-      {/* <Route path="*" element={<NotFound />} /> */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

@@ -1,0 +1,406 @@
+/* ==========================================================================
+   BookMySalon - Owner Shared Navbar Styles
+   Extracted from OwnerDashboard for reuse across all Salon Owner Suite pages
+   ========================================================================== */
+
+:root {
+  --studio-bg: #f8faf9;
+  --studio-card-bg: #ffffff;
+  --studio-border: #e2ede6;
+  --studio-border-light: #edf4f0;
+  --studio-primary: #1e392a;
+  --studio-primary-hover: #15271d;
+  --studio-accent-mint: #9bc8b1;
+  --studio-accent-gold: #c59b27;
+  --studio-text-main: #18281e;
+  --studio-text-muted: #53665a;
+  --studio-text-subtle: #829489;
+}
+
+/* --------------------------------------------------------------------------
+   Top Bar Header
+   -------------------------------------------------------------------------- */
+.studio-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--studio-border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.studio-header-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.studio-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.studio-logo-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--studio-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(30, 57, 42, 0.2);
+}
+
+.studio-brand-titles {
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-brand-name {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--studio-text-main);
+  line-height: 1.1;
+}
+
+.studio-brand-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--studio-text-subtle);
+  text-transform: uppercase;
+}
+
+/* Global Search */
+.studio-search-wrapper {
+  flex: 1;
+  max-width: 440px;
+  position: relative;
+}
+
+.studio-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 14px 9px 38px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-border);
+  background: #f6f8f7;
+  font-size: 13px;
+  color: var(--studio-text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.studio-search-input:focus {
+  background: #ffffff;
+  border-color: var(--studio-accent-mint);
+  box-shadow: 0 0 0 3px rgba(155, 200, 177, 0.2);
+}
+
+.studio-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--studio-text-subtle);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* Header Actions */
+.studio-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-add-worker-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--studio-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(30, 57, 42, 0.2);
+}
+
+.btn-add-worker-header:hover {
+  background: var(--studio-primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-quick-walkin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--studio-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-quick-walkin:hover {
+  background: var(--studio-primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-export-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #ffffff;
+  color: var(--studio-text-main);
+  border: 1px solid var(--studio-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-export-report:hover {
+  background: #f6f8f7;
+  border-color: #cbd7d0;
+}
+
+.studio-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--studio-border);
+  background: #ffffff;
+  color: var(--studio-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.studio-icon-btn:hover {
+  background: #f6f8f7;
+  color: var(--studio-text-main);
+}
+
+.studio-icon-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--studio-accent-gold);
+  border: 1.5px solid #ffffff;
+}
+
+.studio-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e1e9e4;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.studio-user-avatar:hover {
+  transform: scale(1.05);
+}
+
+/* --------------------------------------------------------------------------
+   Horizontal Sub-navigation Tabs
+   -------------------------------------------------------------------------- */
+.studio-nav-bar {
+  background: #ffffff;
+  border-bottom: 1px solid var(--studio-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.studio-nav-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-nav-tabs {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.studio-nav-tab {
+  padding: 12px 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--studio-text-muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.studio-nav-tab:hover {
+  color: var(--studio-text-main);
+}
+
+.studio-nav-tab.active {
+  color: var(--studio-primary);
+  font-weight: 700;
+  border-bottom-color: var(--studio-primary);
+}
+
+.studio-nav-tab-badge {
+  margin-left: 6px;
+  background: #eef7f2;
+  color: #1e824c;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   Logout Confirmation Modal
+   -------------------------------------------------------------------------- */
+.logout-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.logout-modal {
+  width: 380px;
+  max-width: 90%;
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  animation: logoutModalOpen 0.2s ease-out;
+}
+
+@keyframes logoutModalOpen {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.logout-modal-icon {
+  width: 55px;
+  height: 55px;
+  margin: 0 auto 15px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 25px;
+  overflow: hidden;
+}
+
+.logout-modal h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: #222;
+  font-weight: 700;
+}
+
+.logout-modal p {
+  margin-bottom: 25px;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.logout-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cancel-btn,
+.logout-btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn {
+  background: #f1f1f1;
+  color: #333;
+}
+
+.cancel-btn:hover {
+  background: #e4e4e4;
+}
+
+.logout-btn {
+  background: #dc2626;
+  color: white;
+}
+
+.logout-btn:hover {
+  background: #b91c1c;
+}
+
+@media (max-width: 900px) {
+  .studio-header-actions .btn-export-report {
+    display: none;
+  }
+  .studio-search-wrapper {
+    max-width: 260px;
+  }
+}
+
+@media (max-width: 640px) {
+  .studio-search-wrapper {
+    display: none;
+  }
+}

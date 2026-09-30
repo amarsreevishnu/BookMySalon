@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
+import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import "../../styles/ownerDashboard.css";
 
 export default function OwnerDashboard() {
@@ -464,182 +465,25 @@ export default function OwnerDashboard() {
       )}
 
       {/* --------------------------------------------------------------------
-          TOP BAR HEADER
+          REUSABLE OWNER SUITE NAVBAR
           -------------------------------------------------------------------- */}
-      <header className="studio-header">
-        <div className="studio-header-inner">
-          {/* Logo & Studio Brand */}
-          <Link to="/owner/dashboard" className="studio-brand-group">
-            <div className="studio-logo-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3" />
-                <path d="M7 16V14" />
-                <path d="M12 16V10" />
-                <path d="M17 16V6" />
-              </svg>
-            </div>
-            <div className="studio-brand-titles">
-              <span className="studio-brand-name">BookMySalon</span>
-              <span className="studio-brand-badge">BUSINESS STUDIO</span>
-            </div>
-          </Link>
-
-          {/* Search bar */}
-          <div className="studio-search-wrapper">
-            <span className="studio-search-icon">🔍</span>
-            <input
-              ref={searchInputRef}
-              type="text"
-              className="studio-search-input"
-              placeholder="Search clients, staff... (Press '/' to focus)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Top Actions */}
-          <div className="studio-header-actions">
-            <button
-              type="button"
-              className="btn-quick-walkin"
-              onClick={() => setIsWalkInOpen(true)}
-            >
-              <span>+</span>
-              <span>Quick Walk-In</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-export-report"
-              onClick={() => setIsExportOpen(true)}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              <span>Export Daily Report</span>
-            </button>
-
-            <button
-              type="button"
-              className="studio-icon-btn"
-              title="Notifications"
-              onClick={() => setToastMessage("All notifications up to date.")}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span className="studio-icon-badge" />
-            </button>
-
-            <button
-              type="button"
-              className="studio-icon-btn"
-              title="Settings"
-              onClick={() => setActiveTab("Settings")}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-              alt="Owner Avatar"
-              className="studio-user-avatar"
-              title="Salon Manager"
-              onClick={() => setShowLogoutModal(true)}
-            />
-          </div>
-        </div>
-      </header>
-              {showLogoutModal && (
-                <div className="logout-modal-overlay">
-                  <div className="logout-modal">
-
-                    <div className="logout-modal-icon">
-                      <span>
-                        <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-              alt="Owner Avatar"
-              className="studio-user-avatar"
-              title="Salon Manager"
-              
-            />
-                      </span>
-                    </div>
-
-                    <h3>Logout</h3>
-
-                    <p>
-                      Are you sure you want to logout from Salon Studio?
-                    </p>
-
-                    <div className="logout-modal-actions">
-                      <button
-                        className="cancel-btn"
-                        onClick={() => setShowLogoutModal(false)}
-                      >
-                        Cancel
-                      </button>
-
-                      <button
-                        className="logout-btn"
-                        onClick={() => {
-                          logout();
-                          setShowLogoutModal(false);
-                          navigate("/login");
-                        }}
-                      >
-                        Logout
-                      </button>
-                    </div>
-
-                  </div>
-                </div>
-              )}
-      {/* --------------------------------------------------------------------
-          HORIZONTAL SUB-NAVIGATION TABS
-          -------------------------------------------------------------------- */}
-      <nav className="studio-nav-bar">
-        <div className="studio-nav-tabs">
-          {navTabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              className={`studio-nav-tab ${activeTab === tab ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab === "Workers") {
-                  fetchWorkers();
-                } else if (tab !== "Dashboard") {
-                  setToastMessage(`Switched view to ${tab}`);
-                }
-              }}
-            >
-              {tab}
-              {tab === "Workers" && workersList.length > 0 && (
-                <span
-                  style={{
-                    marginLeft: "6px",
-                    background: "#eef7f2",
-                    color: "#1e824c",
-                    padding: "1px 6px",
-                    borderRadius: "10px",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {workersList.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </nav>
+      <OwnerNavbar
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          if (tab === "Workers") {
+            fetchWorkers();
+          } else if (tab !== "Dashboard") {
+            setToastMessage(`Switched view to ${tab}`);
+          }
+        }}
+        searchQuery={searchQuery}
+        onSearchChange={(e) => setSearchQuery(e.target.value)}
+        onQuickWalkIn={() => setIsWalkInOpen(true)}
+        onExportReport={() => setIsExportOpen(true)}
+        onNotificationsClick={() => setToastMessage("All notifications up to date.")}
+        workersCount={workersList.length}
+      />
 
       {/* --------------------------------------------------------------------
           MAIN DASHBOARD BODY
@@ -768,10 +612,7 @@ export default function OwnerDashboard() {
                     type="button"
                     className="btn-add-worker-primary"
                     style={{ margin: "0 auto" }}
-                    onClick={() => {
-                      setWorkerError("");
-                      setIsAddWorkerOpen(true);
-                    }}
+                    onClick={() => navigate("/owner/add-worker")}
                   >
                     <span>➕ Add First Worker</span>
                   </button>
@@ -1037,10 +878,15 @@ export default function OwnerDashboard() {
                   <button
                     type="button"
                     className="btn-add-worker-small"
-                    onClick={() => {
-                      setWorkerError("");
-                      setIsAddWorkerOpen(true);
-                    }}
+                    style={{ background: "#ffffff", color: "#1e392a", border: "1px solid #c9d8cf" }}
+                    onClick={() => navigate("/owner/workers")}
+                  >
+                    Manage Roster
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-add-worker-small"
+                    onClick={() => navigate("/owner/add-worker")}
                   >
                     + Add Worker
                   </button>
@@ -1240,10 +1086,7 @@ export default function OwnerDashboard() {
               <button
                 type="button"
                 className="btn-add-worker-primary"
-                onClick={() => {
-                  setActiveTab("Workers");
-                  fetchWorkers();
-                }}
+                onClick={() => navigate("/owner/workers")}
               >
                 View Salon Workers
               </button>

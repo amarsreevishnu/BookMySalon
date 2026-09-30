@@ -36,10 +36,15 @@ export default function AdminSidebar({
         try {
           const token = localStorage.getItem("access_token");
           const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-          const res = await api.get("/salons/admin/stats/", config);
-          if (res.data) {
-            setStats(res.data);
-          }
+          const [res, srvRes] = await Promise.all([
+            api.get("/salons/admin/stats/", config).catch(() => null),
+            api.get("/services/admin/stats/", config).catch(() => null),
+          ]);
+          setStats((prev) => ({
+            ...prev,
+            ...(res?.data || {}),
+            total_services: srvRes?.data?.services?.total || 16,
+          }));
         } catch {
           // Keep silent fallback
         }
@@ -73,6 +78,7 @@ export default function AdminSidebar({
       location.search.toLowerCase().includes("tab=pending"));
 
   const isUsersActive = location.pathname.startsWith("/admin/users");
+  const isServicesActive = location.pathname.startsWith("/admin/services");
 
   const isNewFormActive = location.pathname === "/salon-application";
 
@@ -186,12 +192,18 @@ export default function AdminSidebar({
           )}
         </button>
 
-        <button type="button" className="admin-nav-item">
+        <Link
+          to="/admin/services"
+          className={`admin-nav-item ${isServicesActive ? "active" : ""}`}
+        >
           <div className="admin-nav-left">
             <span>✂️</span>
-            <span>Services</span>
+            <span>Services Catalog</span>
           </div>
-        </button>
+          {(stats.total_services || 16) > 0 && (
+            <span className="admin-nav-badge">{stats.total_services || 16}</span>
+          )}
+        </Link>
 
         <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
