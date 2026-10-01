@@ -21,15 +21,25 @@ class Salon(models.Model):
 
     # Basic Details
     name = models.CharField(max_length=150)
+    tagline = models.CharField(max_length=255, blank=True, default="")
     category = models.CharField(max_length=100, blank=True, default="Hair & Styling")
+    secondary_category = models.CharField(max_length=150, blank=True, default="")
+    outlet_code = models.CharField(max_length=50, blank=True, default="")
+    established_year = models.CharField(max_length=20, blank=True, default="")
+    short_summary = models.TextField(blank=True, default="")
     description = models.TextField(blank=True)
+    highlights = models.JSONField(default=list, blank=True)
 
     # Contact Details
     email = models.EmailField(blank=True, default="")
     phone = models.CharField(max_length=20)
+    whatsapp_number = models.CharField(max_length=30, blank=True, default="")
+    instagram_handle = models.CharField(max_length=100, blank=True, default="")
+    website = models.CharField(max_length=200, blank=True, default="")
 
     # Location Details
     address = models.TextField()
+    landmark = models.CharField(max_length=255, blank=True, default="")
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=100, blank=True, default="Karnataka")
     pincode = models.CharField(max_length=20, blank=True, default="")

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
+import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
 import "../../styles/workerManagement.css";
 
 export default function WorkerManagement() {
@@ -215,15 +216,14 @@ export default function WorkerManagement() {
   return (
     <div className="wm-page-wrapper">
       {/* --------------------------------------------------------------------
-          REUSABLE OWNER SUITE NAVBAR
+          REUSABLE OWNER SUITE HEADER & NAVBAR
           -------------------------------------------------------------------- */}
+      <OwnerNavbarHeader
+        onNotificationsClick={() => showToast("All system alerts up to date.")}
+      />
       <OwnerNavbar
         activeTab="Workers"
         workersCount={staffList.length}
-        searchQuery={searchQuery}
-        onSearchChange={(e) => setSearchQuery(e.target.value)}
-        searchPlaceholder="Search workers, chairs, skills..."
-        onNotificationsClick={() => showToast("All system alerts up to date.")}
       />
 
       {/* --------------------------------------------------------------------
@@ -233,11 +233,7 @@ export default function WorkerManagement() {
         {/* Breadcrumb */}
         <div className="wm-breadcrumb">
           <Link to="/owner/dashboard" className="wm-breadcrumb-item">
-            Owner Suite
-          </Link>
-          <span>/</span>
-          <Link to="/owner/dashboard" className="wm-breadcrumb-item">
-            Staff &amp; Operations
+            Owner Dashboard
           </Link>
           <span>/</span>
           <span className="wm-breadcrumb-item active">Worker Management</span>
@@ -257,18 +253,7 @@ export default function WorkerManagement() {
               <span>+ Add Worker</span>
             </Link>
 
-            <div className="wm-view-actions-row">
-              <Link to="/owner/dashboard" className="btn-wm-dashboard-link">
-                ← Dashboard
-              </Link>
-              <button
-                type="button"
-                className="btn-wm-secondary"
-                onClick={() => setViewMode((prev) => (prev === "list" ? "grid" : "list"))}
-              >
-                {viewMode === "list" ? "Grid View" : "List View"}
-              </button>
-            </div>
+            
           </div>
         </div>
 

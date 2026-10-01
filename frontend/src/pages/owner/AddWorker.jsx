@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
+import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
 import "../../styles/addWorker.css";
 
 const DAYS_OF_WEEK = [
@@ -101,11 +102,24 @@ export default function AddWorker() {
         if (!activeSalon) {
           try {
             const resDash = await api.get("/salons/owner/dashboard/");
-            if (resDash.data?.salon) {
+            if (resDash.data?.salon_info && resDash.data.salon_info.id) {
+              activeSalon = resDash.data.salon_info;
+            } else if (resDash.data?.salon && resDash.data.salon.id) {
               activeSalon = resDash.data.salon;
             }
           } catch (dashErr) {
             console.warn("Could not fetch salon from dashboard endpoint:", dashErr);
+          }
+        }
+
+        if (!activeSalon) {
+          try {
+            const resProf = await api.get("/salons/owner/profile/");
+            if (resProf.data?.id) {
+              activeSalon = resProf.data;
+            }
+          } catch (profErr) {
+            console.warn("Could not fetch salon from profile endpoint:", profErr);
           }
         }
 
@@ -320,23 +334,31 @@ export default function AddWorker() {
 
     if (!fullName.trim()) {
       setErrorMessage("Please enter the worker's official full name.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!email.trim() || !email.includes("@")) {
       setErrorMessage("Please enter a valid work or contact email address.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!phoneNumber.trim()) {
       setErrorMessage("Please enter a contact phone number.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
     setSubmitting(true);
 
+    // Clean and normalize phone number (limit to <= 20 chars)
+    const rawDigits = phoneNumber.replace(/\D/g, "");
+    const localDigits = rawDigits.startsWith("91") && rawDigits.length > 10 ? rawDigits.slice(2) : rawDigits;
+    const formattedPhone = localDigits ? `+91 ${localDigits}` : phoneNumber.trim();
+
     const payload = {
       full_name: fullName.trim(),
       email: email.trim().toLowerCase(),
-      phone_number: `+91 ${phoneNumber.replace("+91", "").trim()}`,
+      phone_number: formattedPhone,
       specialization: selectedSpecs[0] || "Stylist",
       experience: experience,
       station: station,
@@ -361,7 +383,16 @@ export default function AddWorker() {
     };
 
     try {
-      const res = await api.post("/salons/owner/workers/", payload);
+      let res;
+      try {
+        res = await api.post("/salons/owner/add-worker/", payload);
+      } catch (endpointErr) {
+        if (endpointErr.response?.status === 404) {
+          res = await api.post("/salons/owner/workers/", payload);
+        } else {
+          throw endpointErr;
+        }
+      }
       const data = res.data;
 
       setSuccessModalData({
@@ -376,25 +407,39 @@ export default function AddWorker() {
         email_sent: data.email_sent !== false,
       });
     } catch (err) {
+      console.error("Worker creation failed:", err);
       const data = err.response?.data;
+      let msg = "";
+
       if (typeof data === "string") {
-        setErrorMessage(data);
+        msg = data;
       } else if (data?.email) {
-        setErrorMessage(
-          Array.isArray(data.email) ? data.email.join(" ") : String(data.email)
-        );
+        msg = Array.isArray(data.email) ? data.email.join(" ") : String(data.email);
+      } else if (data?.phone_number) {
+        msg = Array.isArray(data.phone_number) ? data.phone_number.join(" ") : String(data.phone_number);
       } else if (data?.detail) {
-        setErrorMessage(data.detail);
+        msg = data.detail;
       } else if (data?.error) {
-        setErrorMessage(data.error);
+        msg = data.error;
+      } else if (data?.message) {
+        msg = data.message;
+      } else if (data && typeof data === "object") {
+        const errorList = [];
+        for (const [field, val] of Object.entries(data)) {
+          const fieldLabel = field !== "non_field_errors" ? `${field.replace(/_/g, " ")}: ` : "";
+          if (Array.isArray(val)) {
+            errorList.push(`${fieldLabel}${val.join(" ")}`);
+          } else if (typeof val === "string") {
+            errorList.push(`${fieldLabel}${val}`);
+          }
+        }
+        msg = errorList.length > 0 ? errorList.join(" | ") : "Failed to create worker account. Please verify input fields.";
       } else {
-        const firstVal = Object.values(data || {})[0];
-        setErrorMessage(
-          Array.isArray(firstVal)
-            ? firstVal.join(" ")
-            : "Failed to create worker account. Please verify input fields."
-        );
+        msg = err.message || "Failed to create worker account. Please check your network connection and input values.";
       }
+
+      setErrorMessage(msg);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
     }
@@ -410,8 +455,9 @@ export default function AddWorker() {
 
   return (
     <div className="add-worker-page">
-      {/* Reusable Owner Suite Navbar */}
-      <OwnerNavbar activeTab="Workers" showAddWorker={false} />
+      {/* Reusable Owner Suite Header & Navbar */}
+      <OwnerNavbarHeader showAddWorker={false} />
+      <OwnerNavbar activeTab="Workers" />
 
       {/* Main Content Area */}
       <div className="aw-content-wrapper">
@@ -1263,6 +1309,23 @@ export default function AddWorker() {
           </div>
 
           <div className="aw-bottom-actions">
+            {errorMessage && (
+              <span
+                style={{
+                  color: "#e53935",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  maxWidth: "280px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={errorMessage}
+              >
+                ⚠️ {errorMessage}
+              </span>
+            )}
+
             <button
               type="button"
               className="aw-btn-cancel"

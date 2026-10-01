@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
+import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
 import "../../styles/ownerDashboard.css";
 
 export default function OwnerDashboard() {
@@ -467,8 +468,13 @@ export default function OwnerDashboard() {
       )}
 
       {/* --------------------------------------------------------------------
-          REUSABLE OWNER SUITE NAVBAR
+          REUSABLE OWNER SUITE HEADER & NAVBAR
           -------------------------------------------------------------------- */}
+      <OwnerNavbarHeader
+        onQuickWalkIn={() => setIsWalkInOpen(true)}
+        onExportReport={() => setIsExportOpen(true)}
+        onNotificationsClick={() => setToastMessage("All notifications up to date.")}
+      />
       <OwnerNavbar
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -479,11 +485,6 @@ export default function OwnerDashboard() {
             setToastMessage(`Switched view to ${tab}`);
           }
         }}
-        searchQuery={searchQuery}
-        onSearchChange={(e) => setSearchQuery(e.target.value)}
-        onQuickWalkIn={() => setIsWalkInOpen(true)}
-        onExportReport={() => setIsExportOpen(true)}
-        onNotificationsClick={() => setToastMessage("All notifications up to date.")}
         workersCount={workersList.length}
       />
 
@@ -491,233 +492,7 @@ export default function OwnerDashboard() {
           MAIN DASHBOARD BODY
           -------------------------------------------------------------------- */}
       <main className="studio-main-body">
-        {activeTab === "Workers" ? (
-          /* ================================================================
-             WORKERS MANAGEMENT VIEW
-             ================================================================ */
-          <div className="owner-workers-view">
-            {/* Hero Header Banner */}
-            <div className="workers-hero-banner">
-              <div>
-                <h1 className="workers-hero-title">Salon Team & Stylists</h1>
-                <p className="workers-hero-subtitle">
-                  Manage professional staff, active status, specializations and assigned client bookings.
-                  Worker accounts can log in to view their assigned appointments.
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn-add-worker-primary"
-                  style={{ background: "#ffffff", color: "#1e392a", border: "1px solid #c9d8cf" }}
-                  onClick={() => navigate("/owner/workers")}
-                >
-                  <span>👥</span>
-                  <span>Full Worker Roster</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn-add-worker-primary"
-                  onClick={() => navigate("/owner/add-worker")}
-                >
-                  <span>➕</span>
-                  <span>Add Worker</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter & Search Toolbar */}
-            <div className="workers-controls-bar">
-              <div className="workers-controls-left">
-                <input
-                  type="text"
-                  className="workers-search-input"
-                  placeholder="Search worker by name, email, phone, role..."
-                  value={workerSearch}
-                  onChange={(e) => setWorkerSearch(e.target.value)}
-                />
-
-                <select
-                  className="workers-filter-select"
-                  value={workerFilterRole}
-                  onChange={(e) => setWorkerFilterRole(e.target.value)}
-                >
-                  <option value="all">All Specializations</option>
-                  <option value="hair">Hair Styling</option>
-                  <option value="color">Colorist</option>
-                  <option value="spa">Spa & Massage</option>
-                  <option value="skin">Skin & Facial</option>
-                  <option value="nail">Nails</option>
-                  <option value="barber">Barber</option>
-                </select>
-              </div>
-
-              <div className="workers-status-tabs">
-                <button
-                  type="button"
-                  className={`workers-tab-btn ${workerFilterStatus === "all" ? "active" : ""}`}
-                  onClick={() => setWorkerFilterStatus("all")}
-                >
-                  All ({workersList.length})
-                </button>
-                <button
-                  type="button"
-                  className={`workers-tab-btn ${workerFilterStatus === "active" ? "active" : ""}`}
-                  onClick={() => setWorkerFilterStatus("active")}
-                >
-                  Active ({workersList.filter((w) => w.is_active).length})
-                </button>
-                <button
-                  type="button"
-                  className={`workers-tab-btn ${workerFilterStatus === "inactive" ? "active" : ""}`}
-                  onClick={() => setWorkerFilterStatus("inactive")}
-                >
-                  Inactive ({workersList.filter((w) => !w.is_active).length})
-                </button>
-              </div>
-            </div>
-
-            {/* Workers Cards Grid */}
-            {loadingWorkers ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", color: "#627267" }}>
-                <p>Loading salon staff members...</p>
-              </div>
-            ) : filteredWorkers.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "60px 20px",
-                  background: "#ffffff",
-                  borderRadius: "16px",
-                  border: "1px solid #e8edea",
-                }}
-              >
-                <div style={{ fontSize: "42px", marginBottom: "12px" }}>👥</div>
-                <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#1d2922" }}>
-                  {workersList.length === 0 ? "No Salon Workers Added Yet" : "No Matching Workers Found"}
-                </h3>
-                <p
-                  style={{
-                    margin: "0 0 20px",
-                    fontSize: "14px",
-                    color: "#627267",
-                    maxWidth: "480px",
-                    marginInline: "auto",
-                  }}
-                >
-                  {workersList.length === 0
-                    ? "Add stylists and staff members to your salon. They will receive worker credentials to log in and manage assigned appointments."
-                    : "No workers match your filter or search query. Try clearing filters."}
-                </p>
-                {workersList.length === 0 ? (
-                  <button
-                    type="button"
-                    className="btn-add-worker-primary"
-                    style={{ margin: "0 auto" }}
-                    onClick={() => navigate("/owner/add-worker")}
-                  >
-                    <span>➕ Add First Worker</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      setWorkerSearch("");
-                      setWorkerFilterRole("all");
-                      setWorkerFilterStatus("all");
-                    }}
-                  >
-                    Reset Filters
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="workers-grid">
-                {filteredWorkers.map((worker) => (
-                  <div key={worker.id} className="worker-profile-card">
-                    <div>
-                      <div className="worker-card-top">
-                        {worker.profile_photo ? (
-                          <img
-                            src={worker.profile_photo}
-                            alt={worker.full_name}
-                            className="worker-card-avatar"
-                          />
-                        ) : (
-                          <div className="worker-card-avatar">
-                            {worker.full_name?.charAt(0).toUpperCase() || "W"}
-                          </div>
-                        )}
-
-                        <div className="worker-card-info">
-                          <h3 className="worker-card-name">{worker.full_name}</h3>
-                          <span className="worker-card-role">
-                            {worker.specialization || "Salon Stylist"}
-                          </span>
-                          <div className="worker-tags-row">
-                            {worker.experience && (
-                              <span className="worker-tag-pill">
-                                ⏳ {worker.experience}
-                              </span>
-                            )}
-                            <span
-                              className={`worker-status-badge ${
-                                worker.is_active ? "active" : "inactive"
-                              }`}
-                            >
-                              <span
-                                style={{
-                                  width: "6px",
-                                  height: "6px",
-                                  borderRadius: "50%",
-                                  background: worker.is_active ? "#1e824c" : "#888",
-                                }}
-                              />
-                              {worker.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="worker-card-body">
-                        <div className="worker-contact-row">
-                          <span>📧</span>
-                          <span>{worker.email}</span>
-                        </div>
-                        {worker.phone_number && (
-                          <div className="worker-contact-row">
-                            <span>📞</span>
-                            <span>{worker.phone_number}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="worker-card-footer">
-                      <div className="worker-bookings-counter">
-                        📅 {worker.assigned_bookings_count ?? 0} Bookings
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`btn-toggle-worker ${
-                          worker.is_active ? "deactivate" : "activate"
-                        }`}
-                        onClick={() =>
-                          handleToggleWorkerStatus(worker.id, worker.is_active)
-                        }
-                      >
-                        {worker.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : activeTab === "Dashboard" ? (
-          <>
+        <>
             {/* Banner Row: Greeting & Operations State */}
         <div className="studio-banner-row">
           <div>
@@ -725,20 +500,47 @@ export default function OwnerDashboard() {
               <span className="live-pulse-dot" />
               <span>Salon Open • Live Operations</span>
             </div>
-            <h1 className="studio-greeting-title">{greeting}</h1>
+            
+           
+            <h1 className="studio-greeting-title">{greeting} </h1>
             <p className="studio-greeting-subtitle">
-              {dashboardData.salon_info.name} • {formattedToday}
+              {formattedToday}
             </p>
           </div>
-
-          <button
-            type="button"
-            className="btn-block-chair"
-            onClick={() => setIsBlockChairOpen(true)}
-          >
-            <span>🪑</span>
-            <span>Block Chair</span>
-          </button>
+        <h2 className="studio-greeting-title" style={{color:"#1e392a"}}>Welcom to <span style={{ color:"green" }}>{dashboardData.salon_info.name}</span> Dashboard</h2>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn-modal-cancel"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "9px 15px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#1e392a",
+                background: "#f0f5f2",
+                border: "1px solid #c2d6cb",
+                borderRadius: "10px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onClick={() => navigate("/owner/salon-profile")}
+              title="Edit salon profile, media gallery, hours, amenities"
+            >
+              <span>⚙️</span>
+              <span>Manage Salon Profile</span>
+            </button>
+            <button
+              type="button"
+              className="btn-block-chair"
+              onClick={() => setIsBlockChairOpen(true)}
+            >
+              <span>🪑</span>
+              <span>Block Chair</span>
+            </button>
+          </div>
         </div>
 
         {/* ------------------------------------------------------------------
@@ -874,27 +676,21 @@ export default function OwnerDashboard() {
               <div className="studio-widget-header">
                 <div className="studio-widget-title-group">
                   <span style={{ fontSize: "18px" }}>👥</span>
-                  <h2 className="studio-widget-title">Staff On Duty Today</h2>
+                  <h2 className="studio-widget-title">Staff On Duty Today</h2><span className="studio-widget-badge pill">
+                    {dashboardData.staff_on_duty.length} Stylists
+                  </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button
                     type="button"
                     className="btn-add-worker-small"
-                    style={{ background: "#ffffff", color: "#1e392a", border: "1px solid #c9d8cf" }}
+                    
                     onClick={() => navigate("/owner/workers")}
                   >
-                    Manage Roster
+                   <span className="studio-widget-badge pill" > View All </span>
                   </button>
-                  <button
-                    type="button"
-                    className="btn-add-worker-small"
-                    onClick={() => navigate("/owner/add-worker")}
-                  >
-                    + Add Worker
-                  </button>
-                  <span className="studio-widget-badge pill">
-                    {dashboardData.staff_on_duty.length} Stylists
-                  </span>
+                  
+                  
                 </div>
               </div>
 
@@ -1058,43 +854,7 @@ export default function OwnerDashboard() {
           </div>
         </div>
           </>
-        ) : (
-          /* ================================================================
-             OTHER STUDIO TABS (PLACEHOLDER & QUICK JUMP)
-             ================================================================ */
-          <div
-            style={{
-              textAlign: "center",
-              padding: "60px 20px",
-              background: "#ffffff",
-              borderRadius: "16px",
-              border: "1px solid #e8edea",
-            }}
-          >
-            <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#1d2922" }}>
-              {activeTab} Management
-            </h3>
-            <p style={{ color: "#627267", margin: "0 0 16px" }}>
-              This section is part of your salon studio operations.
-            </p>
-            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-              <button
-                type="button"
-                className="btn-modal-cancel"
-                onClick={() => setActiveTab("Dashboard")}
-              >
-                ← Back to Dashboard
-              </button>
-              <button
-                type="button"
-                className="btn-add-worker-primary"
-                onClick={() => navigate("/owner/workers")}
-              >
-                View Salon Workers
-              </button>
-            </div>
-          </div>
-        )}
+        
       </main>
 
 
@@ -1313,9 +1073,7 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          MODAL: EXPORT DAILY REPORT
-          -------------------------------------------------------------------- */}
+      {/*MODAL: EXPORT DAILY REPORT*/}
       {isExportOpen && (
         <div className="studio-modal-backdrop" onClick={() => setIsExportOpen(false)}>
           <div className="studio-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -1332,18 +1090,8 @@ export default function OwnerDashboard() {
 
             <div className="studio-modal-body">
               <div style={{ background: "#f8faf9", padding: "14px", borderRadius: "8px", border: "1px solid #e2e8e5" }}>
-                <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: "13px" }}>
-                  {dashboardData.salon_info.name}
-                </p>
-                <p style={{ margin: "0 0 10px", fontSize: "11px", color: "#627267" }}>
-                  Operations Summary for {formattedToday}
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "12px" }}>
-                  <div>Total Bookings: <strong>{dashboardData.kpi_stats.bookings.value}</strong></div>
-                  <div>Completed: <strong>{dashboardData.kpi_stats.completed.value}</strong></div>
-                  <div>Gross Revenue: <strong>{dashboardData.kpi_stats.revenue.formatted}</strong></div>
-                  <div>Cancelled: <strong>{dashboardData.kpi_stats.cancelled.value}</strong></div>
-                </div>
+                
+                <h3>Coming Soon</h3>
               </div>
 
               <p style={{ fontSize: "11px", color: "#8a9990", margin: "4px 0 0" }}>
@@ -1374,360 +1122,8 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          MODAL: ADD NEW WORKER
-          -------------------------------------------------------------------- */}
-      {isAddWorkerOpen && (
-        <div
-          className="studio-modal-backdrop"
-          onClick={() => setIsAddWorkerOpen(false)}
-        >
-          <div
-            className="studio-modal-card"
-            style={{ maxWidth: "560px" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="studio-modal-header">
-              <div>
-                <h3 className="studio-modal-title">Add Salon Worker</h3>
-                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#627267" }}>
-                  Create a worker account with authentication & salon assignment.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="studio-modal-close-btn"
-                onClick={() => setIsAddWorkerOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddWorkerSubmit}>
-              <div
-                className="studio-modal-body"
-                style={{ maxHeight: "70vh", overflowY: "auto" }}
-              >
-                {workerError && (
-                  <div className="worker-error-banner">
-                    ⚠️ {workerError}
-                  </div>
-                )}
-
-                {/* 1. Full Name */}
-                <div className="form-group">
-                  <label className="form-label">
-                    Full Name <span style={{ color: "#c0392b" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. Priya Sharma"
-                    required
-                    value={workerForm.full_name}
-                    onChange={(e) =>
-                      setWorkerForm({ ...workerForm, full_name: e.target.value })
-                    }
-                  />
-                </div>
-
-                {/* 2. Email & 3. Phone Number */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "12px",
-                  }}
-                >
-                  <div className="form-group">
-                    <label className="form-label">
-                      Email (Login ID) <span style={{ color: "#c0392b" }}>*</span>
-                    </label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      placeholder="priya@gmail.com"
-                      required
-                      value={workerForm.email}
-                      onChange={(e) =>
-                        setWorkerForm({ ...workerForm, email: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      Phone Number <span style={{ color: "#c0392b" }}>*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      className="form-input"
-                      placeholder="+91 98765 43210"
-                      required
-                      value={workerForm.phone_number}
-                      onChange={(e) =>
-                        setWorkerForm({
-                          ...workerForm,
-                          phone_number: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* 4. Specialization & 5. Experience */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "12px",
-                  }}
-                >
-                  <div className="form-group">
-                    <label className="form-label">
-                      Specialization <span style={{ color: "#c0392b" }}>*</span>
-                    </label>
-                    <select
-                      className="form-select"
-                      value={workerForm.specialization}
-                      onChange={(e) =>
-                        setWorkerForm({
-                          ...workerForm,
-                          specialization: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="Senior Hair Stylist">Senior Hair Stylist</option>
-                      <option value="Hair Stylist & Barber">Hair Stylist & Barber</option>
-                      <option value="Colorist & Chemical Specialist">
-                        Colorist & Chemical Specialist
-                      </option>
-                      <option value="Skin & Esthetics Specialist">
-                        Skin & Esthetics Specialist
-                      </option>
-                      <option value="Spa & Massage Therapist">
-                        Spa & Massage Therapist
-                      </option>
-                      <option value="Nail Art & Manicurist">Nail Art & Manicurist</option>
-                      <option value="Bridal Makeup & Styling">
-                        Bridal Makeup & Styling
-                      </option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      Experience <span style={{ color: "#c0392b" }}>*</span>
-                    </label>
-                    <select
-                      className="form-select"
-                      value={workerForm.experience}
-                      onChange={(e) =>
-                        setWorkerForm({ ...workerForm, experience: e.target.value })
-                      }
-                    >
-                      <option value="1-2 Years (Junior Stylist)">
-                        1-2 Years (Junior)
-                      </option>
-                      <option value="3-5 Years (Mid-level)">
-                        3-5 Years (Mid-level)
-                      </option>
-                      <option value="5+ Years (Senior Stylist)">
-                        5+ Years (Senior)
-                      </option>
-                      <option value="8+ Years (Master Stylist)">
-                        8+ Years (Master)
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* 6. Profile Photo */}
-                <div className="form-group">
-                  <label className="form-label">Profile Photo</label>
-                  <div className="worker-photo-uploader">
-                    {workerForm.profile_photo ? (
-                      <img
-                        src={workerForm.profile_photo}
-                        alt="Preview"
-                        className="photo-preview-circle"
-                      />
-                    ) : (
-                      <div className="photo-preview-circle">📷</div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        style={{ fontSize: "12px" }}
-                      />
-                      <p
-                        style={{
-                          margin: "4px 0 0",
-                          fontSize: "11px",
-                          color: "#8a9990",
-                        }}
-                      >
-                        Upload photo file or paste image URL below
-                      </p>
-                    </div>
-                  </div>
-                  <input
-                    type="url"
-                    className="form-input"
-                    style={{ marginTop: "8px" }}
-                    placeholder="Or paste photo URL (https://...)"
-                    value={
-                      workerForm.profile_photo.startsWith("data:")
-                        ? ""
-                        : workerForm.profile_photo
-                    }
-                    onChange={(e) =>
-                      setWorkerForm({
-                        ...workerForm,
-                        profile_photo: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-
-                {/* 7. Password */}
-                <div className="form-group">
-                  <label className="form-label">Worker Account Password</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={workerForm.password}
-                    onChange={(e) =>
-                      setWorkerForm({ ...workerForm, password: e.target.value })
-                    }
-                  />
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      fontSize: "11px",
-                      color: "#627267",
-                    }}
-                  >
-                    Worker will use this email and password to log in and view assigned bookings.
-                  </p>
-                </div>
-              </div>
-
-              <div className="studio-modal-footer">
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
-                  onClick={() => setIsAddWorkerOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-modal-submit"
-                  disabled={submittingWorker}
-                >
-                  {submittingWorker ? "Creating Account..." : "Create worker account"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --------------------------------------------------------------------
-          MODAL: WORKER ADDED SUCCESSFULLY
-          -------------------------------------------------------------------- */}
-      {workerSuccessModal && (
-        <div
-          className="studio-modal-backdrop"
-          onClick={() => setWorkerSuccessModal(null)}
-        >
-          <div
-            className="studio-modal-card"
-            style={{ maxWidth: "480px" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="studio-modal-header"
-              style={{ borderBottom: "none", paddingBottom: "0" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "24px" }}>🎉</span>
-                <h3 className="studio-modal-title" style={{ color: "#1e824c" }}>
-                  Worker Added Successfully!
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="studio-modal-close-btn"
-                onClick={() => setWorkerSuccessModal(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="studio-modal-body">
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "#496353",
-                  margin: "0 0 12px",
-                }}
-              >
-                The worker account has been created and assigned to your salon. Provide these login credentials to the worker:
-              </p>
-
-              <div className="worker-credentials-list">
-                <div className="worker-cred-item">
-                  <span style={{ color: "#627267" }}>Full Name:</span>
-                  <span style={{ fontWeight: 600 }}>
-                    {workerSuccessModal.name}
-                  </span>
-                </div>
-                <div className="worker-cred-item">
-                  <span style={{ color: "#627267" }}>Email:</span>
-                  <strong>{workerSuccessModal.email}</strong>
-                </div>
-                <div className="worker-cred-item">
-                  <span style={{ color: "#627267" }}>Password:</span>
-                  <strong>{workerSuccessModal.password}</strong>
-                </div>
-                <div className="worker-cred-item">
-                  <span style={{ color: "#627267" }}>Login Portal:</span>
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      color: "#1e392a",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Worker Studio (/login)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="studio-modal-footer">
-              <button
-                type="button"
-                className="btn-modal-cancel"
-                onClick={handleCopyCredentials}
-              >
-                📋 Copy Credentials
-              </button>
-              <button
-                type="button"
-                className="btn-modal-submit"
-                onClick={() => setWorkerSuccessModal(null)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
+      
     </div>
   );
 }

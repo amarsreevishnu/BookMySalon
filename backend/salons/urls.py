@@ -8,6 +8,7 @@ from .views import (
     CustomerSalonExploreView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
+    OwnerSalonProfileView,
     OwnerWorkerDetailView,
     OwnerWorkerListCreateView,
     PendingSalonListView,
@@ -25,6 +26,11 @@ urlpatterns = [
         "owner/workers/",
         OwnerWorkerListCreateView.as_view(),
         name="owner-worker-list-create",
+    ),
+    path(
+        "owner/add-worker/",
+        OwnerWorkerListCreateView.as_view(),
+        name="owner-add-worker",
     ),
     path(
         "owner/workers/<int:pk>/",
@@ -50,6 +56,11 @@ urlpatterns = [
         "owner/dashboard/",
         OwnerDashboardView.as_view(),
         name="owner-dashboard",
+    ),
+    path(
+        "owner/profile/",
+        OwnerSalonProfileView.as_view(),
+        name="owner-salon-profile",
     ),
     path(
         "owner/walk-in/",

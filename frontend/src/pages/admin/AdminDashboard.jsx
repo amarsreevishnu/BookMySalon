@@ -151,7 +151,7 @@ export default function AdminDashboard() {
 
         if (status === "APPROVED") {
           const passNotice = res.data.temp_password
-            ? `Credentials generated (Password: ${res.data.temp_password}) and emailed to ${updatedSalon.email}.`
+            ? `Credentials generated and emailed to ${updatedSalon.email}.`
             : `Notification sent to ${updatedSalon.email}.`;
           setToastMessage(`✓ ${updatedSalon.name} APPROVED! ${passNotice}`);
         } else {

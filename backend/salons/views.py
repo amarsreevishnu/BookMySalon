@@ -123,21 +123,44 @@ def sync_salon_services(salon, services_data):
 def get_owner_salon(user):
     if not user or not user.is_authenticated:
         return None
+
+    # 1. Direct owner of an approved salon
+    salon = Salon.objects.filter(owner=user, approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
+    if salon:
+        return salon
+
+    # 2. Direct owner of any salon (e.g. pending review)
     salon = Salon.objects.filter(owner=user).order_by("-id").first()
     if salon:
         return salon
+
+    # 3. Match by owner user email
     if getattr(user, "email", None):
         salon = Salon.objects.filter(email__iexact=user.email, approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
+        if not salon:
+            salon = Salon.objects.filter(email__iexact=user.email).order_by("-id").first()
         if salon:
-            if not salon.owner:
-                salon.owner = user
-                salon.save(update_fields=["owner"])
-            if getattr(user, "role", None) != User.Role.OWNER and not user.is_superuser:
-                user.role = User.Role.OWNER
-                user.save(update_fields=["role"])
+            try:
+                if not salon.owner:
+                    salon.owner = user
+                    salon.save(update_fields=["owner"])
+            except Exception:
+                pass
+            try:
+                if getattr(user, "role", None) != User.Role.OWNER and not user.is_superuser:
+                    user.role = User.Role.OWNER
+                    user.save(update_fields=["role"])
+            except Exception:
+                pass
             return salon
+
+    # 4. Fallback for ADMIN / OWNER accounts: prioritize APPROVED salons
     if getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff:
+        approved = Salon.objects.filter(approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
+        if approved:
+            return approved
         return Salon.objects.order_by("-id").first()
+
     return None
 
 
@@ -711,6 +734,75 @@ class OwnerDashboardView(APIView):
             "popular_services": popular_services,
         }
         return Response(data)
+
+
+class OwnerSalonProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+    serializer_class = SalonSerializer
+
+    def get(self, request):
+        try:
+            salon = get_owner_salon(request.user)
+            if not salon:
+                return Response(
+                    {"error": "No registered salon found for your account."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            serializer = SalonSerializer(salon, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            import logging, traceback
+            logging.getLogger(__name__).error(f"Error fetching salon profile: {e}\n{traceback.format_exc()}")
+            return Response(
+                {"error": f"Failed to retrieve salon profile: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def patch(self, request):
+        try:
+            salon = get_owner_salon(request.user)
+            if not salon:
+                return Response(
+                    {"error": "No registered salon found for your account."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+            if "cover_image" in request.FILES:
+                data["cover_image"] = request.FILES["cover_image"]
+            if "images" in request.FILES:
+                data["images"] = request.FILES.getlist("images")
+
+            serializer = SalonSerializer(salon, data=data, partial=True, context={"request": request})
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            updated_salon = serializer.save()
+
+            if "services" in data and data["services"]:
+                try:
+                    sync_salon_services(updated_salon, updated_salon.services)
+                except Exception as sync_err:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Services sync warning: {sync_err}")
+
+            return Response(
+                {
+                    "message": "Salon profile updated successfully!",
+                    "salon": SalonSerializer(updated_salon, context={"request": request}).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            import logging, traceback
+            logging.getLogger(__name__).error(f"Error updating salon profile: {e}\n{traceback.format_exc()}")
+            return Response(
+                {"error": f"Failed to update salon profile: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def put(self, request):
+        return self.patch(request)
 
 
 class OwnerQuickWalkInView(APIView):

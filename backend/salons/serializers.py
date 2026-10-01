@@ -1,4 +1,5 @@
 import json
+from django.db import transaction
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -19,11 +20,21 @@ class SalonSerializer(serializers.ModelSerializer):
             "owner",
             "owner_email",
             "name",
+            "tagline",
             "category",
+            "secondary_category",
+            "outlet_code",
+            "established_year",
+            "short_summary",
             "description",
+            "highlights",
             "email",
             "phone",
+            "whatsapp_number",
+            "instagram_handle",
+            "website",
             "address",
+            "landmark",
             "city",
             "state",
             "pincode",
@@ -169,10 +180,26 @@ class WorkerCreateSerializer(serializers.Serializer):
     profile_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
+    def validate_phone_number(self, value):
+        if not value:
+            return ""
+        val = str(value).strip()
+        if len(val) > 20:
+            import re
+            digits = re.sub(r"\D", "", val)
+            if digits.startswith("91") and len(digits) > 10:
+                digits = digits[2:]
+            val = f"+91 {digits}" if digits else val[:20]
+        return val[:20]
+
     def validate_email(self, value):
         normalized = value.strip().lower()
-        if User.objects.filter(email__iexact=normalized).exists():
-            raise serializers.ValidationError("An account with this email address already exists.")
+        existing_user = User.objects.filter(email__iexact=normalized).first()
+        if existing_user:
+            # If user already has a linked worker profile or has an owner/admin/customer account
+            has_profile = WorkerProfile.objects.filter(user=existing_user).exists()
+            if has_profile or existing_user.role != User.Role.WORKER:
+                raise serializers.ValidationError("An account with this email address already exists.")
         return normalized
 
     def create(self, validated_data):
@@ -203,48 +230,57 @@ class WorkerCreateSerializer(serializers.Serializer):
         first_name = name_parts[0]
         last_name = name_parts[1] if len(name_parts) > 1 else ""
 
-        # 1. Create worker authentication account using existing User model
-        user = User.objects.create_user(
-            email=email,
-            password=raw_password,
-            first_name=first_name,
-            last_name=last_name,
-            role=User.Role.WORKER,
-            is_active=True,
-        )
+        with transaction.atomic():
+            # 1. Reuse existing orphaned worker user without profile or create brand new user
+            user = User.objects.filter(email__iexact=email, role=User.Role.WORKER).first()
+            if user:
+                user.first_name = first_name
+                user.last_name = last_name
+                user.set_password(raw_password)
+                user.is_active = True
+                user.save()
+            else:
+                user = User.objects.create_user(
+                    email=email,
+                    password=raw_password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    role=User.Role.WORKER,
+                    is_active=True,
+                )
 
-        # 2. Process profile photo & optional ID card if provided
-        saved_photo = ""
-        if profile_photo:
-            saved_photo = save_image_to_media(profile_photo, subfolder="workers/photos") or profile_photo
+            # 2. Process profile photo & optional ID card if provided
+            saved_photo = ""
+            if profile_photo:
+                saved_photo = save_image_to_media(profile_photo, subfolder="workers/photos") or profile_photo
 
-        id_card_type = validated_data.get("id_card_type", "").strip() or "Aadhaar Card"
-        id_card_number = validated_data.get("id_card_number", "").strip()
-        id_card_photo = validated_data.get("id_card_photo", "")
-        saved_id_card = ""
-        if id_card_photo:
-            saved_id_card = save_image_to_media(id_card_photo, subfolder="workers/id_cards") or id_card_photo
+            id_card_type = validated_data.get("id_card_type", "").strip() or "Aadhaar Card"
+            id_card_number = validated_data.get("id_card_number", "").strip()
+            id_card_photo = validated_data.get("id_card_photo", "")
+            saved_id_card = ""
+            if id_card_photo:
+                saved_id_card = save_image_to_media(id_card_photo, subfolder="workers/id_cards") or id_card_photo
 
-        # 3. Create worker-specific profile attached to backend salon
-        profile = WorkerProfile.objects.create(
-            user=user,
-            salon=salon,
-            phone_number=phone_number,
-            specialization=specialization,
-            experience=experience,
-            station=station,
-            employment_status=employment_status,
-            bio=bio,
-            specializations=specializations,
-            assigned_services=assigned_services,
-            shift_hours=shift_hours,
-            commission_tier=commission_tier,
-            id_card_type=id_card_type,
-            id_card_number=id_card_number,
-            id_card_photo=saved_id_card,
-            profile_photo=saved_photo,
-            is_active=True,
-        )
+            # 3. Create worker-specific profile attached to backend salon
+            profile = WorkerProfile.objects.create(
+                user=user,
+                salon=salon,
+                phone_number=phone_number,
+                specialization=specialization,
+                experience=experience,
+                station=station,
+                employment_status=employment_status,
+                bio=bio,
+                specializations=specializations,
+                assigned_services=assigned_services,
+                shift_hours=shift_hours,
+                commission_tier=commission_tier,
+                id_card_type=id_card_type,
+                id_card_number=id_card_number,
+                id_card_photo=saved_id_card,
+                profile_photo=saved_photo,
+                is_active=True,
+            )
 
         # Attach raw password for one-time response display and email sending
         profile._temporary_password = raw_password
