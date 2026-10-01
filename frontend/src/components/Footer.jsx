@@ -22,7 +22,7 @@ function Footer() {
           <Link to="/" className="brand footer-logo">
             <div  className="brand-icon">✂</div>
             <div className="explore-brand-titles">
-              <span className="brand-text">BookMySalon</span>
+              <span className="brand-text" style={{color:"white"}}>BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>
             </div>
           </Link>

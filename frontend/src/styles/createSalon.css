@@ -908,6 +908,30 @@
   border-color: #274b37;
 }
 
+.cs-save-draft-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-save-draft-btn.is-saved {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+  font-weight: 700;
+}
+
+.cs-save-draft-btn.is-saved:hover {
+  background: #d1fae5;
+  border-color: #059669;
+}
+
+.cs-save-draft-btn.is-error {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
 .cs-submit-btn {
   display: inline-flex;
   align-items: center;
@@ -1385,13 +1409,51 @@
   border-top: 1px dashed #d6e2d8;
 }
 
+.cs-presets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .cs-presets-label {
   display: block;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.7px;
   color: #55675b;
-  margin-bottom: 8px;
+}
+
+.cs-presets-cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cs-presets-cat-btn {
+  background: #f1f5f2;
+  border: 1px solid #dbe5de;
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #55675b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-presets-cat-btn:hover {
+  background: #e2ede5;
+  color: #1e3f2b;
+}
+
+.cs-presets-cat-btn.active {
+  background: #245037;
+  border-color: #245037;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .cs-presets-chips {

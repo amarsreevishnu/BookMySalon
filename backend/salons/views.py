@@ -61,14 +61,83 @@ class IsWorker(IsAuthenticated):
         return authenticated and getattr(request.user, "role", None) == "WORKER"
 
 
+def sync_salon_services(salon, services_data):
+    """
+    Synchronizes service items configured by the owner into the platform catalog
+    (ServiceCategory, Service, SalonService).
+    """
+    if not salon or not services_data:
+        return
+    import re
+    from decimal import Decimal
+    from services.models import ServiceCategory, Service, SalonService
+
+    if not isinstance(services_data, list):
+        return
+
+    for item in services_data:
+        if not isinstance(item, dict):
+            continue
+        srv_name = str(item.get("name", "")).strip()
+        if not srv_name:
+            continue
+        cat_name = str(item.get("category", "")).strip() or "General"
+        raw_price = str(item.get("price", "0"))
+        clean_price_str = re.sub(r"[^\d.]", "", raw_price)
+        try:
+            price_val = Decimal(clean_price_str) if clean_price_str else Decimal("250.00")
+        except Exception:
+            price_val = Decimal("250.00")
+
+        raw_dur = str(item.get("duration", "30"))
+        dur_match = re.search(r"\d+", raw_dur)
+        dur_val = int(dur_match.group(0)) if dur_match else 30
+
+        try:
+            category, _ = ServiceCategory.objects.get_or_create(
+                name=cat_name,
+                defaults={"description": f"{cat_name} services"}
+            )
+            service, _ = Service.objects.get_or_create(
+                category=category,
+                name=srv_name,
+                defaults={
+                    "standard_price": price_val,
+                    "standard_duration": dur_val,
+                }
+            )
+            SalonService.objects.update_or_create(
+                salon=salon,
+                service=service,
+                defaults={
+                    "custom_name": srv_name,
+                    "price": price_val,
+                    "duration": dur_val,
+                    "is_active": True,
+                }
+            )
+        except Exception as e:
+            print(f"Error syncing service '{srv_name}' for salon {salon.id}: {e}")
+
+
 def get_owner_salon(user):
     if not user or not user.is_authenticated:
         return None
-    salon = Salon.objects.filter(owner=user).first()
+    salon = Salon.objects.filter(owner=user).order_by("-id").first()
     if salon:
         return salon
+    if getattr(user, "email", None):
+        salon = Salon.objects.filter(email__iexact=user.email, approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
+        if salon:
+            if not salon.owner:
+                salon.owner = user
+                salon.save(update_fields=["owner"])
+            if getattr(user, "role", None) != User.Role.OWNER and not user.is_superuser:
+                user.role = User.Role.OWNER
+                user.save(update_fields=["role"])
+            return salon
     if getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff:
-        return Salon.objects.first()
+        return Salon.objects.order_by("-id").first()
     return None
 
 
@@ -96,6 +165,9 @@ class SalonCreateView(generics.CreateAPIView):
             approval_status=Salon.ApprovalStatus.PENDING,
         )
 
+        # Synchronize services into SalonService model
+        sync_salon_services(salon, salon.services)
+
         headers = self.get_success_headers(serializer.data)
         return Response(
             {
@@ -104,7 +176,7 @@ class SalonCreateView(generics.CreateAPIView):
                     "will review your venue details within 24-48 hours. Once approved, "
                     "login credentials will be emailed to your official email."
                 ),
-                "salon": serializer.data,
+                "salon": SalonSerializer(salon, context={"request": request}).data,
             },
             status=status.HTTP_201_CREATED,
             headers=headers,
@@ -354,15 +426,16 @@ class SalonApprovalView(generics.UpdateAPIView):
 
         temp_password = None
         owner_created = False
+        email_sent = False
 
         if approval_status == Salon.ApprovalStatus.APPROVED:
             # Handle owner account creation if not yet linked
             if not salon.owner and salon.email:
-                user = User.objects.filter(email=salon.email).first()
+                user = User.objects.filter(email__iexact=salon.email).first()
                 if not user:
                     temp_password = f"Salon@{secrets.randbelow(9000) + 1000}"
                     user = User.objects.create_user(
-                        email=salon.email,
+                        email=salon.email.lower().strip(),
                         password=temp_password,
                         first_name=salon.name[:30],
                         role=User.Role.OWNER,
@@ -375,17 +448,25 @@ class SalonApprovalView(generics.UpdateAPIView):
                         user.save(update_fields=["role"])
 
                 salon.owner = user
+            elif salon.owner:
+                # If owner was already set, ensure role is OWNER
+                if salon.owner.role != User.Role.OWNER:
+                    salon.owner.role = User.Role.OWNER
+                    salon.owner.save(update_fields=["role"])
 
             salon.approval_status = Salon.ApprovalStatus.APPROVED
             if admin_notes:
                 salon.admin_notes = admin_notes
             salon.save()
 
+            # Synchronize services into SalonService model
+            sync_salon_services(salon, salon.services)
+
             # Dispatch notification email with credentials
             if salon.email:
                 if not temp_password:
                     temp_password = "Use your existing account password"
-                send_salon_approval_email(salon, temp_password)
+                email_sent = send_salon_approval_email(salon, temp_password)
 
         elif approval_status == Salon.ApprovalStatus.REJECTED:
             salon.approval_status = Salon.ApprovalStatus.REJECTED
@@ -394,7 +475,7 @@ class SalonApprovalView(generics.UpdateAPIView):
             salon.save()
 
             if salon.email:
-                send_salon_rejection_email(salon, admin_notes)
+                email_sent = send_salon_rejection_email(salon, admin_notes)
 
         elif approval_status == Salon.ApprovalStatus.BLOCKED:
             salon.approval_status = Salon.ApprovalStatus.BLOCKED
@@ -415,7 +496,8 @@ class SalonApprovalView(generics.UpdateAPIView):
                     f"Salon {salon.name} status updated to {approval_status.lower()} successfully."
                 ),
                 "salon": serializer.data,
-                "temp_password": "Send through Email",
+                "email_sent": email_sent,
+                "temp_password": temp_password or "Send through Email",
             }
         )
 
@@ -510,6 +592,56 @@ class OwnerDashboardView(APIView):
                         "experience": w.experience,
                     })
 
+        popular_services = []
+        if salon:
+            try:
+                from services.models import SalonService
+                salon_services_qs = SalonService.objects.filter(salon=salon, is_active=True).select_related("service", "service__category")
+                if salon_services_qs.exists():
+                    total_count = salon_services_qs.count()
+                    pct = 100 // min(total_count, 5)
+                    for idx, ss in enumerate(salon_services_qs[:5], start=1):
+                        cat_name = getattr(ss.service.category, "name", "").lower() if ss.service and ss.service.category else ""
+                        icon = "✂" if "hair" in cat_name else ("💆" if "skin" in cat_name or "facial" in cat_name else ("🌿" if "spa" in cat_name else "✨"))
+                        popular_services.append({
+                            "id": ss.id,
+                            "name": ss.effective_name,
+                            "icon": icon,
+                            "bookings": 0,
+                            "contribution_pct": pct,
+                            "avg_price": f"₹{int(ss.price)}",
+                        })
+            except Exception:
+                pass
+
+        if not popular_services:
+            popular_services = [
+                {
+                    "id": 1,
+                    "name": "Haircut & Styling",
+                    "icon": "scissors",
+                    "bookings": 32,
+                    "contribution_pct": 58,
+                    "avg_price": "₹450",
+                },
+                {
+                    "id": 2,
+                    "name": "Facial & Cleanups",
+                    "icon": "sparkles",
+                    "bookings": 18,
+                    "contribution_pct": 32,
+                    "avg_price": "₹1,200",
+                },
+                {
+                    "id": 3,
+                    "name": "Spa & Hair Rituals",
+                    "icon": "lotus",
+                    "bookings": 12,
+                    "contribution_pct": 21,
+                    "avg_price": "₹1,650",
+                },
+            ]
+
         data = {
             "salon_info": {
                 "id": salon.id if salon else 1,
@@ -576,32 +708,7 @@ class OwnerDashboardView(APIView):
                     {"time": "2 PM", "amount": 600, "height_pct": 25, "is_peak": False, "pos_amount": 400, "online_amount": 200},
                 ],
             },
-            "popular_services": [
-                {
-                    "id": 1,
-                    "name": "Haircut & Styling",
-                    "icon": "scissors",
-                    "bookings": 32,
-                    "contribution_pct": 58,
-                    "avg_price": "₹450",
-                },
-                {
-                    "id": 2,
-                    "name": "Facial & Cleanups",
-                    "icon": "sparkles",
-                    "bookings": 18,
-                    "contribution_pct": 32,
-                    "avg_price": "₹1,200",
-                },
-                {
-                    "id": 3,
-                    "name": "Spa & Hair Rituals",
-                    "icon": "lotus",
-                    "bookings": 12,
-                    "contribution_pct": 21,
-                    "avg_price": "₹1,650",
-                },
-            ],
+            "popular_services": popular_services,
         }
         return Response(data)
 
@@ -683,10 +790,12 @@ class OwnerWorkerListCreateView(APIView):
 
     def get(self, request):
         user = request.user
+        salon = get_owner_salon(user)
         is_owner_or_admin = (
             getattr(user, "role", None) in ["OWNER", "ADMIN"]
             or user.is_superuser
             or user.is_staff
+            or (salon and salon.owner == user)
         )
         if not is_owner_or_admin:
             return Response(
@@ -694,7 +803,6 @@ class OwnerWorkerListCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        salon = get_owner_salon(user)
         if not salon:
             return Response(
                 {"error": "No registered salon found for this account."},
@@ -731,11 +839,12 @@ class OwnerWorkerListCreateView(APIView):
 
     def post(self, request):
         user = request.user
-        # 1. Backend validates owner
+        salon = get_owner_salon(user)
         is_owner_or_admin = (
             getattr(user, "role", None) in ["OWNER", "ADMIN"]
             or user.is_superuser
             or user.is_staff
+            or (salon and salon.owner == user)
         )
         if not is_owner_or_admin:
             return Response(
@@ -743,8 +852,6 @@ class OwnerWorkerListCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 2. Backend validates salon
-        salon = get_owner_salon(user)
         if not salon:
             return Response(
                 {"error": "Cannot add worker: You do not have an approved or registered salon."},

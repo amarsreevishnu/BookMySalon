@@ -40,12 +40,19 @@ class ServiceCategory(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.name)
+            if not base_slug:
+                base_slug = "category"
             slug = base_slug
             counter = 1
             while ServiceCategory.objects.filter(slug=slug).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
+
+        if not self.pk and (self.display_order is None or self.display_order == 0):
+            max_order = ServiceCategory.objects.aggregate(models.Max("display_order"))["display_order__max"] or 0
+            self.display_order = max_order + 1
+
         super().save(*args, **kwargs)
 
     def __str__(self):

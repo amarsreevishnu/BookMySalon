@@ -40,11 +40,17 @@ class AdminCategoryListCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = ServiceCategorySerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = ServiceCategorySerializer(data=request.data)
+            if serializer.is_valid():
+                category = serializer.save()
+                return Response(ServiceCategorySerializer(category).data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to create category: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class AdminCategoryDetailView(APIView):
@@ -63,12 +69,18 @@ class AdminCategoryDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
-        category = self.get_object(pk)
-        serializer = ServiceCategorySerializer(category, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            category = self.get_object(pk)
+            serializer = ServiceCategorySerializer(category, data=request.data, partial=True)
+            if serializer.is_valid():
+                category = serializer.save()
+                return Response(ServiceCategorySerializer(category).data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to update category: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def put(self, request, pk):
         return self.patch(request, pk)
@@ -114,11 +126,17 @@ class AdminServiceListCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = ServiceSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = ServiceSerializer(data=request.data)
+            if serializer.is_valid():
+                service = serializer.save()
+                return Response(ServiceSerializer(service).data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to save service: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class AdminServiceDetailView(APIView):
@@ -137,12 +155,18 @@ class AdminServiceDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
-        service = self.get_object(pk)
-        serializer = ServiceSerializer(service, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            service = self.get_object(pk)
+            serializer = ServiceSerializer(service, data=request.data, partial=True)
+            if serializer.is_valid():
+                service = serializer.save()
+                return Response(ServiceSerializer(service).data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to update service: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def put(self, request, pk):
         return self.patch(request, pk)

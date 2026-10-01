@@ -313,7 +313,7 @@ export default function AdminSalonsList() {
             showToast(`✅ ${updated.name} has been unblocked and reactivated!`);
           } else {
             const credsNotice = res.data.temp_password
-              ? `(Credentials: ${res.data.temp_password}) emailed to ${updated.email}`
+              ? `(Credentials: Temp Password , emailed to ${updated.email}`
               : `Email sent to ${updated.email}`;
             showToast(`✓ ${updated.name} APPROVED! ${credsNotice}`);
           }

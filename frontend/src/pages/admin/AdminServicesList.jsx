@@ -28,8 +28,8 @@ export default function AdminServicesList() {
   const [categoryForm, setCategoryForm] = useState({
     name: "",
     icon: "✂️",
+    image: "",
     description: "",
-    display_order: 0,
     is_active: true,
   });
 
@@ -125,8 +125,8 @@ export default function AdminServicesList() {
     setCategoryForm({
       name: "",
       icon: "✂️",
+      image: "",
       description: "",
-      display_order: categories.length,
       is_active: true,
     });
     setCategoryModalOpen(true);
@@ -137,8 +137,8 @@ export default function AdminServicesList() {
     setCategoryForm({
       name: cat.name,
       icon: cat.icon || "✂️",
+      image: cat.image || "",
       description: cat.description || "",
-      display_order: cat.display_order || 0,
       is_active: cat.is_active,
     });
     setCategoryModalOpen(true);
@@ -158,7 +158,17 @@ export default function AdminServicesList() {
       setCategoryModalOpen(false);
       loadCatalogData();
     } catch (err) {
-      const msg = err.response?.data?.name?.[0] || "Failed to save category.";
+      const data = err.response?.data;
+      let msg = "Failed to save category.";
+      if (typeof data === "string") {
+        msg = data;
+      } else if (data?.name?.[0]) {
+        msg = `Category Name: ${data.name[0]}`;
+      } else if (data?.error) {
+        msg = data.error;
+      } else if (data?.detail) {
+        msg = data.detail;
+      }
       showToast(`Error: ${msg}`);
     } finally {
       setSaving(false);
@@ -479,7 +489,7 @@ export default function AdminServicesList() {
                       {filteredServices.map((srv) => (
                         <tr key={srv.id}>
                           <td>
-                            <strong style={{ color: "#ffffff", fontSize: "14px" }}>
+                            <strong style={{ color: "#234d34", fontSize: "14px" }}>
                               {srv.name}
                             </strong>
                             {srv.description && (
@@ -569,7 +579,22 @@ export default function AdminServicesList() {
                 <div key={cat.id} className="admin-category-card">
                   <div className="admin-cat-card-top">
                     <div className="admin-cat-icon-name">
-                      <div className="admin-cat-icon-box">{cat.icon || "✂️"}</div>
+                      <div className="admin-cat-icon-box">
+                        {cat.image ? (
+                          <img
+                            src={cat.image}
+                            alt={cat.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              borderRadius: "8px",
+                            }}
+                          />
+                        ) : (
+                          cat.icon || "✂️"
+                        )}
+                      </div>
                       <div>
                         <h3 className="admin-cat-name">{cat.name}</h3>
                         <div className="admin-cat-slug">/{cat.slug}</div>
@@ -589,10 +614,10 @@ export default function AdminServicesList() {
 
                   <div className="admin-cat-stats-row">
                     <span>
-                      Standard Services: <strong>{cat.services_count || 0}</strong>
+                      Standard Services: <strong>{cat.total_services ?? cat.services_count ?? 0}</strong>
                     </span>
-                    <span>
-                      Order: <strong>#{cat.display_order}</strong>
+                    <span style={{ color: cat.is_active ? "#275b3b" : "#dc2626", fontWeight: 600 }}>
+                      {cat.is_active ? "● Catalog Active" : "○ Inactive"}
                     </span>
                   </div>
 
@@ -661,7 +686,7 @@ export default function AdminServicesList() {
                     type="text"
                     required
                     className="admin-form-input"
-                    placeholder="e.g. Hair, Skin, Spa, Nails"
+                    placeholder="e.g. Hair, Skin, Spa, Nails, Bridal"
                     value={categoryForm.name}
                     onChange={(e) =>
                       setCategoryForm({ ...categoryForm, name: e.target.value })
@@ -670,31 +695,123 @@ export default function AdminServicesList() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label>Category Icon (Emoji or identifier)</label>
-                  <input
-                    type="text"
-                    className="admin-form-input"
-                    placeholder="e.g. ✂️, ✨, 🌿, 💅"
-                    value={categoryForm.icon}
-                    onChange={(e) =>
-                      setCategoryForm({ ...categoryForm, icon: e.target.value })
-                    }
-                  />
-                </div>
+                  <label>Category Icon / Image</label>
+                  {/* Preset quick icons */}
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
+                    {["✂️", "✨", "🌿", "💅", "💈", "💆", "💄", "🌸", "🧴", "🧖"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setCategoryForm({ ...categoryForm, icon: emoji })}
+                        style={{
+                          background: categoryForm.icon === emoji ? "#234d34" : "#f0f5f1",
+                          color: categoryForm.icon === emoji ? "#ffffff" : "#1b2e21",
+                          border: categoryForm.icon === emoji ? "1px solid #234d34" : "1px solid #d9e4dc",
+                          borderRadius: "6px",
+                          padding: "6px 10px",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
 
-                <div className="admin-form-group">
-                  <label>Display Order (Sorting)</label>
-                  <input
-                    type="number"
-                    className="admin-form-input"
-                    value={categoryForm.display_order}
-                    onChange={(e) =>
-                      setCategoryForm({
-                        ...categoryForm,
-                        display_order: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      className="admin-form-input"
+                      style={{ maxWidth: "120px" }}
+                      placeholder="Icon (✂️)"
+                      value={categoryForm.icon}
+                      onChange={(e) =>
+                        setCategoryForm({ ...categoryForm, icon: e.target.value })
+                      }
+                    />
+
+                    <label
+                      htmlFor="cat-img-upload"
+                      style={{
+                        background: "#ffffff",
+                        border: "1px solid #dbe5de",
+                        color: "#3b5042",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        fontSize: "12.5px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      📁 Upload Banner / Image
+                      <input
+                        id="cat-img-upload"
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setCategoryForm({ ...categoryForm, image: reader.result });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Image Preview if provided */}
+                  {categoryForm.image && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px",
+                        background: "#f0f5f1",
+                        borderRadius: "8px",
+                        border: "1px solid #e0ebe3",
+                      }}
+                    >
+                      <img
+                        src={categoryForm.image}
+                        alt="Category Preview"
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          borderRadius: "6px",
+                          objectFit: "cover",
+                        }}
+                      />
+                      <span style={{ fontSize: "12px", color: "#275b3b", fontWeight: "600" }}>
+                        Image uploaded
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryForm({ ...categoryForm, image: "" })}
+                        style={{
+                          marginLeft: "auto",
+                          background: "#fee2e2",
+                          border: "1px solid #fca5a5",
+                          color: "#dc2626",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="admin-form-group">
@@ -721,7 +838,7 @@ export default function AdminServicesList() {
                     />
                     <span className="admin-toggle-slider" />
                   </label>
-                  <span style={{ fontSize: "13px", color: "#e2e8f0" }}>
+                  <span style={{ fontSize: "13px", color: "#2c4233", fontWeight: 500 }}>
                     Active in Platform Catalog
                   </span>
                 </div>

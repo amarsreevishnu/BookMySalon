@@ -1,19 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/createSalon.css";
-
-const CATEGORIES = [
-  "Hair & Styling",
-  "Skin & Facial",
-  "Nail Bar",
-  "Spa & Massage",
-  "Bridal Studio",
-  "Men's Grooming",
-  "Tattoo & Piercing",
-  "Holistic Wellness",
-];
 
 const DEFAULT_DAYS = [
   { day: "Monday", isOpen: true, openTime: "09:00", closeTime: "20:00" },
@@ -23,23 +12,6 @@ const DEFAULT_DAYS = [
   { day: "Friday", isOpen: true, openTime: "09:00", closeTime: "20:00" },
   { day: "Saturday", isOpen: true, openTime: "09:00", closeTime: "21:00" },
   { day: "Sunday", isOpen: false, openTime: "10:00", closeTime: "18:00" },
-];
-
-const DEFAULT_SERVICES = [
-  { id: "srv-1", name: "Haircut & Styling", price: "350", category: "Hair & Styling", duration: "45 mins" },
-  { id: "srv-2", name: "Organic Hair Spa", price: "899", category: "Spa & Massage", duration: "60 mins" },
-  { id: "srv-3", name: "Botanical Facial Glow", price: "750", category: "Skin & Facial", duration: "45 mins" },
-];
-
-const POPULAR_SERVICE_PRESETS = [
-  { name: "Beard Cut", price: "150", category: "Men's Grooming", duration: "30 mins" },
-  { name: "Beard Trim & Style", price: "200", category: "Men's Grooming", duration: "30 mins" },
-  { name: "Haircut (Men)", price: "250", category: "Hair & Styling", duration: "30 mins" },
-  { name: "Haircut (Women)", price: "450", category: "Hair & Styling", duration: "45 mins" },
-  { name: "Organic Hair Spa", price: "899", category: "Hair & Styling", duration: "60 mins" },
-  { name: "Charcoal Face Cleanup", price: "400", category: "Skin & Facial", duration: "40 mins" },
-  { name: "Deep Tissue Massage", price: "1200", category: "Spa & Massage", duration: "60 mins" },
-  { name: "Deluxe Manicure", price: "350", category: "Nail Bar", duration: "35 mins" },
 ];
 
 const AMENITY_OPTIONS = [
@@ -199,7 +171,7 @@ export default function CreateSalon() {
   // Form states
   const [formData, setFormData] = useState({
     name: "",
-    category: "Hair & Styling",
+    category: "",
     description: "",
     email: "",
     phone: "",
@@ -211,11 +183,17 @@ export default function CreateSalon() {
     longitude: "77.5946",
   });
 
+  // Dynamic Service Catalog & Categories from Backend
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [catalogServices, setCatalogServices] = useState([]);
+  const [activeSuggestionCategory, setActiveSuggestionCategory] = useState("ALL");
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+
   const [openingHours, setOpeningHours] = useState(DEFAULT_DAYS);
-  const [services, setServices] = useState(DEFAULT_SERVICES);
+  const [services, setServices] = useState([]);
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState("");
-  const [newServiceCategory, setNewServiceCategory] = useState("Hair & Styling");
+  const [newServiceCategory, setNewServiceCategory] = useState("");
   const [newServiceDuration, setNewServiceDuration] = useState("30 mins");
   const [serviceError, setServiceError] = useState("");
 
@@ -230,6 +208,7 @@ export default function CreateSalon() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [lastSaved, setLastSaved] = useState("Draft saved");
+  const [draftSaveStatus, setDraftSaveStatus] = useState("");
   const [submittedSalon, setSubmittedSalon] = useState(null);
 
   const [searchParams] = useSearchParams();
@@ -352,6 +331,96 @@ export default function CreateSalon() {
     loadPrefillData();
   }, [resubmitId, resubmitToken]);
 
+  // Fetch platform service catalog and categories from backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCatalog = async () => {
+      try {
+        setIsLoadingCategories(true);
+        const res = await api.get("/services/public/categories/");
+        if (!isMounted) return;
+        const data = Array.isArray(res.data) ? res.data : [];
+        setCategoriesList(data);
+
+        // Flatten standard services into catalog suggestions
+        const flat = [];
+        data.forEach((cat) => {
+          (cat.services || []).forEach((srv) => {
+            flat.push({
+              id: srv.id,
+              name: srv.name,
+              category: cat.name,
+              categoryIcon: cat.icon || "✂️",
+              price: Math.round(Number(srv.standard_price)) || 200,
+              duration: srv.standard_duration ? `${srv.standard_duration} mins` : "30 mins",
+              description: srv.description || "",
+            });
+          });
+        });
+        setCatalogServices(flat);
+
+        // Default primary category in formData if empty
+        setFormData((prev) => {
+          if (!prev.category && data.length > 0) {
+            return { ...prev, category: data[0].name };
+          }
+          return prev;
+        });
+
+        // Default category for new service addition
+        if (data.length > 0) {
+          setNewServiceCategory((prev) => prev || data[0].name);
+        }
+      } catch (err) {
+        console.warn("[BookMySalon] Could not load service catalog:", err);
+      } finally {
+        if (isMounted) setIsLoadingCategories(false);
+      }
+    };
+
+    fetchCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const visibleSuggestions = useMemo(() => {
+    if (activeSuggestionCategory === "ALL") {
+      return catalogServices;
+    }
+    return catalogServices.filter((s) => s.category === activeSuggestionCategory);
+  }, [catalogServices, activeSuggestionCategory]);
+
+  // Auto-detect primary salon category from configured services (or fallback to catalog)
+  const detectedCategory = useMemo(() => {
+    if (!services || services.length === 0) {
+      return categoriesList[0]?.name || "Multi-Service";
+    }
+    const catCounts = {};
+    services.forEach((s) => {
+      const cat = s.category || "General";
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
+    });
+    const sorted = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+    return sorted[0] ? sorted[0][0] : (categoriesList[0]?.name || "Multi-Service");
+  }, [services, categoriesList]);
+
+  const handleServiceNameChange = (e) => {
+    const val = e.target.value;
+    setNewServiceName(val);
+    if (serviceError) setServiceError("");
+
+    // Auto-fill standard benchmarks if exact match in catalog
+    const match = catalogServices.find(
+      (cs) => cs.name.toLowerCase() === val.trim().toLowerCase()
+    );
+    if (match) {
+      setNewServicePrice(String(match.price));
+      setNewServiceCategory(match.category);
+      if (match.duration) setNewServiceDuration(match.duration);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -466,7 +535,7 @@ export default function CreateSalon() {
       id: `srv-${Date.now()}`,
       name: cleanName,
       price: cleanPrice,
-      category: newServiceCategory || formData.category,
+      category: newServiceCategory || categoriesList[0]?.name || "General",
       duration: newServiceDuration || "30 mins",
     };
 
@@ -504,21 +573,40 @@ export default function CreateSalon() {
   };
 
   const handleSaveDraft = () => {
-    const draft = {
-      formData,
-      openingHours,
-      services,
-      selectedAmenities,
-      images,
-      savedAt: new Date().toISOString(),
-    };
-    localStorage.setItem("bms_salon_draft", JSON.stringify(draft));
-    setLastSaved("Draft saved just now");
+    try {
+      const draft = {
+        formData,
+        openingHours,
+        services,
+        selectedAmenities,
+        images,
+        savedAt: new Date().toISOString(),
+      };
+      try {
+        localStorage.setItem("bms_salon_draft", JSON.stringify(draft));
+      } catch (storageErr) {
+        // QuotaExceededError handling: if base64 images exceed browser storage quota, save draft without heavy data URLs
+        console.warn("Storage quota exceeded, saving draft with lightweight image references:", storageErr);
+        const lightDraft = {
+          ...draft,
+          images: (images || []).filter((img) => typeof img === "string" && !img.startsWith("data:")).slice(0, 3),
+        };
+        localStorage.setItem("bms_salon_draft", JSON.stringify(lightDraft));
+      }
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setLastSaved(`Draft saved at ${timeStr}`);
+      setDraftSaveStatus("saved");
+      setTimeout(() => setDraftSaveStatus(""), 3000);
+    } catch (err) {
+      console.error("Could not save draft to local storage:", err);
+      setDraftSaveStatus("error");
+      setTimeout(() => setDraftSaveStatus(""), 3000);
+    }
   };
 
   // Calculate readiness percentage
   const checklist = {
-    basic: Boolean(formData.name.trim() && formData.category && formData.description.trim() && formData.phone.trim()),
+    basic: Boolean(formData.name.trim() && formData.description.trim() && formData.phone.trim()),
     location: Boolean(formData.address.trim() && formData.city.trim()),
     hours: openingHours.some((d) => d.isOpen),
     pricing: services.length > 0,
@@ -590,16 +678,18 @@ export default function CreateSalon() {
         ? Number(Number(formData.longitude).toFixed(6))
         : null;
 
+      const salonCategory = detectedCategory || formData.category || "Multi-Service";
+
       const formattedServices = services.map((s) => ({
         name: s.name.trim(),
         price: String(s.price).startsWith("₹") ? s.price : `₹${s.price}`,
-        category: s.category || formData.category,
+        category: s.category || salonCategory,
         duration: s.duration || "30 mins",
       }));
 
       const payload = {
         name: formData.name.trim(),
-        category: formData.category,
+        category: salonCategory,
         description: formData.description.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
@@ -840,7 +930,9 @@ export default function CreateSalon() {
             </p>
           </div>
           <div className="cs-draft-status">
-            {isResubmitMode ? "Resubmission Mode" : lastSaved}
+            {isResubmitMode
+              ? (draftSaveStatus === "saved" ? "Draft Saved" : "Resubmission Mode")
+              : lastSaved}
           </div>
         </div>
 
@@ -1046,24 +1138,6 @@ export default function CreateSalon() {
                   className="cs-input"
                   required
                 />
-              </div>
-
-              <div className="cs-form-group">
-                <label className="cs-label">
-                  Primary Specialization / Category <span className="required">*</span>
-                </label>
-                <div className="cs-chips-container">
-                  {CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      className={`cs-chip ${formData.category === cat ? "selected" : ""}`}
-                      onClick={() => handleCategorySelect(cat)}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="cs-form-group">
@@ -1353,14 +1427,19 @@ export default function CreateSalon() {
                       <input
                         id="service-name-input"
                         type="text"
+                        list="catalog-services-list"
                         className="cs-input"
                         placeholder="e.g. Beard Cut, Deluxe Shave, Hydra Facial..."
                         value={newServiceName}
-                        onChange={(e) => {
-                          setNewServiceName(e.target.value);
-                          if (serviceError) setServiceError("");
-                        }}
+                        onChange={handleServiceNameChange}
                       />
+                      <datalist id="catalog-services-list">
+                        {catalogServices.map((cs) => (
+                          <option key={cs.id} value={cs.name}>
+                            {cs.category} • ₹{cs.price} • {cs.duration}
+                          </option>
+                        ))}
+                      </datalist>
                     </div>
 
                     <div className="cs-form-group cs-field-price">
@@ -1393,9 +1472,9 @@ export default function CreateSalon() {
                         value={newServiceCategory}
                         onChange={(e) => setNewServiceCategory(e.target.value)}
                       >
-                        {CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
+                        {categoriesList.map((cat) => (
+                          <option key={cat.id || cat.name} value={cat.name}>
+                            {cat.icon ? `${cat.icon} ` : ""}{cat.name}
                           </option>
                         ))}
                       </select>
@@ -1430,35 +1509,64 @@ export default function CreateSalon() {
                       <span>+ Add Service</span>
                     </button>
                     <span className="cs-service-hint">
-                      Tip: Enter a service like &ldquo;Beard Cut&rdquo; and price &ldquo;150&rdquo;, then click Add.
+                      Tip: Select from catalog suggestions or type your custom service name and price.
                     </span>
                   </div>
                 </form>
 
-                {/* Quick-Add Popular Presets */}
-                <div className="cs-presets-area">
-                  <span className="cs-presets-label">⚡ QUICK ADD POPULAR PRESETS:</span>
-                  <div className="cs-presets-chips">
-                    {POPULAR_SERVICE_PRESETS.map((preset) => {
-                      const isAdded = services.some(
-                        (s) => s.name.toLowerCase() === preset.name.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={preset.name}
-                          type="button"
-                          className={`cs-preset-chip ${isAdded ? "is-added" : ""}`}
-                          onClick={() => handleAddPreset(preset)}
-                          title={isAdded ? "Already added to your menu" : `Click to add ${preset.name} (₹${preset.price})`}
-                        >
-                          <span>{isAdded ? "✓" : "+"}</span>
-                          <span className="cs-preset-name">{preset.name}</span>
-                          <span className="cs-preset-price">₹{preset.price}</span>
-                        </button>
-                      );
-                    })}
+                {/* Quick-Add Standard Catalog Services */}
+                {catalogServices.length > 0 && (
+                  <div className="cs-presets-area">
+                    <div className="cs-presets-header">
+                      <span className="cs-presets-label">⚡ QUICK ADD STANDARD SERVICES:</span>
+                      {categoriesList.length > 1 && (
+                        <div className="cs-presets-cat-tabs">
+                          <button
+                            type="button"
+                            className={`cs-presets-cat-btn ${activeSuggestionCategory === "ALL" ? "active" : ""}`}
+                            onClick={() => setActiveSuggestionCategory("ALL")}
+                          >
+                            All ({catalogServices.length})
+                          </button>
+                          {categoriesList.map((cat) => {
+                            const count = catalogServices.filter((s) => s.category === cat.name).length;
+                            return (
+                              <button
+                                key={cat.id || cat.name}
+                                type="button"
+                                className={`cs-presets-cat-btn ${activeSuggestionCategory === cat.name ? "active" : ""}`}
+                                onClick={() => setActiveSuggestionCategory(cat.name)}
+                              >
+                                {cat.icon ? `${cat.icon} ` : ""}{cat.name} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="cs-presets-chips">
+                      {visibleSuggestions.map((preset) => {
+                        const isAdded = services.some(
+                          (s) => s.name.toLowerCase() === preset.name.toLowerCase()
+                        );
+                        return (
+                          <button
+                            key={preset.id || preset.name}
+                            type="button"
+                            className={`cs-preset-chip ${isAdded ? "is-added" : ""}`}
+                            onClick={() => handleAddPreset(preset)}
+                            title={isAdded ? "Already added to your menu (click to edit details)" : `Click to add ${preset.name} (₹${preset.price})`}
+                          >
+                            <span>{isAdded ? "✓" : "+"}</span>
+                            <span className="cs-preset-name">{preset.name}</span>
+                            <span className="cs-preset-price">₹{preset.price}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Configured Services List */}
@@ -1645,6 +1753,26 @@ export default function CreateSalon() {
                 >
                   Preview as Client
                 </button>
+                <button
+                  type="button"
+                  className={`cs-secondary-btn cs-save-draft-btn ${
+                    draftSaveStatus === "saved"
+                      ? "is-saved"
+                      : draftSaveStatus === "error"
+                      ? "is-error"
+                      : ""
+                  }`}
+                  onClick={handleSaveDraft}
+                  title="Save current progress to your browser"
+                >
+                  {draftSaveStatus === "saved" ? (
+                    <>✓ Draft Saved</>
+                  ) : draftSaveStatus === "error" ? (
+                    <>⚠️ Storage Error</>
+                  ) : (
+                    <>💾 Save Draft</>
+                  )}
+                </button>
               </div>
 
               <button
@@ -1702,7 +1830,7 @@ export default function CreateSalon() {
                 </p>
 
                 <div className="cs-preview-tags">
-                  <span className="cs-preview-tag">{formData.category}</span>
+                  <span className="cs-preview-tag">{detectedCategory}</span>
                   {selectedAmenities.slice(0, 2).map((a) => (
                     <span key={a} className="cs-preview-tag">
                       {a}
@@ -1937,7 +2065,7 @@ export default function CreateSalon() {
                 <strong>Notification Email:</strong> {submittedSalon.email || formData.email}
               </div>
               <div>
-                <strong>Next Step:</strong> Once approved, your temporary login ID & password will be sent to this email address so you can access your salon management dashboard.
+                <strong>Next Step:</strong> Once verified and approved by our Super Admin team, your official Owner login credentials will be emailed to your notification address.
               </div>
             </div>
 

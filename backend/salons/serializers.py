@@ -120,6 +120,9 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             "assigned_services",
             "shift_hours",
             "commission_tier",
+            "id_card_type",
+            "id_card_number",
+            "id_card_photo",
             "profile_photo",
             "is_active",
             "salon",
@@ -142,6 +145,8 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if ret.get("profile_photo"):
             ret["profile_photo"] = build_full_media_url(request, ret["profile_photo"])
+        if ret.get("id_card_photo"):
+            ret["id_card_photo"] = build_full_media_url(request, ret["id_card_photo"])
         return ret
 
 
@@ -158,6 +163,9 @@ class WorkerCreateSerializer(serializers.Serializer):
     assigned_services = serializers.ListField(required=False, default=list)
     shift_hours = serializers.DictField(required=False, default=dict)
     commission_tier = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    id_card_type = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    id_card_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    id_card_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
     profile_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
@@ -205,10 +213,17 @@ class WorkerCreateSerializer(serializers.Serializer):
             is_active=True,
         )
 
-        # 2. Process profile photo if provided
+        # 2. Process profile photo & optional ID card if provided
         saved_photo = ""
         if profile_photo:
             saved_photo = save_image_to_media(profile_photo, subfolder="workers/photos") or profile_photo
+
+        id_card_type = validated_data.get("id_card_type", "").strip() or "Aadhaar Card"
+        id_card_number = validated_data.get("id_card_number", "").strip()
+        id_card_photo = validated_data.get("id_card_photo", "")
+        saved_id_card = ""
+        if id_card_photo:
+            saved_id_card = save_image_to_media(id_card_photo, subfolder="workers/id_cards") or id_card_photo
 
         # 3. Create worker-specific profile attached to backend salon
         profile = WorkerProfile.objects.create(
@@ -224,6 +239,9 @@ class WorkerCreateSerializer(serializers.Serializer):
             assigned_services=assigned_services,
             shift_hours=shift_hours,
             commission_tier=commission_tier,
+            id_card_type=id_card_type,
+            id_card_number=id_card_number,
+            id_card_photo=saved_id_card,
             profile_photo=saved_photo,
             is_active=True,
         )

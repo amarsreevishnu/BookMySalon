@@ -64,8 +64,7 @@ export default function AdminSidebar({
 
   // Active state calculations
   const isDashboardActive =
-    (location.pathname === "/admin/dashboard" || location.pathname === "/admin") &&
-    activeTab !== "PENDING";
+    location.pathname === "/admin/dashboard" || location.pathname === "/admin";
 
   const isSalonsActive =
     location.pathname.startsWith("/admin/salons") &&
@@ -73,9 +72,9 @@ export default function AdminSidebar({
     !location.search.toLowerCase().includes("tab=pending");
 
   const isPendingActive =
-    activeTab === "PENDING" ||
     (location.pathname.startsWith("/admin/salons") &&
-      location.search.toLowerCase().includes("tab=pending"));
+      (activeTab === "PENDING" ||
+        location.search.toLowerCase().includes("tab=pending")));
 
   const isUsersActive = location.pathname.startsWith("/admin/users");
   const isServicesActive = location.pathname.startsWith("/admin/services");

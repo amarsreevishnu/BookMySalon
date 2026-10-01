@@ -304,8 +304,10 @@ export default function OwnerDashboard() {
         if (res.data) {
           setDashboardData((prev) => ({
             ...prev,
-            salon_info: { ...prev.salon_info, ...res.data.salon_info },
-            kpi_stats: { ...prev.kpi_stats, ...res.data.kpi_stats },
+            salon_info: { ...prev.salon_info, ...(res.data.salon_info || {}) },
+            kpi_stats: { ...prev.kpi_stats, ...(res.data.kpi_stats || {}) },
+            staff_on_duty: res.data.staff_on_duty && res.data.staff_on_duty.length > 0 ? res.data.staff_on_duty : prev.staff_on_duty,
+            popular_services: res.data.popular_services && res.data.popular_services.length > 0 ? res.data.popular_services : prev.popular_services,
           }));
         }
       } catch (err) {
