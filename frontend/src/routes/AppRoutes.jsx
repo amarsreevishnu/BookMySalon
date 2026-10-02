@@ -7,8 +7,10 @@ import ForgotPassword from "../pages/ForgotPassword";
 import GoogleCallback from "../pages/GoogleCallback";
 import NotFound from "../pages/NotFound";
 
-import CustomerHome from "../pages/CustomerHome";
+import CustomerHome from "../pages/customer/CustomerHome";
 import SalonsExplore from "../pages/customer/SalonsExplore";
+import SalonDetail from "../pages/customer/SalonDetail";
+import CustomerProfile from "../pages/customer/CustomerProfile";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
@@ -32,6 +34,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/google-callback" element={<GoogleCallback />} />
       <Route path="/salon-application" element={<CreateSalon />} />      
+      <Route path="/salons/:id" element={<SalonDetail />} />
 
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />
@@ -43,6 +46,9 @@ function AppRoutes() {
         <Route path="/customer-home" element={<CustomerHome />} />
         <Route path="/salons" element={<SalonsExplore />} />
         <Route path="/customer/salons" element={<SalonsExplore />} />
+        <Route path="/customer/salons/:id" element={<SalonDetail />} />
+        <Route path="/customer/profile" element={<CustomerProfile />} />
+        <Route path="/profile" element={<CustomerProfile />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>

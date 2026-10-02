@@ -6,6 +6,7 @@ from .views import (
     AdminSalonListView,
     ApprovedSalonListView,
     CustomerSalonExploreView,
+    CustomerSalonDetailView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
     OwnerSalonProfileView,
@@ -116,6 +117,11 @@ urlpatterns = [
         "approved/",
         ApprovedSalonListView.as_view(),
         name="approved-salons",
+    ),
+    path(
+        "<int:pk>/",
+        CustomerSalonDetailView.as_view(),
+        name="customer-salon-detail",
     ),
     path(
         "",

@@ -395,6 +395,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_avatar(self, obj):
         try:
+            if hasattr(obj, "customer_profile") and obj.customer_profile.avatar:
+                return obj.customer_profile.avatar
+        except Exception:
+            pass
+        try:
             from allauth.socialaccount.models import SocialAccount
 
             social = SocialAccount.objects.filter(user=obj).first()
@@ -409,5 +414,34 @@ class UserSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return None
+
+
+class CustomerProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        from .models import CustomerProfile
+        model = CustomerProfile
+        fields = [
+            "id",
+            "full_name",
+            "first_name",
+            "last_name",
+            "email",
+            "avatar",
+            "phone_number",
+            "is_phone_verified",
+            "date_of_birth",
+            "gender",
+            "primary_location",
+            "upi_id",
+            "membership_tier",
+            "wellness_preferences",
+            "notification_channels",
+        ]
+
 
 

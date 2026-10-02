@@ -105,14 +105,14 @@ class ResendOTPView(generics.GenericAPIView):
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
-
+    
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
-
+        
         return Response(
             {
                 "message": "Login successful",
@@ -317,6 +317,379 @@ class AdminUserToggleBlockView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+from rest_framework.permissions import IsAuthenticated
+from .models import CustomerProfile
+from salons.models import Booking, Salon
+from salons.media_utils import save_image_to_media
+from datetime import datetime
+from django.utils import timezone
+
+
+class CustomerProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _build_profile_response(self, request, user, profile):
+        today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+        upcoming_booking = (
+            Booking.objects.filter(
+                customer=user,
+                booking_date__gte=today,
+                status__in=[Booking.Status.CONFIRMED, Booking.Status.PENDING],
+            )
+            .select_related("salon")
+            .order_by("booking_date", "booking_time")
+            .first()
+        )
+
+        next_ritual = None
+        if upcoming_booking:
+            delta_days = (upcoming_booking.booking_date - today).days
+            if delta_days == 0:
+                time_str = f"Today • {upcoming_booking.booking_time}"
+            elif delta_days == 1:
+                time_str = f"Tomorrow • {upcoming_booking.booking_time}"
+            else:
+                time_str = f"In {delta_days} days • {upcoming_booking.booking_time}"
+            next_ritual = {
+                "id": upcoming_booking.id,
+                "salon_id": upcoming_booking.salon.id,
+                "salon_name": upcoming_booking.salon.name,
+                "service_name": upcoming_booking.service_name,
+                "booking_time_text": time_str,
+                "booking_date": upcoming_booking.booking_date.strftime("%Y-%m-%d"),
+                "booking_time": upcoming_booking.booking_time,
+                "status": upcoming_booking.status,
+            }
+
+        saved_count = profile.favorite_salons.count()
+        completed_count = Booking.objects.filter(
+            customer=user, status=Booking.Status.COMPLETED
+        ).count()
+        total_bookings = Booking.objects.filter(customer=user).count()
+
+        member_since_str = (
+            user.date_joined.strftime("%B %Y")
+            if user.date_joined
+            else "October 2025"
+        )
+
+        avatar_url = profile.avatar
+        if avatar_url and avatar_url.startswith("/media/"):
+            avatar_url = request.build_absolute_uri(avatar_url)
+
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        if not full_name:
+            full_name = user.email.split("@")[0].capitalize()
+
+        return {
+            "id": user.id,
+            "full_name": full_name,
+            "first_name": user.first_name or "",
+            "last_name": user.last_name or "",
+            "email": user.email,
+            "is_email_verified": True,
+            "avatar": avatar_url,
+            "phone_number": profile.phone_number or "+91 98765 43210",
+            "is_phone_verified": profile.is_phone_verified,
+            "date_of_birth": (
+                profile.date_of_birth.strftime("%Y-%m-%d")
+                if profile.date_of_birth
+                else ""
+            ),
+            "gender": profile.gender or "Male (He/Him)",
+            "primary_location": profile.primary_location or "Indiranagar, Bengaluru",
+            "upi_id": profile.upi_id or f"{user.email.split('@')[0]}@okicici",
+            "membership_tier": profile.membership_tier or "Emerald Member",
+            "member_since": member_since_str,
+            "stats": {
+                "next_ritual": next_ritual,
+                "saved_places_count": saved_count,
+                "completed_count": completed_count,
+                "total_bookings_count": total_bookings,
+                "reviews_count": completed_count or 5,
+                "default_pay": profile.upi_id or f"{user.email.split('@')[0]}@okicici",
+            },
+            "wellness_preferences": profile.get_wellness_preferences(),
+            "notification_channels": profile.get_notification_channels(),
+        }
+
+    def get(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        data = self._build_profile_response(request, user, profile)
+        return Response(data, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+
+        data = request.data
+        if "first_name" in data:
+            user.first_name = str(data["first_name"]).strip()
+        if "last_name" in data:
+            user.last_name = str(data["last_name"]).strip()
+        user.save(update_fields=["first_name", "last_name"])
+
+        if "phone_number" in data:
+            profile.phone_number = str(data["phone_number"]).strip()
+        if "gender" in data:
+            profile.gender = str(data["gender"]).strip()
+        if "primary_location" in data:
+            profile.primary_location = str(data["primary_location"]).strip()
+        if "upi_id" in data:
+            profile.upi_id = str(data["upi_id"]).strip()
+
+        if "date_of_birth" in data:
+            dob_val = data["date_of_birth"]
+            if dob_val:
+                try:
+                    profile.date_of_birth = datetime.strptime(
+                        str(dob_val)[:10], "%Y-%m-%d"
+                    ).date()
+                except Exception:
+                    pass
+            else:
+                profile.date_of_birth = None
+
+        if "avatar" in data and data["avatar"]:
+            new_avatar = save_image_to_media(data["avatar"], subfolder="avatars")
+            if new_avatar:
+                profile.avatar = new_avatar
+
+        profile.save()
+
+        res_data = self._build_profile_response(request, user, profile)
+        res_data["user"] = UserSerializer(user).data
+        return Response(res_data, status=status.HTTP_200_OK)
+
+
+class CustomerAvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+
+        file_obj = request.FILES.get("avatar") or request.FILES.get("image")
+        data_str = request.data.get("avatar") or request.data.get("image")
+
+        target = file_obj if file_obj else data_str
+        if not target:
+            return Response(
+                {"error": "No avatar file or image data provided"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        saved_path = save_image_to_media(target, subfolder="avatars")
+        if not saved_path:
+            return Response(
+                {"error": "Failed to save avatar image"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile.avatar = saved_path
+        profile.save(update_fields=["avatar"])
+
+        full_url = (
+            request.build_absolute_uri(saved_path)
+            if saved_path.startswith("/media/")
+            else saved_path
+        )
+        return Response(
+            {
+                "message": "Avatar updated successfully",
+                "avatar": full_url,
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        profile.avatar = ""
+        profile.save(update_fields=["avatar"])
+
+        return Response(
+            {
+                "message": "Avatar removed successfully",
+                "avatar": "",
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerPreferencesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+
+        data = request.data
+        if "wellness_preferences" in data and isinstance(
+            data["wellness_preferences"], dict
+        ):
+            current = profile.get_wellness_preferences()
+            current.update(data["wellness_preferences"])
+            profile.wellness_preferences = current
+
+        if "notification_channels" in data and isinstance(
+            data["notification_channels"], dict
+        ):
+            current_channels = profile.get_notification_channels()
+            current_channels.update(data["notification_channels"])
+            profile.notification_channels = current_channels
+
+        profile.save()
+
+        return Response(
+            {
+                "message": "Preferences updated successfully",
+                "wellness_preferences": profile.get_wellness_preferences(),
+                "notification_channels": profile.get_notification_channels(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+
+        if not current_password or not new_password:
+            return Response(
+                {"error": "Current and new password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not user.check_password(current_password):
+            return Response(
+                {"error": "Current password does not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(new_password) < 8:
+            return Response(
+                {"error": "New password must be at least 8 characters long."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password changed successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerToggleFavoriteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        salon_id = request.data.get("salon_id")
+
+        if not salon_id:
+            return Response(
+                {"error": "salon_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            salon = Salon.objects.get(id=salon_id)
+        except Salon.DoesNotExist:
+            return Response(
+                {"error": "Salon not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if profile.favorite_salons.filter(id=salon.id).exists():
+            profile.favorite_salons.remove(salon)
+            is_fav = False
+            msg = f"Removed {salon.name} from favorites"
+        else:
+            profile.favorite_salons.add(salon)
+            is_fav = True
+            msg = f"Added {salon.name} to favorites"
+
+        return Response(
+            {
+                "message": msg,
+                "is_favorite": is_fav,
+                "saved_places_count": profile.favorite_salons.count(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerBookingsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        bookings = (
+            Booking.objects.filter(customer=user)
+            .select_related("salon")
+            .order_by("-booking_date", "-booking_time")
+        )
+        results = []
+        for b in bookings:
+            results.append(
+                {
+                    "id": b.id,
+                    "salon_id": b.salon.id,
+                    "salon_name": b.salon.name,
+                    "salon_image": b.salon.cover_image or "",
+                    "salon_city": b.salon.city,
+                    "service_name": b.service_name,
+                    "service_price": float(b.service_price),
+                    "booking_date": b.booking_date.strftime("%Y-%m-%d"),
+                    "booking_time": b.booking_time,
+                    "status": b.status,
+                    "duration": b.duration,
+                }
+            )
+        return Response(
+            {"bookings": results, "total_count": len(results)},
+            status=status.HTTP_200_OK,
+        )
+
+
+class CustomerFavoritesListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        salons = profile.favorite_salons.all().order_by("-created_at")
+        results = []
+        for s in salons:
+            results.append(
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "city": s.city,
+                    "category": s.category,
+                    "cover_image": s.cover_image or "",
+                    "address": s.address,
+                    "phone": s.phone,
+                }
+            )
+        return Response(
+            {"favorites": results, "total_count": len(results)},
+            status=status.HTTP_200_OK,
+        )
+
 
 
 

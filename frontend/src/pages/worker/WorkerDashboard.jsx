@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
@@ -7,6 +7,11 @@ import "../../styles/workerDashboard.css";
 export default function WorkerDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  // Top navbar profile menu & logout confirm states
+  const profileMenuRef = useRef(null);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Active top navigation tab
   const [activeNavTab, setActiveNavTab] = useState("appointments");
@@ -181,6 +186,21 @@ export default function WorkerDashboard() {
     fetchDashboard();
   }, []);
 
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
+      }
+    };
+    if (showProfileDropdown) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showProfileDropdown]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 3500);
@@ -188,6 +208,7 @@ export default function WorkerDashboard() {
 
   const handleLogout = () => {
     logout();
+    setShowLogoutConfirm(false);
     navigate("/login");
   };
 
@@ -326,14 +347,67 @@ export default function WorkerDashboard() {
           </div>
 
           <div className="wd-navbar-right">
-            <button
-              type="button"
-              className="btn-wd-logout"
-              onClick={handleLogout}
-              title="Log out of Stylist Suite"
-            >
-              <span>🚪</span> Logout
-            </button>
+            {/* Round Worker Avatar with Dropdown */}
+            <div className="wd-nav-profile-menu-wrap" ref={profileMenuRef}>
+              <button
+                type="button"
+                className="wd-nav-profile-btn"
+                onClick={() => setShowProfileDropdown((prev) => !prev)}
+                title="Specialist Profile & Options"
+                aria-expanded={showProfileDropdown}
+              >
+                <img
+                  src={stylistProfile.avatar}
+                  alt={stylistProfile.name}
+                  className="wd-nav-profile-img"
+                />
+                <span className="wd-nav-profile-status-dot" title="On Duty" />
+              </button>
+
+              {showProfileDropdown && (
+                <div className="wd-nav-profile-dropdown">
+                  <div className="wd-dropdown-header">
+                    <img
+                      src={stylistProfile.avatar}
+                      alt={stylistProfile.name}
+                      className="wd-dropdown-avatar"
+                    />
+                    <div className="wd-dropdown-user-info">
+                      <div className="wd-dropdown-name">{stylistProfile.name}</div>
+                      <div className="wd-dropdown-role">{stylistProfile.roleBadge}</div>
+                      <div className="wd-dropdown-email">
+                        {user?.email || "worker@bookmysalon.com"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="wd-dropdown-divider" />
+
+                  <div className="wd-dropdown-meta-item">
+                    <span className="wd-meta-icon">📍</span>
+                    <span>{stylistProfile.chair}</span>
+                  </div>
+                  <div className="wd-dropdown-meta-item">
+                    <span className="wd-meta-icon">⏰</span>
+                    <span>{stylistProfile.shift}</span>
+                  </div>
+
+                  <div className="wd-dropdown-divider" />
+
+                  <button
+                    type="button"
+                    className="wd-dropdown-item wd-dropdown-logout-btn"
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      setShowLogoutConfirm(true);
+                    }}
+                  >
+                    <span className="wd-dropdown-icon">🚪</span>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1218,6 +1292,91 @@ export default function WorkerDashboard() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div
+          className="wd-modal-overlay"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="wd-modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "420px", textAlign: "center" }}
+          >
+            <div style={{ padding: "28px 24px 20px" }}>
+              <div className="wd-logout-modal-icon-circle">
+                <img
+                  src={stylistProfile.avatar}
+                  alt={stylistProfile.name}
+                  className="wd-logout-modal-avatar"
+                />
+              </div>
+
+              <h3
+                style={{
+                  margin: "16px 0 8px",
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  color: "var(--wd-text-primary, #0f172a)",
+                }}
+              >
+                Confirm Logout
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 20px",
+                  fontSize: "13.5px",
+                  color: "var(--wd-text-muted, #64748b)",
+                  lineHeight: "1.5",
+                }}
+              >
+                Are you sure you want to log out of Stylist Suite? Any unstarted services will remain in queue.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  justifyContent: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  style={{
+                    padding: "9px 20px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#475569",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setShowLogoutConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    padding: "9px 22px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#dc2626",
+                    color: "#ffffff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(220, 38, 38, 0.25)",
+                  }}
+                  onClick={handleLogout}
+                >
+                  Yes, Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>

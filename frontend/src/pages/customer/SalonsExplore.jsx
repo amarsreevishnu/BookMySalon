@@ -4,11 +4,116 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonsExplore.css";
+import CustomerHeader from "../../components/customer/CustomerHeader";
+
+// Format 24-hr time string (e.g. "09:00", "21:00") into 12-hr format ("9:00 AM", "9:00 PM")
+export function formatTime12(timeStr) {
+  if (!timeStr) return "";
+  if (timeStr.includes("AM") || timeStr.includes("PM")) return timeStr;
+  const parts = String(timeStr).trim().split(":");
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1] || "00";
+  if (isNaN(hours)) return timeStr;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+// Dynamically extracts opening hours & holiday status for a salon based on selected date
+export function getSalonOpeningHoursInfo(salon, selectedDateParam = "Today") {
+  if (!salon) {
+    return {
+      isOpen: true,
+      statusText: "Open Today",
+      hoursText: "9:00 AM – 8:30 PM",
+      openUntil: "8:30 PM",
+      isHoliday: false,
+      dayName: "Today",
+    };
+  }
+
+  const targetDate = new Date();
+  if (selectedDateParam === "Tomorrow") {
+    targetDate.setDate(targetDate.getDate() + 1);
+  } else if (selectedDateParam === "This Weekend") {
+    const dayOfWeek = targetDate.getDay();
+    const diff = 6 - dayOfWeek;
+    targetDate.setDate(targetDate.getDate() + (diff >= 0 ? diff : diff + 7));
+  }
+  const dayName = targetDate.toLocaleDateString("en-US", { weekday: "long" });
+
+  const openingHours = salon.opening_hours;
+
+  // 1. If opening_hours contains days array
+  let daysList = [];
+  if (openingHours && typeof openingHours === "object") {
+    if (Array.isArray(openingHours.days)) {
+      daysList = openingHours.days;
+    } else if (Array.isArray(openingHours)) {
+      daysList = openingHours;
+    }
+  }
+
+  if (daysList.length > 0) {
+    const daySched = daysList.find(
+      (item) => item.day && item.day.toLowerCase() === dayName.toLowerCase()
+    );
+
+    if (daySched) {
+      if (daySched.isOpen === false || daySched.isOpen === "false") {
+        return {
+          isOpen: false,
+          statusText: "Closed (Holiday / Off)",
+          hoursText: "Holiday / Off Today",
+          openUntil: "Holiday",
+          isHoliday: true,
+          dayName,
+        };
+      }
+
+      const openFmt = formatTime12(daySched.openTime || "09:00");
+      const closeFmt = formatTime12(daySched.closeTime || "21:00");
+      return {
+        isOpen: true,
+        statusText: `Open until ${closeFmt}`,
+        hoursText: `${openFmt} – ${closeFmt}`,
+        openUntil: closeFmt,
+        isHoliday: false,
+        dayName,
+      };
+    }
+  }
+
+  // 2. If opening_hours is a string (e.g. from mock/legacy fallback)
+  if (typeof openingHours === "string" && openingHours.trim()) {
+    const isClosed = openingHours.toLowerCase().includes("closed") || openingHours.toLowerCase().includes("off");
+    return {
+      isOpen: !isClosed,
+      statusText: isClosed ? "Closed (Holiday / Off)" : "Open Today",
+      hoursText: openingHours,
+      openUntil: "Close",
+      isHoliday: isClosed,
+      dayName,
+    };
+  }
+
+  // 3. Fallback default
+  return {
+    isOpen: true,
+    statusText: "Open Today",
+    hoursText: "9:00 AM – 8:30 PM",
+    openUntil: "8:30 PM",
+    isHoliday: false,
+    dayName,
+  };
+}
 
 export default function SalonsExplore() {
   const navigate = useNavigate();
   const routeLocation = useLocation();
   const { user, logout } = useAuth();
+  
 
   const currentUser = useMemo(() => {
     if (user && user.first_name) return user;
@@ -53,14 +158,19 @@ export default function SalonsExplore() {
 
   // Modals state
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bookingModalSalon, setBookingModalSalon] = useState(null);
   const [bookingService, setBookingService] = useState("Haircut & Styling");
   const [bookingTime, setBookingTime] = useState("2:30 PM");
   const [detailsModalSalon, setDetailsModalSalon] = useState(null);
 
-  // Raw salons from backend / defaults
+  // Raw salons from backend & services catalog
   const [salonsList, setSalonsList] = useState([]);
+  const [servicesCatalog, setServicesCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  console.log(salonsList);
+  
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -69,24 +179,40 @@ export default function SalonsExplore() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Fetch Salons from Backend
+  // Fetch Salons and Services Catalog from Backend apps
   useEffect(() => {
-    const fetchSalons = async () => {
+    let isMounted = true;
+    const fetchData = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem("access_token");
         const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-        const res = await api.get("/salons/explore/", config);
-        if (res.data && res.data.salons) {
-          setSalonsList(res.data.salons);
+
+        // 1. Fetch salons from salons app
+        const salonsRes = await api.get("/salons/explore/", config);
+        if (salonsRes.data && salonsRes.data.salons && isMounted) {
+          setSalonsList(salonsRes.data.salons);
+        }
+
+        // 2. Fetch categories and offerings from services app
+        try {
+          const servicesRes = await api.get("/services/public/categories/", config);
+          if (Array.isArray(servicesRes.data) && isMounted) {
+            setServicesCatalog(servicesRes.data);
+          }
+        } catch (svcErr) {
+          console.log("Services catalog fetch fallback", svcErr);
         }
       } catch (err) {
         console.log("Error loading salons for exploration", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
-    fetchSalons();
+    fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Dynamically extract locations from fetched salons
@@ -98,20 +224,28 @@ export default function SalonsExplore() {
     return ["All Locations", ...Array.from(locs)];
   }, [salonsList]);
 
-  // Dynamically extract categories & service tags from fetched salons
+  // Dynamically extract categories & service tags combining services app + active salons
   const availableCategories = useMemo(() => {
     const catSet = new Set();
+
+    // Prioritize categories from services app
+    servicesCatalog.forEach((cat) => {
+      if (cat.name) catSet.add(cat.name);
+    });
+
+    // Add categories & service tags from active salons
     salonsList.forEach((s) => {
       if (s.category) catSet.add(s.category);
       if (s.tags && Array.isArray(s.tags)) {
         s.tags.forEach((t) => catSet.add(t));
       }
     });
+
     if (catSet.size === 0) {
-      return ["Hair & Styling", "AC", "Certified"];
+      return ["Hair", "Skin", "Spa", "Nails", "Beard"];
     }
-    return Array.from(catSet).slice(0, 6);
-  }, [salonsList]);
+    return Array.from(catSet);
+  }, [servicesCatalog, salonsList]);
 
   // Filter salons dynamically
   const filteredSalons = useMemo(() => {
@@ -151,13 +285,18 @@ export default function SalonsExplore() {
       );
     }
 
-    // Filter by selected services / tags from sidebar
+    // Filter by selected holistic services from sidebar (dynamic)
     if (selectedServices.length > 0) {
       list = list.filter((s) =>
         selectedServices.some(
-          (sel) =>
-            s.tags?.some((t) => t.toLowerCase().includes(sel.toLowerCase())) ||
-            s.services?.some((srv) => srv.name?.toLowerCase().includes(sel.toLowerCase()))
+          (sel) => {
+            const sLower = sel.toLowerCase();
+            return (
+              s.category?.toLowerCase().includes(sLower) ||
+              s.tags?.some((t) => t.toLowerCase().includes(sLower)) ||
+              s.services?.some((srv) => srv.name?.toLowerCase().includes(sLower) || (srv.category && srv.category.toLowerCase().includes(sLower)))
+            );
+          }
         )
       );
     }
@@ -177,6 +316,14 @@ export default function SalonsExplore() {
       list = list.filter((s) => s.has_instant_slot);
     }
 
+    // Filter by Distance Radius (dynamic)
+    if (distanceRadius && distanceRadius !== "Any") {
+      const maxDist = parseFloat(distanceRadius);
+      if (!isNaN(maxDist)) {
+        list = list.filter((s) => (s.distance_km || 1.5) <= maxDist);
+      }
+    }
+
     // Filter by Min Rating
     if (minRating > 0) {
       list = list.filter((s) => (s.rating || 0) >= minRating);
@@ -185,6 +332,37 @@ export default function SalonsExplore() {
     // Filter by Price Tier
     if (priceTier) {
       list = list.filter((s) => s.price_tier === priceTier);
+    }
+
+    // Filter by Offers & Purity tags (dynamic)
+    if (selectedPurity.length > 0) {
+      list = list.filter((s) => {
+        return selectedPurity.some((purity) => {
+          if (purity.includes("Clean") || purity.includes("Non-Toxic")) {
+            return s.is_clean_purity || (s.purity_note && s.purity_note.toLowerCase().includes("clean"));
+          }
+          if (purity.includes("Promo") || purity.includes("First Booking")) {
+            return s.badge_type === "partner" || s.badge?.includes("Partner") || s.has_instant_slot;
+          }
+          if (purity.includes("Scalp") || purity.includes("Ritual")) {
+            return s.services?.some((srv) => srv.name?.toLowerCase().includes("spa") || srv.name?.toLowerCase().includes("scalp"));
+          }
+          return true;
+        });
+      });
+    }
+
+    // Time window filter
+    if (timeWindow === "Morning") {
+      list = list.filter((s) => {
+        const info = getSalonOpeningHoursInfo(s, selectedDate);
+        return info.isOpen && (info.hoursText.includes("AM") || !s.opening_hours);
+      });
+    } else if (timeWindow === "Evening") {
+      list = list.filter((s) => {
+        const info = getSalonOpeningHoursInfo(s, selectedDate);
+        return info.isOpen && (info.hoursText.includes("PM") || !s.opening_hours);
+      });
     }
 
     // Sorting
@@ -206,6 +384,8 @@ export default function SalonsExplore() {
     distanceRadius,
     minRating,
     priceTier,
+    selectedPurity,
+    timeWindow,
     sortBy,
   ]);
 
@@ -222,6 +402,8 @@ export default function SalonsExplore() {
     distanceRadius,
     minRating,
     priceTier,
+    selectedPurity,
+    timeWindow,
     sortBy,
     pageSize,
   ]);
@@ -348,50 +530,7 @@ export default function SalonsExplore() {
       {/* --------------------------------------------------------------------
           TOP HEADER
           -------------------------------------------------------------------- */}
-      <header className="explore-header">
-        <div className="explore-header-inner">
-          <Link to="/customer-home" className="explore-brand-group">
-            <div className="explore-brand-icon">✂</div>
-            <div className="explore-brand-titles">
-              <span className="explore-brand-name">BookMySalon</span>
-              <span className="explore-brand-sub">ORGANIC WELLNESS</span>
-            </div>
-          </Link>
-
-          <nav className="explore-nav-links">
-            <Link to="/customer-home" className="explore-nav-link">Home</Link>
-            <Link to="/salons" className="explore-nav-link active">Find Salons</Link>
-            <a href="#bookings" className="explore-nav-link" onClick={(e) => { e.preventDefault(); setToastMessage("Opening your bookings..."); }}>Bookings</a>
-            <a href="#favorites" className="explore-nav-link" onClick={(e) => { e.preventDefault(); setToastMessage(`You have ${savedFavorites.size} saved favorite salon(s).`); }}>Favorites</a>
-          </nav>
-
-          <div className="explore-header-right">
-            <button
-              type="button"
-              className="explore-notif-btn"
-              title="Notifications"
-              onClick={() => setToastMessage("You have no unread notifications.")}
-            >
-              🔔
-              <span className="explore-notif-dot" />
-            </button>
-
-            <div
-              className="explore-user-chip"
-              onClick={() => setShowLogoutModal(true)}
-              title="Click to sign out"
-            >
-              <div className="explore-user-info">
-                <span className="explore-user-name">{currentUser.first_name || "Vishnu"}</span>
-                <span className="explore-user-badge">Wellness Member</span>
-              </div>
-              <div className="explore-user-avatar">
-                {(currentUser.first_name || "V")[0].toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <CustomerHeader />
 
       {/* --------------------------------------------------------------------
           FLOATING 4-PART SEARCH & BOOKING BAR
@@ -452,42 +591,32 @@ export default function SalonsExplore() {
           </div>
 
           {/* Segment 3: Date */}
-          <div className="filter-bar-segment" title="Date scheduling coming soon">
-            <div className="filter-segment-icon gray">📅</div>
+          <div className="filter-bar-segment">
+            <div className="filter-segment-icon gold">📅</div>
             <div className="filter-segment-content">
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span className="filter-segment-label">DATE</span>
-                <span className="coming-soon-pill">Coming Soon</span>
-              </div>
+              <span className="filter-segment-label">DATE</span>
               <select
                 className="filter-segment-select"
                 value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setToastMessage("Online date scheduler is coming soon!");
-                }}
+                onChange={(e) => setSelectedDate(e.target.value)}
               >
+                <option value="Any Day">Any Day</option>
                 <option value="Today">Today (Live)</option>
                 <option value="Tomorrow">Tomorrow</option>
+                <option value="This Weekend">This Weekend</option>
               </select>
             </div>
           </div>
 
           {/* Segment 4: Time Window */}
-          <div className="filter-bar-segment" title="Slot scheduling coming soon">
-            <div className="filter-segment-icon gray">⏱</div>
+          <div className="filter-bar-segment">
+            <div className="filter-segment-icon gold">⏱</div>
             <div className="filter-segment-content">
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span className="filter-segment-label">TIME WINDOW</span>
-                <span className="coming-soon-pill">Coming Soon</span>
-              </div>
+              <span className="filter-segment-label">TIME WINDOW</span>
               <select
                 className="filter-segment-select"
                 value={timeWindow}
-                onChange={(e) => {
-                  setTimeWindow(e.target.value);
-                  setToastMessage("Slot scheduling is coming soon!");
-                }}
+                onChange={(e) => setTimeWindow(e.target.value)}
               >
                 <option value="All Day Slots">All Day Slots</option>
                 <option value="Morning">Morning (9 AM – 12 PM)</option>
@@ -541,7 +670,6 @@ export default function SalonsExplore() {
               <div className="instant-slots-title">
                 <span>⚡</span>
                 <span>Instant Slots</span>
-                <span className="coming-soon-pill">Coming Soon</span>
               </div>
               <div className="instant-slots-sub">
                 Available in next 30 mins
@@ -552,10 +680,7 @@ export default function SalonsExplore() {
               <input
                 type="checkbox"
                 checked={instantSlots}
-                onChange={(e) => {
-                  setInstantSlots(e.target.checked);
-                  setToastMessage("Instant slots booking is coming soon!");
-                }}
+                onChange={(e) => setInstantSlots(e.target.checked)}
               />
               <span className="slider-round" />
             </label>
@@ -564,10 +689,7 @@ export default function SalonsExplore() {
           {/* Section 2: Distance Radius */}
           <div className="filter-section-block">
             <div className="filter-section-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span className="filter-section-label">Distance Radius</span>
-                <span className="coming-soon-pill">Coming Soon</span>
-              </div>
+              <span className="filter-section-label">Distance Radius</span>
               <span className="filter-section-subtext">Under {distanceRadius}</span>
             </div>
             <div className="filter-segmented-pills">
@@ -576,10 +698,7 @@ export default function SalonsExplore() {
                   key={dist}
                   type="button"
                   className={`filter-pill ${distanceRadius === dist ? "active" : ""}`}
-                  onClick={() => {
-                    setDistanceRadius(dist);
-                    setToastMessage("GPS radius calculation coming soon!");
-                  }}
+                  onClick={() => setDistanceRadius(dist)}
                 >
                   {dist}
                 </button>
@@ -671,10 +790,7 @@ export default function SalonsExplore() {
 
           {/* Section 7: Offers & Purity */}
           <div className="filter-section-block">
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span className="filter-section-label">Offers & Purity</span>
-              <span className="coming-soon-pill">Coming Soon</span>
-            </div>
+            <span className="filter-section-label">Offers & Purity</span>
             <div className="filter-checkbox-list">
               {[
                 "Verified Clean / Non-Toxic",
@@ -689,7 +805,6 @@ export default function SalonsExplore() {
                       setSelectedPurity((prev) =>
                         prev.includes(purity) ? prev.filter((i) => i !== purity) : [...prev, purity]
                       );
-                      setToastMessage("Purity & offers filter coming soon!");
                     }}
                   />
                   <span>{purity}</span>
@@ -811,18 +926,38 @@ export default function SalonsExplore() {
                     </div>
 
                     {/* Slot availability inline badges matching reference */}
-                    <div className="salon-slot-row">
-                      <span className="salon-slot-pill green">
-                        <span className="slot-pill-icon">●</span>
-                        <span>{salon.instant_slot_text || "Open today • Verified Partner"}</span>
-                      </span>
-                      {salon.opening_hours && (
-                        <span className="salon-slot-pill grey">
-                          <span className="slot-pill-icon">⏱</span>
-                          <span>{salon.opening_hours}</span>
-                        </span>
-                      )}
-                    </div>
+                    {(() => {
+                      const hoursInfo = getSalonOpeningHoursInfo(salon, selectedDate);
+                      return (
+                        <div className="salon-slot-row">
+                          {hoursInfo.isHoliday ? (
+                            <span
+                              className="salon-slot-pill red"
+                              style={{
+                                background: "#fee2e2",
+                                color: "#b91c1c",
+                                borderColor: "#fca5a5",
+                              }}
+                            >
+                              <span className="slot-pill-icon" style={{ color: "#ef4444" }}>●</span>
+                              <span>{hoursInfo.statusText}</span>
+                            </span>
+                          ) : (
+                            <span className="salon-slot-pill green">
+                              <span className="slot-pill-icon">●</span>
+                              <span>{salon.instant_slot_text || "Open today • Verified Partner"}</span>
+                            </span>
+                          )}
+                          <span
+                            className="salon-slot-pill grey"
+                            style={hoursInfo.isHoliday ? { background: "#fff1f2", color: "#be123c", borderColor: "#fecdd3" } : {}}
+                          >
+                            <span className="slot-pill-icon">⏱</span>
+                            <span>{hoursInfo.hoursText}</span>
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Pricing row (borderless clean 3 uniform columns) */}
                     <div className="salon-services-pricing-grid">
@@ -848,13 +983,13 @@ export default function SalonsExplore() {
                       </span>
 
                       <div className="salon-card-btn-group">
-                        <button
-                          type="button"
+                       
+                        <Link
+                          to={`/salons/${salon.id}`}
                           className="btn-view-salon"
-                          onClick={() => setDetailsModalSalon(salon)}
                         >
                           View Salon
-                        </button>
+                        </Link>
                         <button
                           type="button"
                           className="btn-book-slot"
@@ -1019,25 +1154,59 @@ export default function SalonsExplore() {
                 </p>
               </div>
 
-              <div className="coming-soon-call-box">
-                <span className="coming-soon-pill" style={{ marginBottom: "8px" }}>Online Booking Coming Soon</span>
-                <p>
-                  Instant online slot booking is launching soon! You can contact the salon directly to reserve your slot today.
+              <div className="modal-booking-online-card">
+                <div className="booking-card-online-badge">
+                  <span>⚡ Online Slot Booking</span>
+                </div>
+                <p className="booking-card-online-sub">
+                  Select your treatment, reserve your date & time, and pick your specialist with instant appointment confirmation.
                 </p>
-                {bookingModalSalon.phone && (
-                  <a
-                    href={`tel:${bookingModalSalon.phone}`}
-                    className="coming-soon-call-link"
-                  >
-                    <span>📞 Call {bookingModalSalon.phone}</span>
-                  </a>
+
+                {bookingModalSalon.services && bookingModalSalon.services.length > 0 && (
+                  <div className="booking-modal-quick-selectors">
+                    <div className="quick-selector-item">
+                      <label>Choose Service</label>
+                      <select
+                        className="quick-select-dropdown"
+                        value={bookingService}
+                        onChange={(e) => setBookingService(e.target.value)}
+                      >
+                        {bookingModalSalon.services.map((srv, idx) => (
+                          <option key={idx} value={srv.name}>
+                            {srv.name} ({srv.price})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 )}
+
+                <div className="booking-modal-cta-row">
+                  <Link
+                    to={`/salons/${bookingModalSalon.id}`}
+                    className="btn-modal-reserve-online"
+                  >
+                    <span>Proceed to Book Slot</span>
+                    <span>→</span>
+                  </Link>
+
+                  {bookingModalSalon.phone && (
+                    <a
+                      href={`tel:${bookingModalSalon.phone}`}
+                      className="btn-modal-call-direct"
+                    >
+                      <span>📞 Call Salon</span>
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div className="modal-info-grid">
                 <div className="modal-info-item">
-                  <strong>Operating Hours</strong>
-                  <span>{bookingModalSalon.opening_hours || "9:00 AM – 8:30 PM"}</span>
+                  <strong>Operating Hours ({getSalonOpeningHoursInfo(bookingModalSalon, selectedDate).dayName})</strong>
+                  <span style={getSalonOpeningHoursInfo(bookingModalSalon, selectedDate).isHoliday ? { color: "#dc2626", fontWeight: "600" } : {}}>
+                    {getSalonOpeningHoursInfo(bookingModalSalon, selectedDate).hoursText}
+                  </span>
                 </div>
                 <div className="modal-info-item">
                   <strong>Atmosphere</strong>
@@ -1067,16 +1236,14 @@ export default function SalonsExplore() {
                 >
                   Close
                 </button>
-                {bookingModalSalon.phone && (
-                  <a
-                    href={`tel:${bookingModalSalon.phone}`}
-                    className="btn-book-slot"
-                    style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                  >
-                    <span>Call to Book</span>
-                    <span>→</span>
-                  </a>
-                )}
+                <Link
+                  to={`/salons/${bookingModalSalon.id}`}
+                  className="btn-book-slot"
+                  style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <span>Book on Salon Page</span>
+                  <span>→</span>
+                </Link>
               </div>
             </div>
           </div>
@@ -1115,8 +1282,10 @@ export default function SalonsExplore() {
 
               <div className="modal-info-grid">
                 <div className="modal-info-item">
-                  <strong>Operating Hours</strong>
-                  <span>{detailsModalSalon.opening_hours || "9:00 AM – 8:30 PM"}</span>
+                  <strong>Operating Hours ({getSalonOpeningHoursInfo(detailsModalSalon, selectedDate).dayName})</strong>
+                  <span style={getSalonOpeningHoursInfo(detailsModalSalon, selectedDate).isHoliday ? { color: "#dc2626", fontWeight: "600" } : {}}>
+                    {getSalonOpeningHoursInfo(detailsModalSalon, selectedDate).hoursText}
+                  </span>
                 </div>
                 <div className="modal-info-item">
                   <strong>Contact Phone</strong>
@@ -1131,6 +1300,22 @@ export default function SalonsExplore() {
                   <span>{detailsModalSalon.purity_note || detailsModalSalon.description || "Certified clean standards"}</span>
                 </div>
               </div>
+
+              {Array.isArray(detailsModalSalon.opening_hours?.days) && detailsModalSalon.opening_hours.days.length > 0 && (
+                <div style={{ marginTop: "12px", background: "#f8fafc", padding: "10px 14px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: "700", marginBottom: "8px", color: "#334155" }}>Weekly Schedule</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "6px", fontSize: "11px" }}>
+                    {detailsModalSalon.opening_hours.days.map((d, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", background: "#ffffff", borderRadius: "6px", border: "1px solid #edf2f7" }}>
+                        <span style={{ fontWeight: "600", color: "#475569" }}>{d.day?.slice(0, 3)}:</span>
+                        <span style={{ color: d.isOpen ? "#16a34a" : "#dc2626", fontWeight: d.isOpen ? "500" : "600" }}>
+                          {d.isOpen ? `${formatTime12(d.openTime)} - ${formatTime12(d.closeTime)}` : "Closed (Off)"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {detailsModalSalon.services && detailsModalSalon.services.length > 0 && (
                 <div>

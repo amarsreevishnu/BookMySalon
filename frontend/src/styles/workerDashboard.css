@@ -1873,3 +1873,191 @@
   margin-bottom: 12px;
 }
 
+/* ==========================================================================
+   13. WORKER NAVBAR PROFILE AVATAR & DROPDOWN MENU
+   ========================================================================== */
+.wd-nav-profile-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wd-nav-profile-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wd-nav-profile-btn:hover,
+.wd-nav-profile-btn:focus {
+  border-color: var(--wd-primary, #165b38);
+  outline: none;
+}
+
+.wd-nav-profile-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.wd-nav-profile-status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+}
+
+/* Dropdown Card */
+.wd-nav-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: #ffffff;
+  border: 1px solid var(--wd-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  z-index: 90;
+  animation: wdDropdownFadeIn 0.18s ease-out;
+}
+
+@keyframes wdDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wd-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 10px;
+}
+
+.wd-dropdown-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.wd-dropdown-user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wd-dropdown-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--wd-text-primary, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wd-dropdown-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wd-primary, #165b38);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wd-dropdown-email {
+  font-size: 11px;
+  color: var(--wd-text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wd-dropdown-divider {
+  height: 1px;
+  background: var(--wd-border, #e2e8f0);
+  margin: 6px 0;
+}
+
+.wd-dropdown-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--wd-text-secondary, #334155);
+}
+
+.wd-dropdown-meta-item .wd-meta-icon {
+  font-size: 13px;
+}
+
+.wd-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wd-text-primary, #0f172a);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.wd-dropdown-logout-btn {
+  color: #dc2626;
+}
+
+.wd-dropdown-logout-btn:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* Logout Modal Avatar */
+.wd-logout-modal-icon-circle {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto;
+  border-radius: 50%;
+  padding: 3px;
+  border: 2px dashed #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wd-logout-modal-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+

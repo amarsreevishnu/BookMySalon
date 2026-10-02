@@ -4,6 +4,8 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from services.models import SalonService
+
 from .models import Salon, WorkerProfile, Booking
 from .serializers import (
     SalonSerializer,
@@ -13,6 +15,7 @@ from .serializers import (
 )
 from .media_utils import save_image_to_media, build_full_media_url
 
+import json
 import secrets
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -386,7 +389,7 @@ class AdminSalonListView(generics.ListAPIView):
         search = self.request.query_params.get("search") or self.request.query_params.get("q")
         category = self.request.query_params.get("category")
         ordering = self.request.query_params.get("ordering")
-
+        
         if status_param and status_param.lower() != "all":
             queryset = queryset.filter(approval_status=status_param.upper())
 
@@ -1233,10 +1236,11 @@ class CustomerSalonExploreView(APIView):
         db_salons = Salon.objects.filter(
             approval_status=Salon.ApprovalStatus.APPROVED
         ).order_by("-created_at")
-
+        
         registered_salons = []
+        count=0
         for s in db_salons:
-           
+    
             tags = []
 
             if s.category:
@@ -1269,9 +1273,24 @@ class CustomerSalonExploreView(APIView):
                     {"name": "Aromatherapy Massage", "price": "₹1,400", "category": "spa"},
                     {"name": "Head & Shoulder Spa", "price": "₹600", "category": "spa"},
                 ]
-            # Service list: use real registered salon services or fallback by category
+            # Service list: first query live SalonService offerings from services app, then fallback to JSON s.services
             services = []
-            if isinstance(s.services, list) and s.services:
+            try:
+                salon_service_objs = SalonService.objects.filter(
+                    salon=s, is_active=True
+                ).select_related("service", "service__category")
+                for sso in salon_service_objs:
+                    srv_cat = sso.service.category.name if sso.service and sso.service.category else (s.category or "hair")
+                    services.append({
+                        "id": sso.id,
+                        "name": sso.custom_name or (sso.service.name if sso.service else "Service"),
+                        "price": f"₹{int(sso.price)}" if sso.price else "₹349+",
+                        "category": srv_cat.lower(),
+                    })
+            except Exception:
+                pass
+
+            if not services and isinstance(s.services, list) and s.services:
                 for item in s.services:
                     if isinstance(item, dict):
                         services.append({
@@ -1308,15 +1327,39 @@ class CustomerSalonExploreView(APIView):
                         {"name": "Hydra Facial Glow", "price": "₹999", "category": "skin"},
                     ]
 
-            # Format opening hours
-            opening_hours_text = "9:00 AM – 8:30 PM"
+            # Parse dynamic opening hours days structure
+            opening_hours_days = []
             if isinstance(s.opening_hours, dict) and s.opening_hours:
-                open_t = s.opening_hours.get("open")
-                close_t = s.opening_hours.get("close")
-                if open_t and close_t:
-                    opening_hours_text = f"{open_t} – {close_t}"
+                if "days" in s.opening_hours and isinstance(s.opening_hours["days"], list):
+                    opening_hours_days = s.opening_hours["days"]
+                elif "openTime" in s.opening_hours and "closeTime" in s.opening_hours:
+                    open_t = s.opening_hours.get("openTime", "09:00")
+                    close_t = s.opening_hours.get("closeTime", "21:00")
+                    weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                    opening_hours_days = [
+                        {"day": day, "isOpen": day != "Sunday", "openTime": open_t, "closeTime": close_t}
+                        for day in weekdays
+                    ]
             elif isinstance(s.opening_hours, str) and s.opening_hours:
-                opening_hours_text = s.opening_hours
+                try:
+                    parsed = json.loads(s.opening_hours)
+                    if isinstance(parsed, dict) and "days" in parsed:
+                        opening_hours_days = parsed["days"]
+                    elif isinstance(parsed, list):
+                        opening_hours_days = parsed
+                except Exception:
+                    opening_hours_days = []
+
+            if not opening_hours_days:
+                weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                opening_hours_days = [
+                    {"day": day, "isOpen": day != "Sunday", "openTime": "09:00", "closeTime": "21:00"}
+                    for day in weekdays
+                ]
+
+            opening_hours_payload = {
+                "days": opening_hours_days
+            }
 
             registered_salons.append({
                 "id": s.id,
@@ -1353,7 +1396,7 @@ class CustomerSalonExploreView(APIView):
                 "is_clean_purity": True,
                 "phone": s.phone or "+91 88481 94536",
                 
-                "opening_hours": opening_hours_text,
+                "opening_hours": opening_hours_payload,
             })
 
         # Curated mockup partner salons
@@ -1407,11 +1450,55 @@ class CustomerSalonExploreView(APIView):
         return Response(
             {
                 "salons": results,
-                "total_count": 28, # Display matching target total count in UI
                 "total_count": len(results),
                 "visible_count": len(results),
-                "location_default": "Indiranagar, Bengaluru",
                 "location_default": "All Locations",
             },
             status=status.HTTP_200_OK,
         )
+
+
+class CustomerSalonDetailView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get(self, request, pk):
+        try:
+            salon = Salon.objects.get(pk=pk)
+            serializer = SalonSerializer(salon, context={"request": request})
+            data = serializer.data
+
+            workers = WorkerProfile.objects.filter(salon=salon, is_active=True).select_related("user")
+            workers_data = []
+            for w in workers:
+                workers_data.append({
+                    "id": w.id,
+                    "name": w.user.get_full_name() or w.user.email,
+                    "specialization": w.specialization or "Master Stylist",
+                    "experience": w.experience or "3+ Years",
+                    "rating": "4.9",
+                    "reviews_count": 48,
+                    "profile_photo": w.profile_photo,
+                    "station": w.station,
+                })
+            data["workers_list"] = workers_data
+
+            try:
+                salon_services = SalonService.objects.filter(salon=salon, is_active=True).select_related("service", "service__category")
+                services_data = []
+                for ss in salon_services:
+                    services_data.append({
+                        "id": ss.id,
+                        "name": ss.custom_name or ss.service.name,
+                        "category": ss.service.category.name if ss.service and ss.service.category else "General",
+                        "price": float(ss.price),
+                        "duration": ss.duration,
+                        "description": ss.custom_description or (ss.service.description if ss.service else ""),
+                    })
+                data["services_list"] = services_data
+            except Exception:
+                data["services_list"] = []
+
+            return Response(data, status=status.HTTP_200_OK)
+        except Salon.DoesNotExist:
+            return Response({"error": "Salon not found"}, status=status.HTTP_404_NOT_FOUND)

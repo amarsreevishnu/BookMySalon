@@ -80,6 +80,7 @@ function SalonSection({
   const scrollContainerRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
 
   const checkScrollButtons = () => {
     if (scrollContainerRef.current) {
@@ -174,9 +175,32 @@ function SalonSection({
     };
   }, [filteredSalons]);
 
+  // Auto-scroll animation effect
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || filteredSalons.length <= 1 || isPaused) return;
+
+    const interval = setInterval(() => {
+      if (!scrollContainerRef.current) return;
+      const container = scrollContainerRef.current;
+      const maxScrollLeft = container.scrollWidth - container.clientWidth;
+
+      // Loop back smoothly to the start if near the end
+      if (container.scrollLeft >= maxScrollLeft - 20) {
+        container.scrollTo({ left: 0, behavior: "smooth" });
+      } else {
+        // Scroll forward by one card (card width 300px + gap 22px = 322px)
+        const scrollStep = 322;
+        container.scrollBy({ left: scrollStep, behavior: "smooth" });
+      }
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [filteredSalons.length, isPaused]);
+
   const handleScroll = (direction) => {
     if (scrollContainerRef.current) {
-      const scrollAmount = 320;
+      const scrollAmount = 322;
       scrollContainerRef.current.scrollBy({
         left: direction === "left" ? -scrollAmount : scrollAmount,
         behavior: "smooth",
@@ -232,7 +256,13 @@ function SalonSection({
       </div>
 
       {filteredSalons.length > 0 ? (
-        <div className="customer-salon-scroll-wrapper">
+        <div
+          className="customer-salon-scroll-wrapper"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={() => setIsPaused(true)}
+          onTouchEnd={() => setIsPaused(false)}
+        >
           <div className="customer-salon-grid" ref={scrollContainerRef}>
             {filteredSalons.map((salon) => (
               <SalonCard key={salon.id} salon={salon} />

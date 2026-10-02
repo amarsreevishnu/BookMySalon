@@ -96,3 +96,65 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f"Reset OTP for {self.email}"
+
+
+class CustomerProfile(models.Model):
+    user = models.OneToOneField(
+        "User",
+        on_delete=models.CASCADE,
+        related_name="customer_profile",
+    )
+    avatar = models.TextField(blank=True, default="")
+    phone_number = models.CharField(max_length=20, blank=True, default="")
+    is_phone_verified = models.BooleanField(default=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=50, blank=True, default="Male (He/Him)")
+    primary_location = models.CharField(max_length=150, blank=True, default="Indiranagar, Bengaluru")
+    upi_id = models.CharField(max_length=100, blank=True, default="")
+    membership_tier = models.CharField(max_length=50, default="Emerald Member")
+    favorite_salons = models.ManyToManyField(
+        "salons.Salon",
+        blank=True,
+        related_name="favorited_by_customers",
+    )
+    wellness_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+    notification_channels = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def get_wellness_preferences(self):
+        defaults = {
+            "hair_type": ["Wavy (2B)", "Medium Density", "Dry Ends"],
+            "sensitivities": ["Sensitive Scalp", "Organic-Only Formulations", "Fragrance-Free Oil"],
+            "rituals": [
+                "Precision Botanical Haircut & Styling",
+                "Ayurvedic Scalp Detox & Kansa Wand Massage",
+                "Beard Conditioning with Cedarwood Essential Oil",
+            ],
+            "preferred_stylist": {
+                "name": "Rahul Kumar",
+                "role": "Master Stylist",
+                "salon": "ABC Salon & Spa, Indiranagar",
+            },
+        }
+        if not self.wellness_preferences:
+            return defaults
+        return {**defaults, **self.wellness_preferences}
+
+    def get_notification_channels(self):
+        defaults = {
+            "whatsapp_sms": True,
+            "seasonal_rituals": True,
+        }
+        if not self.notification_channels:
+            return defaults
+        return {**defaults, **self.notification_channels}
+
+    def __str__(self):
+        return f"CustomerProfile: {self.user.email}"

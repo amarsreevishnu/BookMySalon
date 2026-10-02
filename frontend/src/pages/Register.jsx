@@ -191,15 +191,15 @@ function Register() {
             title={step === "DETAILS" ? "Create your account" : "Verify your email"}
             description={
                 step === "DETAILS"
-                    ? "Join BookMySalon to discover curated wellness sanctuaries and master stylists."
+                    ? "Sign up to discover curated wellness sanctuaries and master stylists."
                     : "Enter the 6-digit verification code sent to your inbox to activate your account."
             }
             footerText={
                 step === "DETAILS"
-                    ? "Already have an account?"
+                    ? "Already have an Account?"
                     : "Need help signing in?"
             }
-            footerLinkText={step === "DETAILS" ? "Login" : "Go to login"}
+            footerLinkText={step === "DETAILS" ? "Sign In" : "Go to login"}
             footerLink="/login"
         >
             {/* Multi-step progress indicator */}
@@ -217,24 +217,81 @@ function Register() {
 
             {step === "DETAILS" ? (
                 <>
-                    <GoogleButton />
+                    {/* Social Login Button at top matching reference model */}
+                    <div className="auth-social-wrap">
+                        <GoogleButton />
+                    </div>
 
+                    {/* OR Divider */}
                     <div className="auth-divider">
-                        <span>OR SIGN UP WITH EMAIL</span>
+                        <span>- OR -</span>
                     </div>
 
                     <form className="auth-form" onSubmit={handleDetailsSubmit} noValidate={false}>
+                        {/* First and Last Name */}
+                        <div className="form-row">
+                            <div className="form-field">
+                                <label htmlFor="first_name">First Name</label>
+                                <div className="auth-input-wrapper has-icon">
+                                    <span className="auth-input-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                            <circle cx="12" cy="7" r="4" />
+                                        </svg>
+                                    </span>
+                                    <input
+                                        id="first_name"
+                                        type="text"
+                                        name="first_name"
+                                        value={formData.first_name}
+                                        onChange={handleChange}
+                                        placeholder="Enter your first name"
+                                        autoComplete="given-name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-field">
+                                <label htmlFor="last_name">Last Name</label>
+                                <div className="auth-input-wrapper has-icon">
+                                    <span className="auth-input-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                            <circle cx="12" cy="7" r="4" />
+                                        </svg>
+                                    </span>
+                                    <input
+                                        id="last_name"
+                                        type="text"
+                                        name="last_name"
+                                        value={formData.last_name}
+                                        onChange={handleChange}
+                                        placeholder="Enter your last name"
+                                        autoComplete="family-name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Email */}
                         <div className="form-field">
-                            <label htmlFor="email">EMAIL ADDRESS</label>
-                            <div className="auth-input-wrapper">
+                            <label htmlFor="email">Email</label>
+                            <div className="auth-input-wrapper has-icon">
+                                <span className="auth-input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                    </svg>
+                                </span>
                                 <input
                                     id="email"
                                     type="email"
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    placeholder="you@example.com"
+                                    placeholder="Enter your email"
                                     autoComplete="email"
                                     required
                                 />
@@ -243,15 +300,21 @@ function Register() {
 
                         {/* Password */}
                         <div className="form-field">
-                            <label htmlFor="password">PASSWORD</label>
-                            <div className="auth-input-wrapper password-wrapper">
+                            <label htmlFor="password">Password</label>
+                            <div className="auth-input-wrapper has-icon password-wrapper">
+                                <span className="auth-input-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                </span>
                                 <input
                                     id="password"
                                     type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    placeholder="Minimum 8 characters"
+                                    placeholder="Enter your password (min 8 chars)"
                                     minLength={8}
                                     autoComplete="new-password"
                                     required
@@ -263,46 +326,20 @@ function Register() {
                                     title={showPassword ? "Hide password" : "Show password"}
                                     tabIndex="-1"
                                 >
-                                    {showPassword ? "👁️" : "👁️‍🗨️"}
+                                    {showPassword ? (
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                            <line x1="1" y1="1" x2="23" y2="23" />
+                                        </svg>
+                                    ) : (
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    )}
                                 </button>
                             </div>
-                            <span className="form-field-hint">Must be at least 8 characters</span>
-                        </div>
-                        
-
-                        {/* First and Last Name */}
-                        <div className="form-row">
-                            <div className="form-field">
-                                <label htmlFor="first_name">FIRST NAME</label>
-                                <div className="auth-input-wrapper">
-                                    <input
-                                        id="first_name"
-                                        type="text"
-                                        name="first_name"
-                                        value={formData.first_name}
-                                        onChange={handleChange}
-                                        placeholder="First name"
-                                        autoComplete="given-name"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-field">
-                                <label htmlFor="last_name">LAST NAME</label>
-                                <div className="auth-input-wrapper">
-                                    <input
-                                        id="last_name"
-                                        type="text"
-                                        name="last_name"
-                                        value={formData.last_name}
-                                        onChange={handleChange}
-                                        placeholder="Last name"
-                                        autoComplete="family-name"
-                                        required
-                                    />
-                                </div>
-                            </div>
+                            <span className="form-field-hint">Must contain at least 8 characters</span>
                         </div>
 
                         {/* Error Message */}
@@ -325,14 +362,14 @@ function Register() {
                                     <span>Sending verification code...</span>
                                 </span>
                             ) : (
-                                <span>Continue to Verification →</span>
+                                <span>Create Account</span>
                             )}
                         </button>
                     </form>
                 </>
             ) : (
                 <form className="auth-form" onSubmit={handleOtpSubmit} noValidate={false}>
-                    {/* Target Email Info */}
+                    {/* Target Email Info Card */}
                     <div className="otp-target-info">
                         <div className="otp-target-left">
                             <span className="otp-mail-icon">✉</span>
@@ -345,13 +382,13 @@ function Register() {
                             className="otp-change-email-btn"
                             onClick={handleBackToDetails}
                         >
-                            Edit
+                            Change email
                         </button>
                     </div>
 
                     {/* OTP Input */}
                     <div className="form-field">
-                        <label htmlFor="otp">6-DIGIT VERIFICATION CODE</label>
+                        <label htmlFor="otp">6-Digit Verification Code</label>
                         <div className="auth-input-wrapper">
                             <input
                                 id="otp"
@@ -368,11 +405,24 @@ function Register() {
                                 required
                             />
                         </div>
+                        <span className="form-field-hint" style={{ textAlign: "center" }}>
+                            Enter the 6-digit code received in your email inbox
+                        </span>
                     </div>
 
                     {/* Resend Row */}
                     <div className="otp-resend-container">
-                        <span>Didn&apos;t receive the code?</span>
+                        <div className="otp-countdown-badge">
+                            {timerActive ? (
+                                <>
+                                    <span className="otp-pulse-dot" />
+                                    <span>Expires in {countdown}s</span>
+                                </>
+                            ) : (
+                                <span>Code expired</span>
+                            )}
+                        </div>
+
                         <button
                             type="button"
                             className="otp-resend-button"
@@ -412,11 +462,25 @@ function Register() {
                         {loading ? (
                             <span className="btn-loading-content">
                                 <span className="auth-spinner"></span>
-                                <span>Verifying...</span>
+                                <span>Verifying code...</span>
                             </span>
                         ) : (
-                            <span>Verify & Complete Registration →</span>
+                            <>
+                                <span>Verify &amp; Complete Registration</span>
+                                <svg className="btn-arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                    <polyline points="12 5 19 12 12 19" />
+                                </svg>
+                            </>
                         )}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="btn-back-details"
+                        onClick={handleBackToDetails}
+                    >
+                        ← Back to Edit Information
                     </button>
                 </form>
             )}

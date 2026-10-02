@@ -15,9 +15,51 @@ from .views import (
     ResetPasswordConfirmView,
     VerifyOTPView,
     google_success,
+    CustomerProfileView,
+    CustomerAvatarUploadView,
+    CustomerPreferencesView,
+    CustomerChangePasswordView,
+    CustomerToggleFavoriteView,
+    CustomerBookingsListView,
+    CustomerFavoritesListView,
 )
 
 urlpatterns = [
+    path(
+        "customer/profile/",
+        CustomerProfileView.as_view(),
+        name="customer-profile",
+    ),
+    path(
+        "customer/avatar/",
+        CustomerAvatarUploadView.as_view(),
+        name="customer-avatar",
+    ),
+    path(
+        "customer/preferences/",
+        CustomerPreferencesView.as_view(),
+        name="customer-preferences",
+    ),
+    path(
+        "customer/change-password/",
+        CustomerChangePasswordView.as_view(),
+        name="customer-change-password",
+    ),
+    path(
+        "customer/toggle-favorite/",
+        CustomerToggleFavoriteView.as_view(),
+        name="customer-toggle-favorite",
+    ),
+    path(
+        "customer/bookings/",
+        CustomerBookingsListView.as_view(),
+        name="customer-bookings-list",
+    ),
+    path(
+        "customer/favorites/",
+        CustomerFavoritesListView.as_view(),
+        name="customer-favorites-list",
+    ),
     path(
         "register/",
         RegisterView.as_view(),

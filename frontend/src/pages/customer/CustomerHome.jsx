@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import CustomerHeader from "../components/customer/CustomerHeader";
-import CustomerHero from "../components/customer/CustomerHero";
-import CategorySection from "../components/customer/CategorySection";
-import SalonSection from "../components/customer/SalonSection";
-import OfferSection from "../components/customer/OfferSection";
-import CustomerFooter from "../components/customer/CustomerFooter";
+import CustomerHeader from "../../components/customer/CustomerHeader";
+import CustomerHero from "../../components/customer/CustomerHero";
+import CategorySection from "../../components/customer/CategorySection";
+import SalonSection from "../../components/customer/SalonSection";
+import OfferSection from "../../components/customer/OfferSection";
+import CustomerFooter from "../../components/customer/CustomerFooter";
 
-import "../styles/customer-home.css";
+import "../../styles/customer-home.css";
 
 function CustomerHome() {
   const navigate = useNavigate();

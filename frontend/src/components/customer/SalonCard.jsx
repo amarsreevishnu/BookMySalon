@@ -20,8 +20,8 @@ function SalonCard({ salon }) {
       <div className="customer-salon-content">
         <div className="salon-card-title-row">
           <div>
-            <h3>{salon.name}</h3>
-            <p>📍 {salon.location}</p>
+            <h3 title={salon.name}>{salon.name}</h3>
+            <p title={salon.location}>📍 {salon.location}</p>
           </div>
 
           <span className="salon-price">
@@ -29,10 +29,12 @@ function SalonCard({ salon }) {
           </span>
         </div>
 
-        <p className="salon-description">{salon.description}</p>
+        <p className="salon-description" title={salon.description}>
+          {salon.description}
+        </p>
 
         <div className="salon-tags">
-          {salon.tags.map((tag) => (
+          {(salon.tags || []).slice(0, 3).map((tag) => (
             <span key={tag}>{tag}</span>
           ))}
         </div>
