@@ -53,7 +53,7 @@ function Login() {
                 "/accounts/login/",
                 formData
             );
-
+            
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
             console.log("Login response:", response.data);

@@ -507,7 +507,7 @@ export default function OwnerDashboard() {
               {formattedToday}
             </p>
           </div>
-        <h2 className="studio-greeting-title" style={{color:"#1e392a"}}>Welcom to <span style={{ color:"green" }}>{dashboardData.salon_info.name}</span> Dashboard</h2>
+        <h1 className="studio-greeting-title" style={{color:"#1e392a"}}>Welcom to <span style={{ color:"green" }}>{dashboardData.salon_info.name}</span> Dashboard</h1>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               type="button"
@@ -532,14 +532,7 @@ export default function OwnerDashboard() {
               <span>⚙️</span>
               <span>Manage Salon Profile</span>
             </button>
-            <button
-              type="button"
-              className="btn-block-chair"
-              onClick={() => setIsBlockChairOpen(true)}
-            >
-              <span>🪑</span>
-              <span>Block Chair</span>
-            </button>
+            
           </div>
         </div>
 
