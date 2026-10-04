@@ -42,6 +42,10 @@ export default function OwnerNavbar({
       if (location.pathname !== "/owner/salon-profile") {
         navigate("/owner/salon-profile");
       }
+    } else if (tab === "Schedule") {
+      if (location.pathname !== "/owner/schedule") {
+        navigate("/owner/schedule");
+      }
     } else if (tab === "Dashboard") {
       if (location.pathname !== "/owner/dashboard") {
         navigate("/owner/dashboard");

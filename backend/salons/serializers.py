@@ -3,7 +3,10 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Salon, WorkerProfile, Booking
+from datetime import timedelta
+from django.utils import timezone
+from .models import Salon, WorkerProfile, SalonOffDay
+from bookings.models import Booking
 from .media_utils import save_image_to_media, build_full_media_url
 
 User = get_user_model()
@@ -326,3 +329,30 @@ class BookingSerializer(serializers.ModelSerializer):
         if obj.worker and obj.worker.user:
             return obj.worker.user.get_full_name() or obj.worker.user.email
         return "Unassigned"
+
+
+class SalonOffDaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SalonOffDay
+        fields = ["id", "salon", "date", "reason", "created_at"]
+        read_only_fields = ["id", "salon", "created_at"]
+
+    def validate_date(self, value):
+        today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+        min_allowed_date = today + timedelta(days=7)
+        if value < min_allowed_date:
+            raise serializers.ValidationError(
+                f"Salon off-days must be scheduled at least 7 days in advance from today. Earliest allowed date is {min_allowed_date}."
+            )
+        return value
+
+    def validate(self, attrs):
+        salon = self.context.get("salon") or attrs.get("salon")
+        target_date = attrs.get("date")
+        if salon and target_date:
+            existing = SalonOffDay.objects.filter(salon=salon, date=target_date)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError({"date": "An off-day is already scheduled for this date."})
+        return attrs

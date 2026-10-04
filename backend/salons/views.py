@@ -6,12 +6,14 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from services.models import SalonService
 
-from .models import Salon, WorkerProfile, Booking
+from .models import Salon, WorkerProfile, SalonOffDay
+from bookings.models import Booking
 from .serializers import (
     SalonSerializer,
     WorkerProfileSerializer,
     WorkerCreateSerializer,
     BookingSerializer,
+    SalonOffDaySerializer,
 )
 from .media_utils import save_image_to_media, build_full_media_url
 
@@ -1337,7 +1339,7 @@ class CustomerSalonExploreView(APIView):
                     close_t = s.opening_hours.get("closeTime", "21:00")
                     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                     opening_hours_days = [
-                        {"day": day, "isOpen": day != "Sunday", "openTime": open_t, "closeTime": close_t}
+                        {"day": day, "isOpen":True, "openTime": open_t, "closeTime": close_t}
                         for day in weekdays
                     ]
             elif isinstance(s.opening_hours, str) and s.opening_hours:
@@ -1353,7 +1355,7 @@ class CustomerSalonExploreView(APIView):
             if not opening_hours_days:
                 weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                 opening_hours_days = [
-                    {"day": day, "isOpen": day != "Sunday", "openTime": "09:00", "closeTime": "21:00"}
+                    {"day": day, "isOpen": True, "openTime": "09:00", "closeTime": "21:00"}
                     for day in weekdays
                 ]
 
@@ -1499,6 +1501,60 @@ class CustomerSalonDetailView(APIView):
             except Exception:
                 data["services_list"] = []
 
+            try:
+                today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+                off_days = SalonOffDay.objects.filter(salon=salon, date__gte=today).order_by("date")
+                data["off_days"] = [
+                    {"id": od.id, "date": od.date.isoformat(), "reason": od.reason}
+                    for od in off_days
+                ]
+            except Exception:
+                data["off_days"] = []
+
             return Response(data, status=status.HTTP_200_OK)
         except Salon.DoesNotExist:
             return Response({"error": "Salon not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class OwnerSalonOffDayListView(APIView):
+    permission_classes = [IsOwner]
+
+    def get(self, request):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_404_NOT_FOUND)
+
+        today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+        off_days = SalonOffDay.objects.filter(salon=salon, date__gte=today).order_by("date")
+        serializer = SalonOffDaySerializer(off_days, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SalonOffDaySerializer(
+            data=request.data,
+            context={"salon": salon, "request": request}
+        )
+        if serializer.is_valid():
+            serializer.save(salon=salon)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OwnerSalonOffDayDetailView(APIView):
+    permission_classes = [IsOwner]
+
+    def delete(self, request, pk):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_404_NOT_FOUND)
+
+        off_day = SalonOffDay.objects.filter(pk=pk, salon=salon).first()
+        if not off_day:
+            return Response({"error": "Off day not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        off_day.delete()
+        return Response({"message": "Off-day removed successfully."}, status=status.HTTP_200_OK)

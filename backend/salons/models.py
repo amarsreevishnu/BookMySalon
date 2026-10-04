@@ -108,50 +108,19 @@ class WorkerProfile(models.Model):
         return f"{full_name} - {self.specialization} ({self.salon.name})"
 
 
-class Booking(models.Model):
-    class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        CONFIRMED = "CONFIRMED", "Confirmed"
-        IN_PROGRESS = "IN_PROGRESS", "In Progress"
-        COMPLETED = "COMPLETED", "Completed"
-        CANCELLED = "CANCELLED", "Cancelled"
-
+class SalonOffDay(models.Model):
     salon = models.ForeignKey(
         Salon,
         on_delete=models.CASCADE,
-        related_name="bookings",
+        related_name="off_days",
     )
-    worker = models.ForeignKey(
-        WorkerProfile,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="assigned_bookings",
-    )
-    customer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="customer_bookings",
-    )
-    client_name = models.CharField(max_length=150)
-    client_phone = models.CharField(max_length=20, blank=True, default="")
-    client_email = models.EmailField(blank=True, default="")
-    service_name = models.CharField(max_length=150)
-    service_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    booking_date = models.DateField()
-    booking_time = models.CharField(max_length=50)
-    duration = models.CharField(max_length=50, blank=True, default="45 mins")
-    station = models.CharField(max_length=50, blank=True, default="Station 01")
-    status = models.CharField(
-        max_length=30,
-        choices=Status.choices,
-        default=Status.CONFIRMED,
-    )
-    notes = models.TextField(blank=True, default="")
+    date = models.DateField(db_index=True)
+    reason = models.CharField(max_length=200, blank=True, default="Scheduled Closure")
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("salon", "date")
+        ordering = ["date"]
 
     def __str__(self):
-        return f"Booking #{self.id} - {self.client_name} - {self.service_name} ({self.status})"
+        return f"{self.salon.name} - Off on {self.date} ({self.reason})"

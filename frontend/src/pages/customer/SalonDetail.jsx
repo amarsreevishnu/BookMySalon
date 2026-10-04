@@ -272,19 +272,29 @@ export default function SalonDetail() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const isoDate = `${yyyy}-${mm}-${dd}`;
+
+      const matchedOffDay = (salon?.offDays || []).find((od) => od.date === isoDate);
+
       const dayName = i === 0 ? "TODAY" : d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
       const dateNum = d.getDate().toString().padStart(2, "0");
       const monthStr = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
       list.push({
         id: i,
+        isoDate,
         dayName,
         dateNum,
         monthStr,
+        isOffDay: !!matchedOffDay,
+        offDayReason: matchedOffDay?.reason || "Salon Closed",
         fullDateStr: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
       });
     }
     return list;
-  }, []);
+  }, [salon?.offDays]);
 
   const timeSlots = [
     "09:30 AM",
@@ -413,6 +423,7 @@ export default function SalonDetail() {
             offers: DEFAULT_SALON_DATA.offers,
             reviews: DEFAULT_SALON_DATA.reviews,
             openingHours: dynamicOpeningHours,
+            offDays: Array.isArray(apiData.off_days) ? apiData.off_days : [],
           });
 
           // Set first service as pre-selected if available
@@ -1066,12 +1077,17 @@ export default function SalonDetail() {
                     <button
                       key={d.id}
                       type="button"
-                      className={`date-pill ${selectedDateIdx === d.id ? "date-active" : ""}`}
+                      className={`date-pill ${selectedDateIdx === d.id ? "date-active" : ""} ${d.isOffDay ? "date-offday" : ""}`}
                       onClick={() => setSelectedDateIdx(d.id)}
                     >
                       <span className="date-dayname">{d.dayName}</span>
                       <span className="date-number">{d.dateNum}</span>
                       <span className="date-month">{d.monthStr}</span>
+                      {d.isOffDay && (
+                        <span style={{ fontSize: "9px", background: "#fef2f2", color: "#dc2626", borderRadius: "4px", padding: "1px 4px", marginTop: "2px", fontWeight: "700" }}>
+                          CLOSED
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1083,18 +1099,36 @@ export default function SalonDetail() {
                   <label className="step-label">Available Time Slots</label>
                   <span className="time-tz-note">IST (Local Time)</span>
                 </div>
-                <div className="time-slots-grid">
-                  {timeSlots.map((time) => (
-                    <button
-                      key={time}
-                      type="button"
-                      className={`time-slot-btn ${selectedTimeSlot === time ? "time-active" : ""}`}
-                      onClick={() => setSelectedTimeSlot(time)}
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </div>
+                {dateSlots[selectedDateIdx]?.isOffDay ? (
+                  <div style={{
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: "8px",
+                    padding: "16px",
+                    textAlign: "center",
+                    color: "#991b1b"
+                  }}>
+                    <div style={{ fontWeight: "700", marginBottom: "4px", fontSize: "0.95rem" }}>
+                      🔒 Salon Closed on this Date
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "#b91c1c" }}>
+                      {dateSlots[selectedDateIdx]?.offDayReason || "Scheduled Salon Off-Day"}. Please select another date to view available time slots.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="time-slots-grid">
+                    {timeSlots.map((time) => (
+                      <button
+                        key={time}
+                        type="button"
+                        className={`time-slot-btn ${selectedTimeSlot === time ? "time-active" : ""}`}
+                        onClick={() => setSelectedTimeSlot(time)}
+                      >
+                        {time}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 3. Stylist Info */}
@@ -1203,11 +1237,15 @@ export default function SalonDetail() {
               <button
                 type="button"
                 className="proceed-booking-cta"
-                disabled={selectedServices.length === 0}
+                disabled={selectedServices.length === 0 || dateSlots[selectedDateIdx]?.isOffDay}
                 onClick={() => setShowBookingModal(true)}
               >
-                <span>Proceed to Booking</span>
-                <span className="cta-arrow">→</span>
+                <span>
+                  {dateSlots[selectedDateIdx]?.isOffDay
+                    ? "Salon Closed on Selected Date"
+                    : "Proceed to Booking"}
+                </span>
+                {!dateSlots[selectedDateIdx]?.isOffDay && <span className="cta-arrow">→</span>}
               </button>
 
               <div className="cancellation-policy-box">

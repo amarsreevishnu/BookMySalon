@@ -930,7 +930,7 @@ export default function SalonsExplore() {
                       const hoursInfo = getSalonOpeningHoursInfo(salon, selectedDate);
                       return (
                         <div className="salon-slot-row">
-                          {hoursInfo.isHoliday ? (
+                          {/* {hoursInfo.isHoliday ? (
                             <span
                               className="salon-slot-pill red"
                               style={{
@@ -947,7 +947,7 @@ export default function SalonsExplore() {
                               <span className="slot-pill-icon">●</span>
                               <span>{salon.instant_slot_text || "Open today • Verified Partner"}</span>
                             </span>
-                          )}
+                          )} */}
                           <span
                             className="salon-slot-pill grey"
                             style={hoursInfo.isHoliday ? { background: "#fff1f2", color: "#be123c", borderColor: "#fecdd3" } : {}}

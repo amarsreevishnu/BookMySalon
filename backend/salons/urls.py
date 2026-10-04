@@ -10,6 +10,8 @@ from .views import (
     OwnerDashboardView,
     OwnerQuickWalkInView,
     OwnerSalonProfileView,
+    OwnerSalonOffDayListView,
+    OwnerSalonOffDayDetailView,
     OwnerWorkerDetailView,
     OwnerWorkerListCreateView,
     PendingSalonListView,
@@ -23,6 +25,16 @@ from .views import (
 
 
 urlpatterns = [
+    path(
+        "owner/off-days/",
+        OwnerSalonOffDayListView.as_view(),
+        name="owner-salon-off-days",
+    ),
+    path(
+        "owner/off-days/<int:pk>/",
+        OwnerSalonOffDayDetailView.as_view(),
+        name="owner-salon-off-day-detail",
+    ),
     path(
         "owner/workers/",
         OwnerWorkerListCreateView.as_view(),

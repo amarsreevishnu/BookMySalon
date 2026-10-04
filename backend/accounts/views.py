@@ -321,7 +321,8 @@ class AdminUserToggleBlockView(APIView):
 
 from rest_framework.permissions import IsAuthenticated
 from .models import CustomerProfile
-from salons.models import Booking, Salon
+from salons.models import Salon
+from bookings.models import Booking
 from salons.media_utils import save_image_to_media
 from datetime import datetime
 from django.utils import timezone

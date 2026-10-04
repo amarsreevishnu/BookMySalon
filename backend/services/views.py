@@ -21,9 +21,7 @@ from .serializers import (
 )
 
 
-# ==============================================================================
-# SUPER ADMIN: CATALOG MANAGEMENT
-# ==============================================================================
+
 
 class AdminCategoryListCreateView(APIView):
     """
@@ -329,9 +327,7 @@ class AdminSeedInitialServicesView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-# ==============================================================================
-# SALON OWNER: OFFERINGS MANAGEMENT
-# ==============================================================================
+
 
 class OwnerStandardCatalogListView(APIView):
     """
@@ -471,9 +467,7 @@ class OwnerSalonServiceDetailView(APIView):
         )
 
 
-# ==============================================================================
-# CUSTOMER / PUBLIC: BROWSE & COMPARE SERVICES
-# ==============================================================================
+
 
 class PublicCategoriesListView(APIView):
     """

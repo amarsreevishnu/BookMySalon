@@ -17,6 +17,7 @@ import CreateSalon from "../pages/owner/CreateSalon";
 import SalonProfileManagement from "../pages/owner/SalonProfileManagement";
 import AddWorker from "../pages/owner/AddWorker";
 import WorkerManagement from "../pages/owner/WorkerManagement";
+import OwnerSchedule from "../pages/owner/OwnerSchedule";
 import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
@@ -64,6 +65,7 @@ function AppRoutes() {
         
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
         <Route path="/owner/workers" element={<WorkerManagement />} />
+        <Route path="/owner/schedule" element={<OwnerSchedule />} />
         <Route path="/owner/add-worker" element={<AddWorker />} />
         <Route path="/owner/workers/new" element={<AddWorker />} />
         <Route path="/owner/calendar" element={<WorkerCalendar />} />
