@@ -2060,4 +2060,111 @@
   object-fit: cover;
 }
 
+/* ==========================================================================
+   Salon Affiliation Badge & Banner
+   ========================================================================== */
+.wd-nav-salon-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 4px 12px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+
+.wd-nav-salon-icon {
+  font-size: 1rem;
+}
+
+.wd-nav-salon-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.wd-nav-salon-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #166534;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.wd-nav-salon-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.wd-salon-affiliation-banner {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(22, 91, 56, 0.06);
+}
+
+.wd-salon-affil-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wd-salon-affil-icon {
+  font-size: 1.5rem;
+  background: #dcfce7;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wd-salon-affil-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #166534;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.wd-salon-affil-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 3px;
+}
+
+.wd-salon-affil-meta {
+  font-size: 0.85rem;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wd-salon-badge-verified {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+
 

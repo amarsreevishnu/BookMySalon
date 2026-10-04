@@ -124,3 +124,67 @@ class SalonOffDay(models.Model):
 
     def __str__(self):
         return f"{self.salon.name} - Off on {self.date} ({self.reason})"
+
+
+class WorkerLeave(models.Model):
+    class LeaveType(models.TextChoices):
+        WEEK_OFF = "WEEK_OFF", "Week Off"
+        MONTH_OFF = "MONTH_OFF", "Month Off"
+        PERSONAL = "PERSONAL", "Personal"
+        SICK = "SICK", "Sick Leave"
+        EMERGENCY = "EMERGENCY", "Emergency Leave"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    worker = models.ForeignKey(
+        WorkerProfile,
+        on_delete=models.CASCADE,
+        related_name="leaves",
+    )
+    date = models.DateField(db_index=True)
+    leave_type = models.CharField(
+        max_length=20,
+        choices=LeaveType.choices,
+    )
+    reason = models.TextField(
+        blank=True,
+        default="",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_worker_leaves",
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["worker", "date"],
+                name="unique_worker_leave_date",
+            )
+        ]
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.worker} - {self.date} - {self.leave_type}"

@@ -1,0 +1,609 @@
+/* ==========================================================================
+   BookMySalon - Worker Leave Management Styles
+   ========================================================================== */
+
+.wl-page-wrapper {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.wl-main-content {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 24px 60px;
+  box-sizing: border-box;
+}
+
+/* Breadcrumb */
+.wl-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 16px;
+}
+
+.wl-breadcrumb-link {
+  color: #475569;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.wl-breadcrumb-link:hover {
+  color: #165b38;
+}
+
+.wl-breadcrumb-current {
+  color: #165b38;
+  font-weight: 600;
+}
+
+/* Header */
+.wl-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.wl-header-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px 0;
+}
+
+.wl-header-subtitle {
+  font-size: 0.92rem;
+  color: #64748b;
+  margin: 0;
+  max-width: 600px;
+}
+
+.btn-wl-apply {
+  background: #165b38;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(22, 91, 56, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-wl-apply:hover {
+  background: #124b2e;
+  transform: translateY(-1px);
+}
+
+/* KPI Summary Grid */
+.wl-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.wl-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.wl-kpi-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.wl-kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.wl-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+}
+
+.wl-kpi-icon.approved {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.wl-kpi-icon.pending {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.wl-kpi-icon.planned {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+/* Filter Tabs */
+.wl-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+}
+
+.wl-tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.wl-tab-btn:hover {
+  color: #0f172a;
+}
+
+.wl-tab-btn.active {
+  color: #165b38;
+}
+
+.wl-tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #165b38;
+  border-radius: 2px;
+}
+
+.wl-tab-count {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.wl-tab-btn.active .wl-tab-count {
+  background: #e8f5ee;
+  color: #165b38;
+}
+
+/* Card & Table */
+.wl-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.wl-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.wl-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.wl-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.wl-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.88rem;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.wl-table tr:last-child td {
+  border-bottom: none;
+}
+
+.wl-table tr:hover td {
+  background: #fcfdfd;
+}
+
+/* Date Display */
+.wl-date-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wl-date-badge {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  text-align: center;
+  min-width: 50px;
+}
+
+.wl-date-badge-month {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.wl-date-badge-day {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.wl-date-primary {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.wl-date-sub {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+/* Leave Type Tags */
+.wl-type-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.wl-type-tag.week_off {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.wl-type-tag.month_off {
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+}
+
+.wl-type-tag.personal {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.wl-type-tag.sick {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.wl-type-tag.emergency {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+/* Status Badges */
+.wl-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.wl-status-badge.approved {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.wl-status-badge.pending {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.wl-status-badge.rejected {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.wl-status-badge.cancelled {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Cancel Button */
+.btn-wl-cancel-leave {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-wl-cancel-leave:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+/* Empty State */
+.wl-empty-state {
+  padding: 60px 24px;
+  text-align: center;
+  color: #64748b;
+}
+
+.wl-empty-icon {
+  font-size: 2.4rem;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.wl-empty-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+}
+
+.wl-empty-desc {
+  font-size: 0.88rem;
+  color: #64748b;
+  max-width: 420px;
+  margin: 0 auto 20px;
+}
+
+/* Modal Form */
+.wl-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+
+.wl-modal-box {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: wlModalIn 0.2s ease;
+}
+
+@keyframes wlModalIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.wl-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wl-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.wl-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.wl-modal-close:hover {
+  color: #0f172a;
+}
+
+.wl-modal-body {
+  padding: 24px;
+}
+
+.wl-field-group {
+  margin-bottom: 18px;
+}
+
+.wl-field-label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.wl-field-input,
+.wl-field-select,
+.wl-field-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.wl-field-input:focus,
+.wl-field-select:focus,
+.wl-field-textarea:focus {
+  background: #ffffff;
+  border-color: #165b38;
+  box-shadow: 0 0 0 3px rgba(22, 91, 56, 0.12);
+}
+
+.wl-field-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.wl-rule-banner {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.wl-rule-banner.planned {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.wl-rule-banner.emergency {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.wl-error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.wl-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-wl-cancel-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-wl-cancel-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-wl-submit-btn {
+  background: #165b38;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-wl-submit-btn:hover:not(:disabled) {
+  background: #124b2e;
+}
+
+.btn-wl-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Toast */
+.wl-toast-msg {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  z-index: 200;
+}

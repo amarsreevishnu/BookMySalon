@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from datetime import timedelta
 from django.utils import timezone
-from .models import Salon, WorkerProfile, SalonOffDay
+from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
 from bookings.models import Booking
 from .media_utils import save_image_to_media, build_full_media_url
 
@@ -355,4 +355,151 @@ class SalonOffDaySerializer(serializers.ModelSerializer):
                 existing = existing.exclude(pk=self.instance.pk)
             if existing.exists():
                 raise serializers.ValidationError({"date": "An off-day is already scheduled for this date."})
+        return attrs
+
+
+class WorkerLeaveSerializer(serializers.ModelSerializer):
+    worker_name = serializers.SerializerMethodField()
+    worker_specialization = serializers.SerializerMethodField()
+    worker_photo = serializers.SerializerMethodField()
+    leave_type_display = serializers.CharField(source="get_leave_type_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    affected_bookings_count = serializers.SerializerMethodField()
+    affected_bookings = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkerLeave
+        fields = [
+            "id",
+            "worker",
+            "worker_name",
+            "worker_specialization",
+            "worker_photo",
+            "date",
+            "leave_type",
+            "leave_type_display",
+            "reason",
+            "status",
+            "status_display",
+            "affected_bookings_count",
+            "affected_bookings",
+            "approved_by",
+            "approved_by_name",
+            "approved_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "worker",
+            "status",
+            "approved_by",
+            "approved_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret["worker_id"] = instance.worker_id
+        return ret
+
+    def get_worker_name(self, obj):
+        if obj.worker and obj.worker.user:
+            return obj.worker.user.get_full_name() or obj.worker.user.email
+        return "Worker"
+
+    def get_worker_specialization(self, obj):
+        if obj.worker:
+            return obj.worker.specialization or "Specialist"
+        return ""
+
+    def get_worker_photo(self, obj):
+        if obj.worker and obj.worker.profile_photo:
+            request = self.context.get("request")
+            return build_full_media_url(request, obj.worker.profile_photo)
+        return ""
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name() or obj.approved_by.email
+        return None
+
+    def get_affected_bookings(self, obj):
+        from bookings.models import Booking
+        active_statuses = [
+            Booking.Status.PENDING,
+            Booking.Status.CONFIRMED,
+            Booking.Status.IN_PROGRESS,
+        ]
+        bookings = Booking.objects.filter(
+            worker=obj.worker,
+            booking_date=obj.date,
+            status__in=active_statuses,
+        ).order_by("booking_time")
+        return [
+            {
+                "id": b.id,
+                "client_name": b.client_name,
+                "service_name": b.service_name,
+                "booking_time": b.booking_time,
+                "status": b.status,
+            }
+            for b in bookings
+        ]
+
+    def get_affected_bookings_count(self, obj):
+        from bookings.models import Booking
+        active_statuses = [
+            Booking.Status.PENDING,
+            Booking.Status.CONFIRMED,
+            Booking.Status.IN_PROGRESS,
+        ]
+        return Booking.objects.filter(
+            worker=obj.worker,
+            booking_date=obj.date,
+            status__in=active_statuses,
+        ).count()
+
+    def validate(self, attrs):
+        worker = attrs.get("worker") or self.context.get("worker")
+        if not worker:
+            raise serializers.ValidationError({"worker": "Worker profile is required."})
+
+        leave_date = attrs.get("date")
+        leave_type = attrs.get("leave_type")
+
+        today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+
+        if leave_date and leave_date < today:
+            raise serializers.ValidationError({"date": "Leave cannot be scheduled for a past date."})
+
+        # Planned leave types require 7 days advance notice
+        planned_types = [
+            WorkerLeave.LeaveType.WEEK_OFF,
+            WorkerLeave.LeaveType.MONTH_OFF,
+            WorkerLeave.LeaveType.PERSONAL,
+        ]
+
+        if leave_type in planned_types and leave_date:
+            min_allowed_date = today + timedelta(days=7)
+            if leave_date < min_allowed_date:
+                raise serializers.ValidationError({
+                    "date": f"Planned leaves must be scheduled at least 7 days in advance. Earliest allowed date is {min_allowed_date}."
+                })
+
+        # Check existing non-cancelled leave for the same worker and date
+        if worker and leave_date:
+            existing = WorkerLeave.objects.filter(worker=worker, date=leave_date).exclude(
+                status=WorkerLeave.Status.CANCELLED
+            )
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError({
+                    "date": "A leave request or scheduled off already exists for this date."
+                })
+
+        attrs["worker"] = worker
         return attrs

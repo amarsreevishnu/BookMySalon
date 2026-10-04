@@ -8,6 +8,7 @@ export const DEFAULT_NAV_TABS = [
   "Bookings",
   "Services",
   "Workers",
+  "Worker Leaves",
   "Schedule",
   "Customers",
   "Offers",
@@ -41,6 +42,10 @@ export default function OwnerNavbar({
     } else if (tab === "Salon" || tab === "Salon Profile" || tab === "Profile") {
       if (location.pathname !== "/owner/salon-profile") {
         navigate("/owner/salon-profile");
+      }
+    } else if (tab === "Worker Leaves" || tab === "Worker Schedule" || tab === "Leaves") {
+      if (location.pathname !== "/owner/worker-leaves") {
+        navigate("/owner/worker-leaves");
       }
     } else if (tab === "Schedule") {
       if (location.pathname !== "/owner/schedule") {

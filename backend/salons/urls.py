@@ -9,10 +9,15 @@ from .views import (
     CustomerSalonDetailView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
-    OwnerSalonProfileView,
-    OwnerSalonOffDayListView,
     OwnerSalonOffDayDetailView,
+    OwnerSalonOffDayListView,
+    OwnerSalonProfileView,
     OwnerWorkerDetailView,
+    OwnerWorkerLeaveApproveView,
+    OwnerWorkerLeaveBookingsView,
+    OwnerWorkerLeaveDetailView,
+    OwnerWorkerLeaveListView,
+    OwnerWorkerLeaveRejectView,
     OwnerWorkerListCreateView,
     PendingSalonListView,
     SalonApprovalView,
@@ -21,10 +26,47 @@ from .views import (
     SalonResubmitView,
     WorkerBookingStatusUpdateView,
     WorkerDashboardView,
+    WorkerLeaveCancelView,
+    WorkerLeaveListCreateView,
 )
 
 
 urlpatterns = [
+    path(
+        "owner/leaves/",
+        OwnerWorkerLeaveListView.as_view(),
+        name="owner-worker-leaves",
+    ),
+    path(
+        "owner/leaves/<int:pk>/",
+        OwnerWorkerLeaveDetailView.as_view(),
+        name="owner-worker-leave-detail",
+    ),
+    path(
+        "owner/leaves/<int:pk>/bookings/",
+        OwnerWorkerLeaveBookingsView.as_view(),
+        name="owner-worker-leave-bookings",
+    ),
+    path(
+        "owner/leaves/<int:pk>/approve/",
+        OwnerWorkerLeaveApproveView.as_view(),
+        name="owner-worker-leave-approve",
+    ),
+    path(
+        "owner/leaves/<int:pk>/reject/",
+        OwnerWorkerLeaveRejectView.as_view(),
+        name="owner-worker-leave-reject",
+    ),
+    path(
+        "worker/leaves/",
+        WorkerLeaveListCreateView.as_view(),
+        name="worker-leaves",
+    ),
+    path(
+        "worker/leaves/<int:pk>/cancel/",
+        WorkerLeaveCancelView.as_view(),
+        name="worker-leave-cancel",
+    ),
     path(
         "owner/off-days/",
         OwnerSalonOffDayListView.as_view(),

@@ -29,118 +29,97 @@ export default function WorkerDashboard() {
   // In-chair / active service status
   const [serviceStatus, setServiceStatus] = useState("prepped"); // 'prepped' | 'in_progress' | 'completed'
 
-  // Reference / default mock dataset matching the user's uploaded reference image
+  // Clean realistic fallback appointment dataset (1 hero, 1 upcoming, 1 completed)
   const defaultHeroAppointment = {
-    id: "apt-hero-8214",
-    appId: "APPID: #8214",
-    clientName: "Sarah Jenkins",
-    badgeTier: "PLATINUM PASSION",
-    serviceName: "Hair Styling • Botanical Balayage & Blowdry Styling",
-    duration: "45 mins duration",
-    price: "₹580",
+    id: "apt-101",
+    appId: "APPID: #101",
+    clientName: "Pooja Sharma",
+    badgeTier: "CONFIRMED CLIENT",
+    serviceName: "Haircut & Botanical Styling",
+    duration: "45 mins",
+    price: "₹550",
     paymentStatus: "Paid Online",
-    startTime: "4:00",
-    ampm: "PM",
-    arrivalText: "Arrived: 03:50 PM (10 mins early)",
-    loungeStatus: "CURRENTLY IN LOUNGE • PREPPED FOR CHAIR #01",
-    clientNote:
-      'Allergic to artificial scents. Use strictly 100% pure argan formula. Light feathering on framing bangs.',
+    startTime: "10:30",
+    ampm: "AM",
+    arrivalText: "Arrived: On Schedule",
+    loungeStatus: "CURRENTLY IN LOUNGE • PREPPED FOR STATION #01",
+    clientNote: "Client prefers rosemary scalp wash and medium heat blow-dry.",
     phone: "+91 98450 12345",
   };
 
   const defaultUpcomingQueue = [
     {
-      id: "apt-queue-6495",
-      refCode: "#BMS-6495",
-      time: "5:00 PM",
+      id: "apt-queue-102",
+      refCode: "#BMS-102",
+      time: "02:00 PM",
       timeLabel: "NEXT",
-      clientName: "Ananya Deshmukh",
-      statusTag: "Confirmed (SMS Checked)",
-      serviceName: "Deep Conditioning Keratin Spa & Glow Styling",
-      meta: "45 min • ₹850 • Counter Settlement",
-      prepNotes:
-        "Prefers gentle steam. Avoid high temperature near crown. Scalp type: sensitive normal.",
-    },
-    {
-      id: "apt-queue-6496",
-      refCode: "#BMS-6496",
-      time: "6:15 PM",
-      timeLabel: "NEXT",
-      clientName: "Rohan Kapoor",
-      statusTag: "Shift Final Service",
-      serviceName: "Beard Trim & Quick Refresh Cut",
-      meta: "30 min • ₹350 • Pre-paid Card",
-      prepNotes:
-        "Requested square neckline shaping. Zero fade along sideburns. Warm towel post trim.",
+      clientName: "Karthik Menon",
+      statusTag: "Confirmed",
+      serviceName: "Deep Scalp Therapy & Wash",
+      meta: "60 min • ₹850 • Pre-paid UPI",
+      prepNotes: "Regular client. Prefers warm water and gentle crown massage.",
     },
   ];
 
   const defaultCompletedList = [
     {
-      id: "apt-comp-6492",
-      refCode: "#BMS-6492",
+      id: "apt-comp-100",
+      refCode: "#BMS-100",
       time: "09:30 AM",
-      clientName: "John (Johnathan Doe)",
-      badgeTier: "VIP SOCIETY",
-      serviceName: "Haircut + Precision Scissor-Comb & Botanical Scalp Wash",
-      meta: "45 min duration • ₹500 • Paid Online (UPI - Ref #8217)",
-      clientNote: 'Sensitive scalp, prefers botanical rosemary rinse.',
+      clientName: "Ananya Reddy",
+      badgeTier: "REGULAR MEMBER",
+      serviceName: "Express Glow Facial & Blowdry",
+      meta: "45 min duration • ₹1,200 • Paid Online",
+      clientNote: "Sensitive skin. Organic aloe base applied.",
       hasReceipt: true,
       hasRebook: true,
     },
-    {
-      id: "apt-comp-3472",
-      refCode: "#GTS-3472",
-      time: "11:00 AM",
-      clientName: "Alex (Alex Fernandes)",
-      badgeTier: "REGULAR MEMBER",
-      serviceName: "Beard + Organic Beard Sculpt & Hot Towel Treatment",
-      meta: "30 min duration • ₹350 Cash Settled at Counter",
-      clientNote: 'Beard balm re-order requested. Disemnecking razor finish.',
-      hasBillSettled: true,
-    },
-    {
-      id: "apt-comp-3",
-      time: "12:30 PM",
-      clientName: "Vishnu Prasad",
-      serviceName: "Haircut & Styling",
-      settlement: "₹350 • Settled via Google Pay in-lounge",
-      isCompact: true,
-    },
-    {
-      id: "apt-comp-4",
-      time: "02:00 PM",
-      clientName: "Sameer Khan",
-      serviceName: "Express Beard Trim",
-      settlement: "₹150 • Cash • ₹50 Tip Added",
-      isCompact: true,
-    },
   ];
 
-  // Dynamic state populated by backend or reference data
+  // Dynamic state populated by backend
+  const [salonInfo, setSalonInfo] = useState({
+    id: null,
+    name: "Indiranagar Flagship Salon",
+    category: "Hair, Beauty & Aesthetics",
+    address: "100ft Road, Indiranagar",
+    city: "Bengaluru",
+    phone: "+91 98450 54321",
+  });
+
+  const [workerData, setWorkerData] = useState(null);
+  const [kpiStats, setKpiStats] = useState({
+    total_bookings: 2,
+    today_bookings: 2,
+    completed_bookings: 1,
+    in_progress_bookings: 0,
+    upcoming_bookings: 1,
+  });
+
   const [heroAppointment, setHeroAppointment] = useState(defaultHeroAppointment);
   const [upcomingQueue, setUpcomingQueue] = useState(defaultUpcomingQueue);
   const [completedList, setCompletedList] = useState(defaultCompletedList);
 
-  // Stylist Profile Info (defaults to Rahul Kumar as in image, or user's name if logged in)
+  // Stylist Profile Info (adapts dynamically from backend worker and salon profile)
   const stylistProfile = useMemo(() => {
-    const defaultName = "Rahul Kumar";
-    const name = user?.first_name
-      ? `${user.first_name} ${user.last_name || ""}`.trim()
-      : defaultName;
+    const defaultName = "Specialist";
+    const name =
+      workerData?.full_name ||
+      (user?.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : defaultName);
 
     return {
       name,
-      roleBadge: "Master Trichologist & Hair Specialist",
-      chair: "Chair #01 Station",
-      shift: "Shift: 10:00 AM - 07:00 PM",
-      stationStatus: "Prepped & Cleared",
-      workloadNote:
-        "Station Workload: 8/10 FTR • Assistant rinse & botaniqs bench loaded for 4:00 PM appointment",
+      roleBadge: workerData?.specialization || "Senior Specialist",
+      chair: workerData?.station || "Chair #01 Station",
+      shift: workerData?.shift_hours?.start
+        ? `Shift: ${workerData.shift_hours.start} - ${workerData.shift_hours.end}`
+        : "Shift: 10:00 AM - 07:00 PM",
+      stationStatus: "Prepped & Active",
+      workloadNote: `Assigned Station at ${salonInfo.name}`,
       avatar:
+        workerData?.profile_photo ||
         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
     };
-  }, [user]);
+  }, [user, workerData, salonInfo.name]);
 
   // Load backend data if available, adapting seamlessly
   useEffect(() => {
@@ -148,39 +127,95 @@ export default function WorkerDashboard() {
       try {
         const res = await api.get("/salons/worker/dashboard/");
         if (res.data) {
+          if (res.data.salon) {
+            setSalonInfo(res.data.salon);
+          }
+          if (res.data.worker) {
+            setWorkerData(res.data.worker);
+          }
+          if (res.data.kpi_stats) {
+            setKpiStats(res.data.kpi_stats);
+          }
+
           const assigned = res.data.assigned_bookings || [];
           if (assigned.length > 0) {
             const inProg = assigned.find((b) => b.status === "IN_PROGRESS");
             const firstUpcoming = assigned.find(
               (b) => b.status === "CONFIRMED" || b.status === "PENDING"
             );
-            const activeOrNext = inProg || firstUpcoming;
+            const activeOrNext = inProg || firstUpcoming || assigned[0];
 
             if (activeOrNext) {
               setHeroAppointment({
                 id: `apt-${activeOrNext.id}`,
                 appId: `APPID: #${activeOrNext.id}`,
                 clientName: activeOrNext.client_name || "Client",
-                badgeTier: "PLATINUM PASSION",
-                serviceName: activeOrNext.service_name || "Salon Styling",
+                badgeTier: "CONFIRMED CLIENT",
+                serviceName: activeOrNext.service_name || "Salon Service",
                 duration: activeOrNext.duration || "45 mins",
-                price: `₹${activeOrNext.service_price || "580"}`,
+                price: `₹${activeOrNext.service_price || "550"}`,
                 paymentStatus: "Paid Online",
-                startTime: activeOrNext.booking_time ? activeOrNext.booking_time.split(" ")[0] : "4:00",
-                ampm: activeOrNext.booking_time && activeOrNext.booking_time.includes("PM") ? "PM" : "AM",
+                startTime: activeOrNext.booking_time
+                  ? activeOrNext.booking_time.split(" ")[0]
+                  : "10:30",
+                ampm:
+                  activeOrNext.booking_time && activeOrNext.booking_time.includes("PM")
+                    ? "PM"
+                    : "AM",
                 arrivalText: "Arrived: On Schedule",
-                loungeStatus: "CURRENTLY IN LOUNGE • PREPPED FOR CHAIR #01",
-                clientNote: activeOrNext.notes || defaultHeroAppointment.clientNote,
+                loungeStatus: `CURRENTLY IN LOUNGE • PREPPED FOR ${activeOrNext.station || "CHAIR #01"}`,
+                clientNote: activeOrNext.notes || "Client prefers standard salon protocol.",
                 phone: activeOrNext.client_phone || "+91 98450 12345",
               });
               if (activeOrNext.status === "IN_PROGRESS") {
                 setServiceStatus("in_progress");
               }
             }
+
+            // Up to 1 or 2 upcoming appointments
+            const otherUpcoming = assigned.filter(
+              (b) => b.id !== activeOrNext?.id && (b.status === "CONFIRMED" || b.status === "PENDING")
+            );
+            if (otherUpcoming.length > 0) {
+              setUpcomingQueue(
+                otherUpcoming.slice(0, 2).map((b, idx) => ({
+                  id: `apt-q-${b.id}`,
+                  refCode: `#BMS-${b.id}`,
+                  time: b.booking_time || "02:00 PM",
+                  timeLabel: idx === 0 ? "NEXT" : "LATER",
+                  clientName: b.client_name,
+                  statusTag: b.status === "CONFIRMED" ? "Confirmed" : "Pending",
+                  serviceName: b.service_name,
+                  meta: `${b.duration || "45 min"} • ₹${b.service_price} • ${b.station || "Station"}`,
+                  prepNotes: b.notes || "Standard service prep.",
+                }))
+              );
+            } else {
+              setUpcomingQueue([]);
+            }
+
+            // Up to 1 or 2 completed appointments
+            const completed = assigned.filter((b) => b.status === "COMPLETED");
+            if (completed.length > 0) {
+              setCompletedList(
+                completed.slice(0, 2).map((b) => ({
+                  id: `apt-c-${b.id}`,
+                  refCode: `#BMS-${b.id}`,
+                  time: b.booking_time || "09:30 AM",
+                  clientName: b.client_name,
+                  badgeTier: "COMPLETED",
+                  serviceName: b.service_name,
+                  meta: `${b.duration || "45 min"} • ₹${b.service_price} • Settled`,
+                  clientNote: b.notes || "Service completed smoothly.",
+                  hasReceipt: true,
+                  hasRebook: false,
+                }))
+              );
+            }
           }
         }
       } catch (err) {
-        console.warn("Using high-fidelity stylist suite design data:", err?.message);
+        console.warn("Using baseline stylist suite design data:", err?.message);
       }
     };
     fetchDashboard();
@@ -216,18 +251,18 @@ export default function WorkerDashboard() {
   const handleStartService = async () => {
     if (serviceStatus === "prepped") {
       setServiceStatus("in_progress");
-      showToast(`Sarah Jenkins seated at Chair #01! Service marked IN PROGRESS.`);
+      showToast(`${heroAppointment.clientName} seated at ${stylistProfile.chair}! Service marked IN PROGRESS.`);
     } else if (serviceStatus === "in_progress") {
       setServiceStatus("completed");
-      showToast(`Service for Sarah Jenkins completed successfully! Added to Today's Completed.`);
+      showToast(`Service for ${heroAppointment.clientName} completed successfully! Added to Today's Completed.`);
     } else {
       setServiceStatus("prepped");
-      showToast(`Chair #01 reset and prepped for next appointment.`);
+      showToast(`${stylistProfile.chair} reset and prepped for next appointment.`);
     }
   };
 
-  const handleCallSarahToChair = () => {
-    showToast(`Paging Reception Lounge: Sarah Jenkins called to Chair #01.`);
+  const handleCallClientToChair = () => {
+    showToast(`Paging Reception Lounge: ${heroAppointment.clientName} called to ${stylistProfile.chair}.`);
   };
 
   const handlePrintRunSheet = () => {
@@ -274,16 +309,11 @@ export default function WorkerDashboard() {
               </div>
             </div>
 
+            
+
             {/* Global Search Input */}
             <div className="wd-nav-search-box">
-              <span className="wd-nav-search-icon">🔍</span>
-              <input
-                type="text"
-                className="wd-nav-search-input"
-                placeholder="Search clients, s..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              
             </div>
 
             {/* Navigation Tabs */}
@@ -304,14 +334,12 @@ export default function WorkerDashboard() {
               </button>
               <button
                 type="button"
-                className={`wd-nav-tab ${activeNavTab === "station" ? "active" : ""}`}
-                onClick={() => {
-                  setActiveNavTab("station");
-                  setActiveModal("stationCare");
-                }}
+                className="wd-nav-tab"
+                onClick={() => navigate("/worker/leave")}
               >
-                Chair #01 Station
+                Leaves
               </button>
+             
               <button
                 type="button"
                 className={`wd-nav-tab ${activeNavTab === "profiles" ? "active" : ""}`}
@@ -384,7 +412,15 @@ export default function WorkerDashboard() {
                   <div className="wd-dropdown-divider" />
 
                   <div className="wd-dropdown-meta-item">
+                    <span className="wd-meta-icon">🏛️</span>
+                    <span><strong>{salonInfo.name}</strong></span>
+                  </div>
+                  <div className="wd-dropdown-meta-item">
                     <span className="wd-meta-icon">📍</span>
+                    <span>{salonInfo.address ? `${salonInfo.address}, ${salonInfo.city}` : salonInfo.city}</span>
+                  </div>
+                  <div className="wd-dropdown-meta-item">
+                    <span className="wd-meta-icon">🪑</span>
                     <span>{stylistProfile.chair}</span>
                   </div>
                   <div className="wd-dropdown-meta-item">
@@ -393,6 +429,18 @@ export default function WorkerDashboard() {
                   </div>
 
                   <div className="wd-dropdown-divider" />
+
+                  <button
+                    type="button"
+                    className="wd-dropdown-item"
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      navigate("/worker/leave");
+                    }}
+                  >
+                    <span className="wd-dropdown-icon">🏖️</span>
+                    <span>My Leaves &amp; Schedule</span>
+                  </button>
 
                   <button
                     type="button"
@@ -416,6 +464,25 @@ export default function WorkerDashboard() {
           2. MAIN CONTENT
           ==================================================================== */}
       <main className="wd-main">
+        {/* Prominent Affiliated Salon Banner */}
+        <div className="wd-salon-affiliation-banner">
+          <div className="wd-salon-affil-left">
+            <div className="wd-salon-affil-icon">🏛️</div>
+            <div>
+              <div className="wd-salon-affil-label">Affiliated Salon Outlet</div>
+              <div className="wd-salon-affil-title">{salonInfo.name}</div>
+              <div className="wd-salon-affil-meta">
+                {salonInfo.category && <span>{salonInfo.category}</span>}
+                {salonInfo.category && <span>•</span>}
+                <span>📍 {salonInfo.address}{salonInfo.city ? `, ${salonInfo.city}` : ""}</span>
+                {salonInfo.phone && <span>•</span>}
+                {salonInfo.phone && <span>📞 {salonInfo.phone}</span>}
+              </div>
+            </div>
+          </div>
+          <span className="wd-salon-badge-verified">✓ Active Salon Specialist</span>
+        </div>
+
         {/* ==================================================================
             3. SPECIALIST PROFILE HERO CARD
             ================================================================== */}
@@ -440,6 +507,8 @@ export default function WorkerDashboard() {
               </div>
               <div className="wd-station-info-row">
                 <span>{stylistProfile.chair}</span>
+                <span>•</span>
+                <strong>{salonInfo.name}</strong>
                 <span>•</span>
                 <span>{stylistProfile.shift}</span>
                 <span>•</span>
@@ -478,11 +547,13 @@ export default function WorkerDashboard() {
                 <span className="wd-kpi-title">TODAY&apos;S APPOINTMENTS</span>
                 <span className="wd-kpi-icon">📅</span>
               </div>
-              <div className="wd-kpi-val">8 Total</div>
-              <div className="wd-kpi-subtext">5 Completed • 1 In Queue • 2 Next</div>
+              <div className="wd-kpi-val">{kpiStats.today_bookings ?? (upcomingQueue.length + completedList.length + 1)} Total</div>
+              <div className="wd-kpi-subtext">
+                {kpiStats.completed_bookings ?? completedList.length} Completed • {serviceStatus === "in_progress" ? "1 In-Chair" : "1 Prepped"} • {kpiStats.upcoming_bookings ?? upcomingQueue.length} Next
+              </div>
             </div>
             <div className="wd-kpi-trend">
-              <span>📈</span> +12% vs last Saturday
+              <span>🏛️</span> {salonInfo.name}
             </div>
           </div>
 
@@ -497,7 +568,7 @@ export default function WorkerDashboard() {
               <div className="wd-kpi-subtext">+₹350 tips awaiting settlement</div>
             </div>
             <div className="wd-kpi-trend">
-              <span>📈</span> +8% target achieved
+              <span>📈</span> Standard Day Performance
             </div>
           </div>
 
@@ -512,7 +583,7 @@ export default function WorkerDashboard() {
               <div className="wd-kpi-subtext">Avg. consultation-turnaround: 4 mins</div>
             </div>
             <div className="wd-kpi-trend">
-              <span>✓</span> Station #01 Benchmark: Top 5%
+              <span>✓</span> {stylistProfile.chair} Benchmark: Top 5%
             </div>
           </div>
 
@@ -524,17 +595,17 @@ export default function WorkerDashboard() {
                   <span className="wd-duty-dot" />
                   WAITING AT LOUNGE
                 </span>
-                <span className="wd-lounge-time">4:00 PM</span>
+                <span className="wd-lounge-time">{heroAppointment.startTime} {heroAppointment.ampm}</span>
               </div>
-              <div className="wd-lounge-client">Sarah Jenkins</div>
-              <div className="wd-lounge-service">Balayage &amp; Dry-In • Booked 3:30 PM</div>
+              <div className="wd-lounge-client">{heroAppointment.clientName}</div>
+              <div className="wd-lounge-service">{heroAppointment.serviceName} • {heroAppointment.price}</div>
             </div>
             <div className="wd-lounge-footer">
               <span className="wd-lounge-note">Warm green tea served</span>
               <button
                 type="button"
                 className="btn-call-chair-link"
-                onClick={handleCallSarahToChair}
+                onClick={handleCallClientToChair}
               >
                 Call Chair &rarr;
               </button>
@@ -557,7 +628,9 @@ export default function WorkerDashboard() {
                   <button type="button" className="btn-date-step" title="Previous Day">
                     &lt;
                   </button>
-                  <span className="wd-date-label">Today, Saturday, Sep 5, 2026</span>
+                  <span className="wd-date-label">
+                    {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}
+                  </span>
                   <button type="button" className="btn-date-step" title="Next Day">
                     &gt;
                   </button>
@@ -569,14 +642,14 @@ export default function WorkerDashboard() {
                     className={`btn-quick-date ${activeDateTab === "today" ? "active" : ""}`}
                     onClick={() => setActiveDateTab("today")}
                   >
-                    Today (8)
+                    Today ({upcomingQueue.length + (heroAppointment ? 1 : 0) + completedList.length})
                   </button>
                   <button
                     type="button"
                     className={`btn-quick-date ${activeDateTab === "tomorrow" ? "active" : ""}`}
                     onClick={() => setActiveDateTab("tomorrow")}
                   >
-                    Tomorrow (4)
+                    Tomorrow
                   </button>
                   <button
                     type="button"
@@ -624,21 +697,21 @@ export default function WorkerDashboard() {
                   className={`btn-segment-tab ${activeSegmentTab === "upcoming" ? "active" : ""}`}
                   onClick={() => setActiveSegmentTab("upcoming")}
                 >
-                  Upcoming &amp; In-Chair (3)
+                  Upcoming &amp; In-Chair ({upcomingQueue.length + (heroAppointment ? 1 : 0)})
                 </button>
                 <button
                   type="button"
                   className={`btn-segment-tab ${activeSegmentTab === "completed" ? "active" : ""}`}
                   onClick={() => setActiveSegmentTab("completed")}
                 >
-                  Completed (5)
+                  Completed ({completedList.length})
                 </button>
                 <button
                   type="button"
                   className={`btn-segment-tab ${activeSegmentTab === "all" ? "active" : ""}`}
                   onClick={() => setActiveSegmentTab("all")}
                 >
-                  All Scheduled (8)
+                  All Scheduled ({upcomingQueue.length + (heroAppointment ? 1 : 0) + completedList.length})
                 </button>
               </div>
             </div>
@@ -708,7 +781,7 @@ export default function WorkerDashboard() {
                         type="button"
                         className="btn-hero-sub"
                         onClick={() => {
-                          showToast("Ping sent to front desk concierge for Sarah Jenkins.");
+                          showToast(`Ping sent to front desk concierge for ${heroAppointment.clientName}.`);
                         }}
                       >
                         🔔 Ping Desk
@@ -717,7 +790,7 @@ export default function WorkerDashboard() {
                         type="button"
                         className="btn-hero-sub ready"
                         onClick={() => {
-                          showToast("Station notified: Stylist is 100% ready for Sarah.");
+                          showToast(`Station notified: Stylist is 100% ready for ${heroAppointment.clientName}.`);
                         }}
                       >
                         ✓ Ready for You
@@ -1016,10 +1089,10 @@ export default function WorkerDashboard() {
         <div className="wd-sticky-bar-inner">
           <div className="wd-sticky-left">
             <span className="wd-live-beacon" />
-            <span className="wd-sticky-stylist">{stylistProfile.name} ({stylistProfile.chair.split(" ")[0]} #{stylistProfile.chair.split("#")[1] || "01"})</span>
+            <span className="wd-sticky-stylist">{stylistProfile.name} • {stylistProfile.chair}</span>
             <span>✦</span>
             <span className="wd-sticky-next">
-              Next Up: <strong>Sarah Jenkins (4:00 PM)</strong> in Reception Lounge
+              Next Up: <strong>{heroAppointment.clientName} ({heroAppointment.startTime} {heroAppointment.ampm})</strong> at {salonInfo.name}
             </span>
           </div>
 
@@ -1034,9 +1107,9 @@ export default function WorkerDashboard() {
             <button
               type="button"
               className="btn-sticky-call"
-              onClick={handleCallSarahToChair}
+              onClick={handleCallClientToChair}
             >
-              <span>🪑</span> Call Sarah to Chair #01
+              <span>🪑</span> Call {heroAppointment.clientName} to Chair
             </button>
           </div>
         </div>

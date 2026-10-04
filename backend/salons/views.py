@@ -6,7 +6,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from services.models import SalonService
 
-from .models import Salon, WorkerProfile, SalonOffDay
+from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
 from bookings.models import Booking
 from .serializers import (
     SalonSerializer,
@@ -14,6 +14,7 @@ from .serializers import (
     WorkerCreateSerializer,
     BookingSerializer,
     SalonOffDaySerializer,
+    WorkerLeaveSerializer,
 )
 from .media_utils import save_image_to_media, build_full_media_url
 
@@ -1470,9 +1471,17 @@ class CustomerSalonDetailView(APIView):
             serializer = SalonSerializer(salon, context={"request": request})
             data = serializer.data
 
+            today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
             workers = WorkerProfile.objects.filter(salon=salon, is_active=True).select_related("user")
             workers_data = []
             for w in workers:
+                leaves_dates = list(
+                    WorkerLeave.objects.filter(
+                        worker=w,
+                        status=WorkerLeave.Status.APPROVED,
+                        date__gte=today,
+                    ).values_list("date", flat=True)
+                )
                 workers_data.append({
                     "id": w.id,
                     "name": w.user.get_full_name() or w.user.email,
@@ -1482,6 +1491,7 @@ class CustomerSalonDetailView(APIView):
                     "reviews_count": 48,
                     "profile_photo": w.profile_photo,
                     "station": w.station,
+                    "approved_leaves": [d.isoformat() for d in leaves_dates],
                 })
             data["workers_list"] = workers_data
 
@@ -1558,3 +1568,218 @@ class OwnerSalonOffDayDetailView(APIView):
 
         off_day.delete()
         return Response({"message": "Off-day removed successfully."}, status=status.HTTP_200_OK)
+
+
+def get_worker_for_request(request):
+    user = request.user
+    if not user or not user.is_authenticated:
+        return None
+    worker = getattr(user, "worker_profile", None) or WorkerProfile.objects.filter(user=user).first()
+    if not worker and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+        worker_id = request.query_params.get("worker_id")
+        if worker_id:
+            worker = WorkerProfile.objects.filter(pk=worker_id).first()
+        else:
+            worker = WorkerProfile.objects.first()
+    return worker
+
+
+class WorkerLeaveListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        worker = get_worker_for_request(request)
+        if not worker:
+            return Response(
+                {"error": "No worker profile found for this user."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        leaves = WorkerLeave.objects.filter(worker=worker).order_by("-date", "-created_at")
+        serializer = WorkerLeaveSerializer(leaves, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        worker = get_worker_for_request(request)
+        if not worker:
+            return Response(
+                {"error": "No worker profile found for this user."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = WorkerLeaveSerializer(
+            data=request.data,
+            context={"request": request, "worker": worker}
+        )
+        if serializer.is_valid():
+            leave_type = serializer.validated_data.get("leave_type")
+            planned_types = [
+                WorkerLeave.LeaveType.WEEK_OFF,
+                WorkerLeave.LeaveType.MONTH_OFF,
+                WorkerLeave.LeaveType.PERSONAL,
+            ]
+            status_to_set = (
+                WorkerLeave.Status.APPROVED
+                if leave_type in planned_types
+                else WorkerLeave.Status.PENDING
+            )
+            leave = serializer.save(
+                worker=worker,
+                status=status_to_set,
+            )
+            return Response(
+                WorkerLeaveSerializer(leave, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WorkerLeaveCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        worker = get_worker_for_request(request)
+        if not worker:
+            return Response({"error": "No worker profile found."}, status=status.HTTP_404_NOT_FOUND)
+        leave = WorkerLeave.objects.filter(pk=pk, worker=worker).first()
+        if not leave:
+            return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+        if leave.status == WorkerLeave.Status.CANCELLED:
+            return Response({"error": "Leave request is already cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+        leave.status = WorkerLeave.Status.CANCELLED
+        leave.save(update_fields=["status", "updated_at"])
+        return Response({
+            "message": "Leave request cancelled successfully.",
+            "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,
+        }, status=status.HTTP_200_OK)
+
+
+class OwnerWorkerLeaveListView(APIView):
+    permission_classes = [IsOwner]
+
+    def get(self, request):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_404_NOT_FOUND)
+
+        leaves = WorkerLeave.objects.filter(worker__salon=salon)
+        worker_id = request.query_params.get("worker_id")
+        if worker_id and worker_id != "all":
+            leaves = leaves.filter(worker_id=worker_id)
+
+        month = request.query_params.get("month")
+        if month and month != "all":
+            leaves = leaves.filter(date__startswith=month)
+
+        status_filter = request.query_params.get("status")
+        if status_filter and status_filter != "all":
+            leaves = leaves.filter(status=status_filter)
+
+        leaves = leaves.order_by("date", "created_at")
+        serializer = WorkerLeaveSerializer(leaves, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        worker_id = request.data.get("worker") or request.data.get("worker_id")
+        worker = WorkerProfile.objects.filter(pk=worker_id, salon=salon).first()
+        if not worker:
+            return Response({"worker": "Please select a valid worker from your salon."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = WorkerLeaveSerializer(
+            data=request.data,
+            context={"request": request, "worker": worker}
+        )
+        if serializer.is_valid():
+            leave = serializer.save(
+                worker=worker,
+                status=WorkerLeave.Status.APPROVED,
+                approved_by=request.user,
+                approved_at=timezone.now(),
+            )
+            return Response(
+                WorkerLeaveSerializer(leave, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OwnerWorkerLeaveBookingsView(APIView):
+    permission_classes = [IsOwner]
+
+    def get(self, request, pk):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave = WorkerLeave.objects.filter(pk=pk, worker__salon=salon).first()
+        if not leave:
+            return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = WorkerLeaveSerializer(leave, context={"request": request})
+        return Response({
+            "leave": serializer.data,
+            "affected_bookings": serializer.data.get("affected_bookings", []),
+            "affected_bookings_count": serializer.data.get("affected_bookings_count", 0),
+        }, status=status.HTTP_200_OK)
+
+
+class OwnerWorkerLeaveApproveView(APIView):
+    permission_classes = [IsOwner]
+
+    def post(self, request, pk):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave = WorkerLeave.objects.filter(pk=pk, worker__salon=salon).first()
+        if not leave:
+            return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave.status = WorkerLeave.Status.APPROVED
+        leave.approved_by = request.user
+        leave.approved_at = timezone.now()
+        leave.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        return Response({
+            "message": "Leave request approved successfully.",
+            "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,
+        }, status=status.HTTP_200_OK)
+
+
+class OwnerWorkerLeaveRejectView(APIView):
+    permission_classes = [IsOwner]
+
+    def post(self, request, pk):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave = WorkerLeave.objects.filter(pk=pk, worker__salon=salon).first()
+        if not leave:
+            return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave.status = WorkerLeave.Status.REJECTED
+        leave.approved_by = request.user
+        leave.approved_at = timezone.now()
+        leave.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        return Response({
+            "message": "Leave request rejected.",
+            "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,
+        }, status=status.HTTP_200_OK)
+
+
+class OwnerWorkerLeaveDetailView(APIView):
+    permission_classes = [IsOwner]
+
+    def delete(self, request, pk):
+        salon = get_owner_salon(request.user)
+        if not salon:
+            return Response({"error": "No salon found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave = WorkerLeave.objects.filter(pk=pk, worker__salon=salon).first()
+        if not leave:
+            return Response({"error": "Leave not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        leave.delete()
+        return Response({"message": "Leave deleted successfully."}, status=status.HTTP_200_OK)

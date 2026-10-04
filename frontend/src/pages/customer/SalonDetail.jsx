@@ -344,6 +344,7 @@ export default function SalonDetail() {
               reviewsCount: w.reviews_count || 50,
               image: w.profile_photo ? resolveImageUrl(w.profile_photo) : DEFAULT_SALON_DATA.stylists[index % DEFAULT_SALON_DATA.stylists.length].image,
               specialty: w.station ? `Station: ${w.station}` : "Certified Beauty Specialist",
+              approvedLeaves: Array.isArray(w.approved_leaves) ? w.approved_leaves : [],
             }));
           }
 
@@ -838,8 +839,14 @@ export default function SalonDetail() {
               <div className="stylists-grid">
                 {salon.stylists.map((stylist) => {
                   const isSelected = selectedStylist?.id === stylist.id;
+                  const currentIsoDate = dateSlots[selectedDateIdx]?.isoDate;
+                  const isStylistOnLeave =
+                    Array.isArray(stylist.approvedLeaves) &&
+                    currentIsoDate &&
+                    stylist.approvedLeaves.includes(currentIsoDate);
+
                   return (
-                    <div key={stylist.id} className={`stylist-card ${isSelected ? "stylist-selected" : ""}`}>
+                    <div key={stylist.id} className={`stylist-card ${isSelected ? "stylist-selected" : ""} ${isStylistOnLeave ? "stylist-on-leave" : ""}`}>
                       <div className="stylist-avatar-wrap">
                         <img src={stylist.image} alt={stylist.name} />
                         <div className="stylist-rating-badge">★ {stylist.rating}</div>
@@ -851,21 +858,37 @@ export default function SalonDetail() {
                         <p className="stylist-exp">{stylist.experience} • {stylist.reviewsCount} reviews</p>
                         <p className="stylist-specialty">{stylist.specialty}</p>
 
-                        <button
-                          type="button"
-                          className={`stylist-select-btn ${isSelected ? "selected-btn" : ""}`}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedStylist(null);
-                              showToast("Set stylist to: Any Available Specialist.");
-                            } else {
-                              setSelectedStylist(stylist);
-                              showToast(`Selected stylist: ${stylist.name}!`);
-                            }
-                          }}
-                        >
-                          {isSelected ? "✓ Stylist Selected" : "Select Stylist"}
-                        </button>
+                        {isStylistOnLeave ? (
+                          <div style={{
+                            background: "#fef2f2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            textAlign: "center",
+                            marginTop: "8px"
+                          }}>
+                            🔒 On Leave on Selected Date
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`stylist-select-btn ${isSelected ? "selected-btn" : ""}`}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedStylist(null);
+                                showToast("Set stylist to: Any Available Specialist.");
+                              } else {
+                                setSelectedStylist(stylist);
+                                showToast(`Selected stylist: ${stylist.name}!`);
+                              }
+                            }}
+                          >
+                            {isSelected ? "✓ Stylist Selected" : "Select Stylist"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
