@@ -34,9 +34,7 @@ export default function OwnerNavbarHeader({
 
    return (
     <>
-      {/* --------------------------------------------------------------------
-          TOP BAR HEADER
-          -------------------------------------------------------------------- */}
+     
       <header className="studio-header">
         <div className="studio-header-inner">
           {/* Logo & Studio Brand */}
@@ -160,9 +158,6 @@ export default function OwnerNavbarHeader({
         </div>
       </header>
 
-      {/* --------------------------------------------------------------------
-          LOGOUT CONFIRMATION MODAL
-          -------------------------------------------------------------------- */}
 
 
       {showLogoutModal && (

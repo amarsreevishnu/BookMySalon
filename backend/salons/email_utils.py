@@ -90,7 +90,7 @@ Temporary Password: {temp_password}
 --------------------------------------------------
 
 Please log in using these credentials to access your salon management dashboard, add services, and configure staff.
-For security, we recommend changing your password after your first login.
+For security, we recommend changing your password after your first login (Settings > Reset Password).
 
 Welcome to the BookMySalon Partner Network!
 

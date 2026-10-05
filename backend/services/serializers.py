@@ -26,6 +26,7 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
 class ServiceSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     category_icon = serializers.CharField(source="category.icon", read_only=True)
+    salon_offerings_count = serializers.IntegerField(read_only=True, required=False)
 
     class Meta:
         model = Service
@@ -34,6 +35,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             "category",
             "category_name",
             "category_icon",
+            "salon_offerings_count",
             "name",
             "slug",
             "description",

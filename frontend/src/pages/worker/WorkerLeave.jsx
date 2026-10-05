@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
+import WorkerHeader from "../../components/worker/WorkerHeader";
+import WorkerSalonBanner from "../../components/worker/WorkerSalonBanner";
 import "../../styles/workerLeave.css";
 import "../../styles/workerDashboard.css";
 
@@ -19,10 +21,9 @@ export default function WorkerLeave() {
 
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'pending' | 'approved' | 'history'
+  const [activeTab, setActiveTab] = useState("all"); 
   const [toastMessage, setToastMessage] = useState("");
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [leaveType, setLeaveType] = useState("WEEK_OFF");
   const [leaveDate, setLeaveDate] = useState("");
@@ -36,7 +37,7 @@ export default function WorkerLeave() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Helper date limits
+  
   const { todayStr, minDate7Str, minDate7Formatted } = useMemo(() => {
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -64,7 +65,6 @@ export default function WorkerLeave() {
     return LEAVE_TYPES.find((t) => t.value === leaveType) || LEAVE_TYPES[0];
   }, [leaveType]);
 
-  // Fetch leaves
   const fetchLeaves = useCallback(async () => {
     setLoading(true);
     try {
@@ -82,7 +82,6 @@ export default function WorkerLeave() {
     fetchLeaves();
   }, [fetchLeaves]);
 
-  // Handle open modal
   const handleOpenModal = () => {
     setLeaveType("WEEK_OFF");
     setLeaveDate(minDate7Str);
@@ -91,7 +90,6 @@ export default function WorkerLeave() {
     setIsModalOpen(true);
   };
 
-  // Switch leave type and adjust minimum date
   const handleTypeChange = (newType) => {
     setLeaveType(newType);
     const target = LEAVE_TYPES.find((t) => t.value === newType);
@@ -102,7 +100,6 @@ export default function WorkerLeave() {
     }
   };
 
-  // Submit leave application
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!leaveDate) {
@@ -120,11 +117,7 @@ export default function WorkerLeave() {
         reason: leaveReason.trim() || selectedTypeInfo.label,
       });
 
-      showToast(
-        selectedTypeInfo.isPlanned
-          ? "Planned leave scheduled and approved!"
-          : "Leave request submitted to salon owner for approval."
-      );
+      showToast("Leave request submitted to salon owner for approval.");
       setIsModalOpen(false);
       fetchLeaves();
     } catch (err) {
@@ -150,7 +143,6 @@ export default function WorkerLeave() {
     }
   };
 
-  // Cancel leave request
   const handleCancelLeave = async (id) => {
     try {
       await api.post(`/salons/worker/leaves/${id}/cancel/`);
@@ -163,7 +155,6 @@ export default function WorkerLeave() {
     }
   };
 
-  // Filter leaves based on active tab
   const filteredLeaves = useMemo(() => {
     if (activeTab === "pending") {
       return leaves.filter((l) => l.status === "PENDING");
@@ -177,7 +168,7 @@ export default function WorkerLeave() {
     return leaves;
   }, [leaves, activeTab]);
 
-  // Counts
+  
   const approvedCount = useMemo(() => leaves.filter((l) => l.status === "APPROVED").length, [leaves]);
   const pendingCount = useMemo(() => leaves.filter((l) => l.status === "PENDING").length, [leaves]);
 
@@ -219,58 +210,12 @@ export default function WorkerLeave() {
 
   return (
     <div className="wl-page-wrapper">
-      {/* Top Navigation */}
-      <header className="wd-navbar">
-        <div className="wd-navbar-inner">
-          <div className="wd-navbar-left">
-            <Link to="/worker/dashboard" className="wd-brand">
-              <span className="wd-brand-logo-icon">🌿</span>
-              <div className="wd-brand-text">
-                <span className="wd-brand-name">BookMySalon</span>
-                <span className="wd-brand-suite">Specialist Suite</span>
-              </div>
-            </Link>
+      
+      <WorkerHeader activeTab="leaves" />
 
-            <nav className="wd-nav-links">
-              <button
-                type="button"
-                className="wd-nav-tab"
-                onClick={() => navigate("/worker/dashboard")}
-              >
-                Appointments
-              </button>
-              <button
-                type="button"
-                className="wd-nav-tab"
-                onClick={() => navigate("/worker/calendar")}
-              >
-                Calendar
-              </button>
-              <button
-                type="button"
-                className="wd-nav-tab active"
-                onClick={() => navigate("/worker/leave")}
-              >
-                My Leaves
-              </button>
-            </nav>
-          </div>
-
-          <div className="wd-navbar-right">
-            <button
-              type="button"
-              className="btn-wl-apply"
-              onClick={handleOpenModal}
-            >
-              <span>+ Apply for Leave</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
       <main className="wl-main-content">
-        {/* Breadcrumb */}
+        <WorkerSalonBanner />
+
         <div className="wl-breadcrumb">
           <Link to="/worker/dashboard" className="wl-breadcrumb-link">
             Specialist Dashboard
@@ -279,7 +224,6 @@ export default function WorkerLeave() {
           <span className="wl-breadcrumb-current">My Leaves</span>
         </div>
 
-        {/* Header Row */}
         <div className="wl-header-row">
           <div>
             <h1 className="wl-header-title">My Leaves &amp; Schedule</h1>
@@ -297,7 +241,6 @@ export default function WorkerLeave() {
           </button>
         </div>
 
-        {/* KPI Summary Cards */}
         <div className="wl-kpi-grid">
           <div className="wl-kpi-card">
             <div>
@@ -324,7 +267,7 @@ export default function WorkerLeave() {
           </div>
         </div>
 
-        {/* Tabs Bar */}
+        
         <div className="wl-tabs-bar">
           <button
             type="button"
@@ -356,7 +299,7 @@ export default function WorkerLeave() {
           </button>
         </div>
 
-        {/* Leaves Table */}
+        
         <div className="wl-card">
           <div className="wl-table-wrapper">
             {loading ? (
@@ -393,8 +336,7 @@ export default function WorkerLeave() {
                 <tbody>
                   {filteredLeaves.map((l) => {
                     const parts = formatDateParts(l.date);
-                    const canCancel =
-                      l.status === "PENDING" || (l.status === "APPROVED" && l.date >= todayStr);
+                    const canCancel = l.status === "PENDING";
 
                     return (
                       <tr key={l.id}>
@@ -419,6 +361,11 @@ export default function WorkerLeave() {
                           <span style={{ color: "#334155" }}>
                             {l.reason || "Scheduled day off"}
                           </span>
+                          {l.status === "REJECTED" && l.rejection_reason && (
+                            <div style={{ fontSize: "0.76rem", color: "#b91c1c", marginTop: "3px", fontWeight: 500 }}>
+                              Rejection reason: {l.rejection_reason}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <span className={`wl-status-badge ${l.status.toLowerCase()}`}>
@@ -429,7 +376,7 @@ export default function WorkerLeave() {
                           </span>
                         </td>
                         <td style={{ textAlign: "right" }}>
-                          {canCancel && (
+                          {canCancel ? (
                             cancelConfirmId === l.id ? (
                               <div style={{ display: "inline-flex", gap: "6px" }}>
                                 <button
@@ -458,6 +405,8 @@ export default function WorkerLeave() {
                                 Cancel
                               </button>
                             )
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontSize: "0.82rem" }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -470,7 +419,7 @@ export default function WorkerLeave() {
         </div>
       </main>
 
-      {/* Apply Leave Modal */}
+      
       {isModalOpen && (
         <div
           className="wl-modal-backdrop"
@@ -517,16 +466,16 @@ export default function WorkerLeave() {
                   </select>
                 </div>
 
-                {/* Policy Notice */}
+                
                 {selectedTypeInfo.isPlanned ? (
                   <div className="wl-rule-banner planned">
                     <strong>✓ 7-Day Advance Notice:</strong> Planned leaves (Week Off, Month Off, Personal)
-                    must be booked at least 7 days in advance and are automatically approved.
+                    must be booked at least 7 days in advance and will be submitted for salon owner approval.
                   </div>
                 ) : (
                   <div className="wl-rule-banner emergency">
                     <strong>⚡ Urgent Leave Request:</strong> Sick and Emergency leaves can be requested immediately
-                    starting today. Your salon owner will review and confirm approval.
+                    starting today and will be submitted for salon owner approval.
                   </div>
                 )}
 
@@ -587,7 +536,7 @@ export default function WorkerLeave() {
         </div>
       )}
 
-      {/* Toast */}
+      
       {toastMessage && (
         <div className="wl-toast-msg">
           {toastMessage}

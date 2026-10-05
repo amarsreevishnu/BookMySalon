@@ -285,18 +285,44 @@ export default function SalonDetail() {
             }));
           }
 
-          // Parse services
-          let serviceList = DEFAULT_SALON_DATA.services;
-          if (Array.isArray(apiData.services_list) && apiData.services_list.length > 0) {
-            serviceList = apiData.services_list.map((s, index) => ({
-              id: s.id || index + 101,
-              category: s.category || "Hair",
-              name: s.name,
-              duration: s.duration ? `${s.duration} mins` : "45 mins",
-              price: parseFloat(s.price) || 999,
-              description: s.description || "Signature premium treatment tailored to your lifestyle.",
-              badge: index === 0 ? "Popular" : null,
-            }));
+          // Parse services (from services_list or services fallback)
+          let serviceList = [];
+          const incomingServices =
+            Array.isArray(apiData.services_list) && apiData.services_list.length > 0
+              ? apiData.services_list
+              : Array.isArray(apiData.services) && apiData.services.length > 0
+              ? apiData.services
+              : [];
+
+          if (incomingServices.length > 0) {
+            serviceList = incomingServices.map((s, index) => {
+              let parsedPrice = s.price;
+              if (typeof parsedPrice === "string") {
+                parsedPrice = parseFloat(parsedPrice.replace(/[^\d.]/g, "")) || 0;
+              } else {
+                parsedPrice = parseFloat(parsedPrice) || 0;
+              }
+
+              let durStr = "45 mins";
+              if (typeof s.duration === "number") {
+                durStr = `${s.duration} mins`;
+              } else if (typeof s.duration === "string") {
+                durStr = s.duration.includes("min") ? s.duration : `${s.duration} mins`;
+              }
+
+              return {
+                id: s.id || index + 101,
+                category: s.category || "General",
+                name: s.name || "Salon Service",
+                duration: durStr,
+                price: parsedPrice || 500,
+                description:
+                  s.description || "Signature premium treatment tailored to your wellness needs.",
+                badge: index === 0 ? "Popular" : null,
+              };
+            });
+          } else {
+            serviceList = DEFAULT_SALON_DATA.services;
           }
 
           const currentDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });

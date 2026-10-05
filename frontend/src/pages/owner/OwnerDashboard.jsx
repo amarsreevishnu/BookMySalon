@@ -1,16 +1,19 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerBanner from "../../components/owner/OwnerBanner";
 import "../../styles/ownerDashboard.css";
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const location = useLocation();
+  const { logout, user } = useAuth();
+
   const searchInputRef = useRef(null);
-  // Worker management state
+  
   const [workersList, setWorkersList] = useState([]);
   const [workerSearch, setWorkerSearch] = useState("");
   const [workerFilterRole, setWorkerFilterRole] = useState("all");
@@ -20,6 +23,7 @@ export default function OwnerDashboard() {
   const [workerError, setWorkerError] = useState("");
   const [submittingWorker, setSubmittingWorker] = useState(false);
   const [workerSuccessModal, setWorkerSuccessModal] = useState(null);
+  
   const [workerForm, setWorkerForm] = useState({
     full_name: "", email: "", phone_number: "", specialization: "Senior Hair Stylist",
     experience: "1-2 Years (Junior Stylist)", profile_photo: "", password: "",
@@ -113,22 +117,120 @@ export default function OwnerDashboard() {
   };
 
 
-  // for Modal 
+  
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   
   
 
-  // Active sub-navigation tab
+  
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState("");
 
-  // Modals
+  
+  useEffect(() => {
+    if (location.state?.targetTab) {
+      setActiveTab(location.state.targetTab);
+    }
+  }, [location.state]);
+
+  
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+
+  const resetPasswordFields = () => {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setPasswordError("");
+    setPasswordSuccess("");
+  };
+
+  const handleOpenResetPassword = () => {
+    resetPasswordFields();
+    setIsResetPasswordOpen(true);
+  };
+
+  const handleCloseResetPassword = () => {
+    resetPasswordFields();
+    setIsResetPasswordOpen(false);
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (!currentPassword) {
+      setPasswordError("Please enter your current password.");
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError("Please enter your new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters long.");
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordError("New password cannot be the same as your current password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirmation password do not match.");
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+      const res = await api.post("/accounts/owner/change-password/", {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      });
+
+      const successMsg =
+        res.data?.message || "Password updated successfully using current password.";
+      setPasswordSuccess(successMsg);
+      setToastMessage("Password updated successfully!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      
+      setTimeout(() => {
+        setIsResetPasswordOpen(false);
+        setPasswordSuccess("");
+      }, 2000);
+    } catch (err) {
+      console.error("Owner password reset error:", err);
+      setPasswordError(
+        err.response?.data?.error ||
+          "Failed to update password. Please check your current password."
+      );
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [isBlockChairOpen, setIsBlockChairOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
-  // Form states
+  
   const [walkInForm, setWalkInForm] = useState({
     client_name: "",
     phone: "",
@@ -144,7 +246,7 @@ export default function OwnerDashboard() {
     duration: "45 mins",
   });
 
-  // Dynamic Greeting based on real local time
+  
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning 👋";
@@ -152,7 +254,7 @@ export default function OwnerDashboard() {
     return "Good Evening 👋";
   }, []);
 
-  // Formatted date (e.g. "Today, 24 Oct")
+  
   const formattedToday = useMemo(() => {
     const d = new Date();
     const day = d.getDate();
@@ -160,7 +262,7 @@ export default function OwnerDashboard() {
     return `Today, ${day} ${month}`;
   }, []);
 
-  // Dashboard Data State (with comprehensive defaults matching reference image)
+  
   const [dashboardData, setDashboardData] = useState({
     salon_info: {
       id: 4,
@@ -288,14 +390,14 @@ export default function OwnerDashboard() {
     ],
   });
 
-  // Auto-dismiss toast
+  
   useEffect(() => {
     if (!toastMessage) return;
     const timer = setTimeout(() => setToastMessage(""), 3500);
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Load dynamic data from Backend if accessible
+  
   useEffect(() => {
     const fetchOwnerData = async () => {
       try {
@@ -312,14 +414,14 @@ export default function OwnerDashboard() {
           }));
         }
       } catch (err) {
-        // Fallback gracefully to curated mockup data
+        
         console.log("Using studio defaults for owner dashboard");
       }
     };
     fetchOwnerData();
   }, []);
 
-  // Keyboard shortcut '/' to focus search
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "/" && document.activeElement !== searchInputRef.current) {
@@ -331,7 +433,7 @@ export default function OwnerDashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Handle appointment action button clicks
+  
   const handleAppointmentAction = (appointmentId, currentAction) => {
     setDashboardData((prev) => {
       const updatedSchedule = prev.today_schedule.map((item) => {
@@ -449,7 +551,7 @@ export default function OwnerDashboard() {
     "Bookings",
     "Services",
     "Workers",
-    "Schedule",
+    "Salon Schedule",
     "Customers",
     "Offers",
     "Revenue",
@@ -467,13 +569,11 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          REUSABLE OWNER SUITE HEADER & NAVBAR
-          -------------------------------------------------------------------- */}
       <OwnerNavbarHeader
         onQuickWalkIn={() => setIsWalkInOpen(true)}
         onExportReport={() => setIsExportOpen(true)}
         onNotificationsClick={() => setToastMessage("All notifications up to date.")}
+        onSettingsClick={() => setActiveTab("Settings")}
       />
       <OwnerNavbar
         activeTab={activeTab}
@@ -488,57 +588,261 @@ export default function OwnerDashboard() {
         workersCount={workersList.length}
       />
 
-      {/* --------------------------------------------------------------------
-          MAIN DASHBOARD BODY
-          -------------------------------------------------------------------- */}
       <main className="studio-main-body">
-        <>
-            {/* Banner Row: Greeting & Operations State */}
-        <div className="studio-banner-row">
-          <div>
-            <div className="studio-live-badge">
-              <span className="live-pulse-dot" />
-              <span>Salon Open • Live Operations</span>
+        {activeTab === "Settings" ? (
+          <div className="studio-settings-container">
+            <div className="studio-settings-header">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                <div>
+                  <h1 className="studio-settings-title">Settings &amp; Account Security</h1>
+                  <p className="studio-settings-sub">
+                    Manage your Salon Owner security credentials and reset your password using your current password.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => setActiveTab("Dashboard")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px" }}
+                >
+                  <span>←</span>
+                  <span>Back to Dashboard</span>
+                </button>
+              </div>
             </div>
-            
-           
-            <h1 className="studio-greeting-title">{greeting} </h1>
-            <p className="studio-greeting-subtitle">
-              {formattedToday}
-            </p>
-          </div>
-        <h1 className="studio-greeting-title" style={{color:"#1e392a"}}>Welcom to <span style={{ color:"green" }}>{dashboardData.salon_info.name}</span> Dashboard</h1>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn-modal-cancel"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "9px 15px",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#1e392a",
-                background: "#f0f5f2",
-                border: "1px solid #c2d6cb",
-                borderRadius: "10px",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-              onClick={() => navigate("/owner/salon-profile")}
-              title="Edit salon profile, media gallery, hours, amenities"
-            >
-              <span>⚙️</span>
-              <span>Manage Salon Profile</span>
-            </button>
-            
-          </div>
-        </div>
 
-        {/* ------------------------------------------------------------------
-            5 KPI SUMMARY CARDS
-            ------------------------------------------------------------------ */}
+            <div className="studio-settings-grid">
+              {/* Account Overview Card */}
+              <div className="studio-settings-card">
+                <div className="studio-settings-card-header">
+                  <h3 className="studio-settings-card-title">
+                    <span>👤</span> Salon Manager Profile
+                  </h3>
+                  <span
+                    style={{
+                      background: "#eaf7ef",
+                      color: "#1e824c",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    OWNER
+                  </span>
+                </div>
+                <div className="studio-settings-card-body">
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Manager Name</span>
+                    <span className="settings-meta-value">
+                      {user?.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : "Salon Owner"}
+                    </span>
+                  </div>
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Email Address</span>
+                    <span className="settings-meta-value">{user?.email || "owner@bookmysalon.com"}</span>
+                  </div>
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Affiliated Salon</span>
+                    <span className="settings-meta-value">{dashboardData.salon_info.name}</span>
+                  </div>
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Location Outlet</span>
+                    <span className="settings-meta-value">{dashboardData.salon_info.city}</span>
+                  </div>
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Role Privilege</span>
+                    <span className="settings-meta-value" style={{ color: "#16a34a" }}>Master Administrator</span>
+                  </div>
+
+                  <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--studio-border-subtle)" }}>
+                    <p style={{ fontSize: "12px", color: "var(--studio-text-muted)", margin: "0 0 12px", lineHeight: "1.5" }}>
+                      Security Notice: Resetting your password requires verifying your current password. Once updated, use the new password for future studio sign-ins.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-modal-cancel"
+                      style={{ width: "100%", justifyContent: "center", display: "flex", gap: "6px" }}
+                      onClick={() => navigate("/owner/salon-profile")}
+                    >
+                      <span>⚙️</span> Manage Salon Profile &amp; Amenities
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reset Password Card */}
+              <div className="studio-settings-card">
+                <div className="studio-settings-card-header">
+                  <h3 className="studio-settings-card-title">
+                    <span>🔑</span> Reset Password
+                  </h3>
+                  <span style={{ fontSize: "11px", color: "var(--studio-text-subtle)", fontWeight: 600 }}>
+                    Requires Current Password
+                  </span>
+                </div>
+                <div className="studio-settings-card-body">
+                  <form onSubmit={handleResetPasswordSubmit}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      {passwordError && (
+                        <div className="password-alert-error">
+                          <span>⚠️</span>
+                          <span>{passwordError}</span>
+                        </div>
+                      )}
+                      {passwordSuccess && (
+                        <div className="password-alert-success">
+                          <span>✓</span>
+                          <span>{passwordSuccess}</span>
+                        </div>
+                      )}
+
+                      {/* Current Password */}
+                      <div className="modal-input-group">
+                        <label htmlFor="settings_current_password">Current Password *</label>
+                        <div className="password-input-wrapper">
+                          <input
+                            id="settings_current_password"
+                            type={showCurrentPassword ? "text" : "password"}
+                            placeholder="Enter your current password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            required
+                            autoComplete="current-password"
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle-btn"
+                            onClick={() => setShowCurrentPassword((prev) => !prev)}
+                            title={showCurrentPassword ? "Hide password" : "Show password"}
+                          >
+                            {showCurrentPassword ? "👁️" : "👁️‍🗨️"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* New Password */}
+                      <div className="modal-input-group">
+                        <label htmlFor="settings_new_password">New Password *</label>
+                        <div className="password-input-wrapper">
+                          <input
+                            id="settings_new_password"
+                            type={showNewPassword ? "text" : "password"}
+                            placeholder="Enter new password (min. 8 characters)"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            required
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle-btn"
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            title={showNewPassword ? "Hide password" : "Show password"}
+                          >
+                            {showNewPassword ? "👁️" : "👁️‍🗨️"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Confirm New Password */}
+                      <div className="modal-input-group">
+                        <label htmlFor="settings_confirm_password">Confirm New Password *</label>
+                        <div className="password-input-wrapper">
+                          <input
+                            id="settings_confirm_password"
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Re-enter your new password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            required
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle-btn"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            title={showConfirmPassword ? "Hide password" : "Show password"}
+                          >
+                            {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Password Requirements Checklist */}
+                      <div className="password-requirements-box">
+                        <div className="password-requirements-title">Security Checklist</div>
+                        <div className={`password-requirement-item ${newPassword.length >= 8 ? "valid" : "pending"}`}>
+                          <span>{newPassword.length >= 8 ? "✓" : "○"}</span>
+                          <span>At least 8 characters long</span>
+                        </div>
+                        <div
+                          className={`password-requirement-item ${
+                            newPassword && currentPassword && newPassword !== currentPassword ? "valid" : "pending"
+                          }`}
+                        >
+                          <span>{newPassword && currentPassword && newPassword !== currentPassword ? "✓" : "○"}</span>
+                          <span>Must differ from current password</span>
+                        </div>
+                        <div
+                          className={`password-requirement-item ${
+                            confirmPassword && newPassword === confirmPassword ? "valid" : "pending"
+                          }`}
+                        >
+                          <span>{confirmPassword && newPassword === confirmPassword ? "✓" : "○"}</span>
+                          <span>New passwords match</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+                        <button
+                          type="button"
+                          className="btn-modal-cancel"
+                          onClick={resetPasswordFields}
+                          disabled={passwordLoading}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="submit"
+                          className="btn-modal-submit"
+                          disabled={passwordLoading}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            opacity: passwordLoading ? 0.7 : 1,
+                          }}
+                        >
+                          {passwordLoading ? (
+                            <>
+                              <span>⏳</span>
+                              <span>Updating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>✓</span>
+                              <span>Update Password</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Operations Banner: Salon Name, Live Status & Quick Actions */}
+            <OwnerBanner
+              salonInfo={dashboardData.salon_info}
+              greeting={greeting}
+              formattedToday={formattedToday}
+              onResetPassword={handleOpenResetPassword}
+            />
+
         <section className="studio-kpi-grid">
           {/* 1. BOOKINGS */}
           <div className="studio-kpi-card">
@@ -606,11 +910,9 @@ export default function OwnerDashboard() {
           </div>
         </section>
 
-        {/* ------------------------------------------------------------------
-            MAIN 2-COLUMN GRID
-            ------------------------------------------------------------------ */}
+        
         <div className="studio-dashboard-grid">
-          {/* ===================== LEFT COLUMN ===================== */}
+          
           <div className="studio-grid-left">
             {/* Widget 1: Today's Schedule */}
             <section className="studio-widget-card">
@@ -731,7 +1033,7 @@ export default function OwnerDashboard() {
 
           </div>
 
-          {/* ===================== RIGHT COLUMN ===================== */}
+          
           <div className="studio-grid-right">
             {/* Widget 3: Revenue Progression */}
             <section className="studio-widget-card">
@@ -836,8 +1138,7 @@ export default function OwnerDashboard() {
                 type="button"
                 className="btn-manage-catalog"
                 onClick={() => {
-                  setActiveTab("Services");
-                  setToastMessage("Opening Service Catalog & Tariff Manager...");
+                  navigate("/owner/services");
                 }}
               >
                 <span>Manage Service Catalog & Tariffs</span>
@@ -847,13 +1148,10 @@ export default function OwnerDashboard() {
           </div>
         </div>
           </>
-        
+        )}
       </main>
 
 
-      {/* --------------------------------------------------------------------
-          STUDIO FOOTER
-          -------------------------------------------------------------------- */}
       <footer className="studio-footer">
         <div className="studio-footer-inner">
           <div>
@@ -866,9 +1164,7 @@ export default function OwnerDashboard() {
         </div>
       </footer>
 
-      {/* --------------------------------------------------------------------
-          MODAL: QUICK WALK-IN
-          -------------------------------------------------------------------- */}
+      
       {isWalkInOpen && (
         <div className="studio-modal-backdrop" onClick={() => setIsWalkInOpen(false)}>
           <div className="studio-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -986,9 +1282,7 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          MODAL: BLOCK CHAIR
-          -------------------------------------------------------------------- */}
+      
       {isBlockChairOpen && (
         <div className="studio-modal-backdrop" onClick={() => setIsBlockChairOpen(false)}>
           <div className="studio-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -1116,7 +1410,176 @@ export default function OwnerDashboard() {
       )}
 
       
-      
+      {isResetPasswordOpen && (
+        <div className="studio-modal-backdrop" onClick={handleCloseResetPassword}>
+          <div className="studio-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div className="studio-modal-header">
+              <div>
+                <h3 className="studio-modal-title">Reset Owner Password</h3>
+                <span style={{ fontSize: "11px", color: "var(--studio-text-subtle)", fontWeight: 500 }}>
+                  Enter your current password to update master credentials
+                </span>
+              </div>
+              <button
+                type="button"
+                className="studio-modal-close-btn"
+                onClick={handleCloseResetPassword}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPasswordSubmit}>
+              <div className="studio-modal-body">
+                {passwordError && (
+                  <div className="password-alert-error">
+                    <span>⚠️</span>
+                    <span>{passwordError}</span>
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="password-alert-success">
+                    <span>✓</span>
+                    <span>{passwordSuccess}</span>
+                  </div>
+                )}
+
+                {/* Current Password */}
+                <div className="modal-input-group">
+                  <label htmlFor="modal_current_password">Current Password *</label>
+                  <div className="password-input-wrapper">
+                    <input
+                      id="modal_current_password"
+                      type={showCurrentPassword ? "text" : "password"}
+                      placeholder="Enter your current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                      autoFocus
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowCurrentPassword((prev) => !prev)}
+                      title={showCurrentPassword ? "Hide password" : "Show password"}
+                    >
+                      {showCurrentPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div className="modal-input-group">
+                  <label htmlFor="modal_new_password">New Password *</label>
+                  <div className="password-input-wrapper">
+                    <input
+                      id="modal_new_password"
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="Enter new password (min. 8 characters)"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      title={showNewPassword ? "Hide password" : "Show password"}
+                    >
+                      {showNewPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm New Password */}
+                <div className="modal-input-group">
+                  <label htmlFor="modal_confirm_password">Confirm New Password *</label>
+                  <div className="password-input-wrapper">
+                    <input
+                      id="modal_confirm_password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Re-enter your new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password Requirements Checklist */}
+                <div className="password-requirements-box">
+                  <div className="password-requirements-title">Security Checklist</div>
+                  <div className={`password-requirement-item ${newPassword.length >= 8 ? "valid" : "pending"}`}>
+                    <span>{newPassword.length >= 8 ? "✓" : "○"}</span>
+                    <span>At least 8 characters long</span>
+                  </div>
+                  <div
+                    className={`password-requirement-item ${
+                      newPassword && currentPassword && newPassword !== currentPassword ? "valid" : "pending"
+                    }`}
+                  >
+                    <span>{newPassword && currentPassword && newPassword !== currentPassword ? "✓" : "○"}</span>
+                    <span>Must differ from current password</span>
+                  </div>
+                  <div
+                    className={`password-requirement-item ${
+                      confirmPassword && newPassword === confirmPassword ? "valid" : "pending"
+                    }`}
+                  >
+                    <span>{confirmPassword && newPassword === confirmPassword ? "✓" : "○"}</span>
+                    <span>New passwords match</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="studio-modal-footer">
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={handleCloseResetPassword}
+                  disabled={passwordLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-modal-submit"
+                  disabled={passwordLoading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    opacity: passwordLoading ? 0.7 : 1,
+                  }}
+                >
+                  {passwordLoading ? (
+                    <>
+                      <span>⏳</span>
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>✓</span>
+                      <span>Update Password</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

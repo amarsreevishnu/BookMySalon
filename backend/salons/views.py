@@ -19,6 +19,7 @@ from .serializers import (
 from .media_utils import save_image_to_media, build_full_media_url
 
 import json
+import re
 import secrets
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -1501,15 +1502,47 @@ class CustomerSalonDetailView(APIView):
                 for ss in salon_services:
                     services_data.append({
                         "id": ss.id,
-                        "name": ss.custom_name or ss.service.name,
+                        "name": ss.custom_name.strip() if ss.custom_name else ss.service.name,
                         "category": ss.service.category.name if ss.service and ss.service.category else "General",
                         "price": float(ss.price),
                         "duration": ss.duration,
-                        "description": ss.custom_description or (ss.service.description if ss.service else ""),
+                        "description": ss.description.strip() if ss.description else (ss.service.description if ss.service else ""),
                     })
+
+                # Fallback to salon.services JSONField if no SalonService records exist
+                if not services_data and isinstance(salon.services, list) and salon.services:
+                    for idx, s in enumerate(salon.services):
+                        if isinstance(s, dict):
+                            raw_p = s.get("price", 0)
+                            if isinstance(raw_p, str):
+                                raw_p = raw_p.replace("₹", "").replace(",", "").strip()
+                            try:
+                                price_val = float(raw_p)
+                            except (ValueError, TypeError):
+                                price_val = 0.0
+
+                            raw_d = s.get("duration", "45")
+                            if isinstance(raw_d, str):
+                                raw_d = "".join(filter(str.isdigit, raw_d)) or "45"
+                            try:
+                                dur_val = int(raw_d)
+                            except (ValueError, TypeError):
+                                dur_val = 45
+
+                            services_data.append({
+                                "id": idx + 1,
+                                "name": s.get("name", "Service"),
+                                "category": s.get("category", "General"),
+                                "price": price_val,
+                                "duration": dur_val,
+                                "description": s.get("description", ""),
+                            })
+
                 data["services_list"] = services_data
-            except Exception:
+                data["services"] = services_data
+            except Exception as e:
                 data["services_list"] = []
+                data["services"] = []
 
             try:
                 today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
@@ -1610,20 +1643,9 @@ class WorkerLeaveListCreateView(APIView):
             context={"request": request, "worker": worker}
         )
         if serializer.is_valid():
-            leave_type = serializer.validated_data.get("leave_type")
-            planned_types = [
-                WorkerLeave.LeaveType.WEEK_OFF,
-                WorkerLeave.LeaveType.MONTH_OFF,
-                WorkerLeave.LeaveType.PERSONAL,
-            ]
-            status_to_set = (
-                WorkerLeave.Status.APPROVED
-                if leave_type in planned_types
-                else WorkerLeave.Status.PENDING
-            )
             leave = serializer.save(
                 worker=worker,
-                status=status_to_set,
+                status=WorkerLeave.Status.PENDING,
             )
             return Response(
                 WorkerLeaveSerializer(leave, context={"request": request}).data,
@@ -1644,6 +1666,8 @@ class WorkerLeaveCancelView(APIView):
             return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
         if leave.status == WorkerLeave.Status.CANCELLED:
             return Response({"error": "Leave request is already cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+        if leave.status != WorkerLeave.Status.PENDING:
+            return Response({"error": "Only pending leave requests can be cancelled."}, status=status.HTTP_400_BAD_REQUEST)
         leave.status = WorkerLeave.Status.CANCELLED
         leave.save(update_fields=["status", "updated_at"])
         return Response({
@@ -1759,10 +1783,12 @@ class OwnerWorkerLeaveRejectView(APIView):
         if not leave:
             return Response({"error": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        rejection_reason = request.data.get("rejection_reason") or request.data.get("reason") or ""
         leave.status = WorkerLeave.Status.REJECTED
+        leave.rejection_reason = str(rejection_reason).strip()
         leave.approved_by = request.user
         leave.approved_at = timezone.now()
-        leave.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        leave.save(update_fields=["status", "rejection_reason", "approved_by", "approved_at", "updated_at"])
         return Response({
             "message": "Leave request rejected.",
             "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,
@@ -1783,3 +1809,119 @@ class OwnerWorkerLeaveDetailView(APIView):
 
         leave.delete()
         return Response({"message": "Leave deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class WorkerProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        worker = get_worker_for_request(request)
+        if not worker:
+            return Response({"error": "Worker profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = WorkerProfileSerializer(worker, context={"request": request})
+        data = serializer.data
+        data["salon_details"] = {
+            "id": worker.salon.id,
+            "name": worker.salon.name,
+            "category": worker.salon.category,
+            "address": worker.salon.address,
+            "city": worker.salon.city,
+            "phone": worker.salon.phone,
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        worker = get_worker_for_request(request)
+        if not worker:
+            return Response({"error": "Worker profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = worker.user
+        data = request.data
+        errors = {}
+
+        if "first_name" in data:
+            first_name = str(data["first_name"]).strip()
+            if not first_name:
+                errors["first_name"] = "First name is required."
+            elif len(first_name) < 2:
+                errors["first_name"] = "First name must be at least 2 characters."
+            elif not re.match(r"^[A-Za-z\s]+$", first_name):
+                errors["first_name"] = "First name should only contain letters and spaces."
+            else:
+                user.first_name = first_name
+
+        if "last_name" in data:
+            last_name = str(data["last_name"]).strip()
+            if last_name and not re.match(r"^[A-Za-z\s]+$", last_name):
+                errors["last_name"] = "Last name should only contain letters and spaces."
+            else:
+                user.last_name = last_name
+
+        if "phone_number" in data:
+            raw_phone = str(data["phone_number"]).strip()
+            clean_phone = re.sub(r"[\s\-\+]", "", raw_phone)
+            if clean_phone.startswith("91") and len(clean_phone) == 12:
+                clean_phone = clean_phone[2:]
+            if not clean_phone:
+                errors["phone_number"] = "Phone number is required."
+            elif not re.match(r"^[6-9]\d{9}$", clean_phone):
+                errors["phone_number"] = "Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9."
+            else:
+                user.phone_number = clean_phone
+                worker.phone_number = clean_phone
+
+        if "specialization" in data:
+            spec = str(data["specialization"]).strip()
+            if not spec:
+                errors["specialization"] = "Specialization cannot be empty."
+            elif len(spec) > 150:
+                errors["specialization"] = "Specialization cannot exceed 150 characters."
+            else:
+                worker.specialization = spec
+
+        if "experience" in data:
+            exp = str(data["experience"]).strip()
+            if len(exp) > 100:
+                errors["experience"] = "Experience cannot exceed 100 characters."
+            else:
+                worker.experience = exp
+
+        if "bio" in data:
+            bio_text = str(data["bio"]).strip()
+            if len(bio_text) > 500:
+                errors["bio"] = "Bio cannot exceed 500 characters."
+            else:
+                worker.bio = bio_text
+
+        if "profile_photo" in data and data["profile_photo"]:
+            photo_val = data["profile_photo"]
+            if isinstance(photo_val, str) and (photo_val.startswith("data:image/") or photo_val.startswith("http")):
+                saved_path = save_image_to_media(photo_val, subfolder="avatars")
+                if saved_path:
+                    worker.profile_photo = saved_path
+            elif photo_val:
+                worker.profile_photo = str(photo_val).strip()
+
+        if errors:
+            return Response(
+                {"errors": errors, "error": next(iter(errors.values()))},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.save()
+        worker.save()
+
+        updated_data = WorkerProfileSerializer(worker, context={"request": request}).data
+        updated_data["salon_details"] = {
+            "id": worker.salon.id,
+            "name": worker.salon.name,
+            "category": worker.salon.category,
+            "address": worker.salon.address,
+            "city": worker.salon.city,
+            "phone": worker.salon.phone,
+        }
+        return Response({
+            "message": "Profile updated successfully.",
+            "profile": updated_data,
+        }, status=status.HTTP_200_OK)

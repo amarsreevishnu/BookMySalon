@@ -374,6 +374,7 @@ class WorkerLeaveSerializer(serializers.ModelSerializer):
             "leave_type",
             "leave_type_display",
             "reason",
+            "rejection_reason",
             "status",
             "status_display",
             "affected_bookings_count",

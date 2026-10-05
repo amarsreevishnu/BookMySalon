@@ -3,13 +3,14 @@ from rest_framework import permissions
 
 class IsSuperAdmin(permissions.BasePermission):
     """
-    Allows access only to Super Admins (is_superuser or role == 'ADMIN').
+    Allows access only to Super Admins (is_superuser, is_staff, or role == 'ADMIN').
     """
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
             return False
-        return bool(user.is_superuser or getattr(user, "role", "") == "ADMIN")
+        role = str(getattr(user, "role", "")).upper()
+        return bool(user.is_superuser or user.is_staff or role == "ADMIN")
 
 
 class IsSuperAdminOrReadOnly(permissions.BasePermission):
@@ -22,7 +23,8 @@ class IsSuperAdminOrReadOnly(permissions.BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
-        return bool(user.is_superuser or getattr(user, "role", "") == "ADMIN")
+        role = str(getattr(user, "role", "")).upper()
+        return bool(user.is_superuser or user.is_staff or role == "ADMIN")
 
 
 class IsSalonOwner(permissions.BasePermission):
@@ -34,7 +36,7 @@ class IsSalonOwner(permissions.BasePermission):
         if not user or not user.is_authenticated:
             return False
         role = getattr(user, "role", "")
-        return bool(user.is_superuser or role in ["SALON_OWNER", "ADMIN"])
+        return bool(user.is_superuser or role in ["SALON_OWNER", "OWNER", "ADMIN"])
 
 
 class IsSalonOwnerOfOffering(permissions.BasePermission):

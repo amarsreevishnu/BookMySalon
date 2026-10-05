@@ -28,10 +28,27 @@ from .views import (
     WorkerDashboardView,
     WorkerLeaveCancelView,
     WorkerLeaveListCreateView,
+    WorkerProfileView,
 )
+from accounts.views import OwnerChangePasswordView, WorkerChangePasswordView
 
 
 urlpatterns = [
+    path(
+        "worker/profile/",
+        WorkerProfileView.as_view(),
+        name="worker-profile",
+    ),
+    path(
+        "worker/change-password/",
+        WorkerChangePasswordView.as_view(),
+        name="worker-change-password",
+    ),
+    path(
+        "owner/change-password/",
+        OwnerChangePasswordView.as_view(),
+        name="owner-salon-change-password",
+    ),
     path(
         "owner/leaves/",
         OwnerWorkerLeaveListView.as_view(),

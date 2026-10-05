@@ -9,19 +9,24 @@ const api = axios.create({
   },
 });
 
-// Request interceptor: attach Authorization header if access token exists
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      if (config.headers && typeof config.headers.set === "function") {
+        config.headers.set("Authorization", `Bearer ${token}`);
+      } else {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: automatically refresh access token on 401 Unauthorized
+
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -41,12 +46,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If no response or not 401, reject immediately
+    
     if (!error.response || error.response.status !== 401) {
       return Promise.reject(error);
     }
 
-    // Do not attempt refresh for login, register, or token refresh endpoints
+    
     const requestUrl = originalRequest?.url || "";
     if (
       requestUrl.includes("/accounts/login/") ||
@@ -58,7 +63,7 @@ api.interceptors.response.use(
 
     const refreshToken = localStorage.getItem("refresh_token");
     if (!refreshToken) {
-      // Clear expired auth session and redirect to login if on protected page
+      
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");
@@ -110,7 +115,9 @@ api.interceptors.response.use(
       localStorage.removeItem("user");
       if (
         window.location.pathname.startsWith("/admin") ||
-        window.location.pathname.startsWith("/owner")
+        window.location.pathname.startsWith("/owner") ||
+        window.location.pathname.startsWith("/worker") ||
+        window.location.pathname.startsWith("/customer")
       ) {
         window.location.href = "/login?error=Session+expired.+Please+log+in+again.";
       }

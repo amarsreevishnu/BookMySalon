@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import WorkerHeader from "../../components/worker/WorkerHeader";
+import WorkerSalonBanner from "../../components/worker/WorkerSalonBanner";
 import "../../styles/workerDashboard.css";
 import "../../styles/workerCalendar.css";
 
@@ -119,104 +121,8 @@ export default function WorkerCalendar() {
 
   return (
     <div className="wcal-container">
-      {/* ====================================================================
-          1. TOP NAVIGATION BAR
-          ==================================================================== */}
-      <header className="wcal-navbar">
-        <div className="wcal-navbar-inner">
-          <div
-            className="wcal-brand-area"
-            onClick={() => navigate("/worker/dashboard")}
-          >
-            <div className="wcal-brand-icon">✂</div>
-            <div className="wcal-brand-text">
-              <span className="wcal-brand-title">BookMySalon</span>
-              <span className="wcal-brand-sub">STYLIST SUITE PRO</span>
-            </div>
-          </div>
+      <WorkerHeader activeTab="calendar" />
 
-          <nav className="wcal-nav-tabs">
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "dashboard" ? "active" : ""}`}
-              onClick={() => {
-                setActiveNavTab("dashboard");
-                navigate("/worker/dashboard");
-              }}
-            >
-              Dashboard
-            </button>
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "appointments" ? "active" : ""}`}
-              onClick={() => {
-                setActiveNavTab("appointments");
-                navigate("/worker/dashboard");
-              }}
-            >
-              Appointments
-            </button>
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "calendar" ? "active" : ""}`}
-              onClick={() => setActiveNavTab("calendar")}
-            >
-              Calendar
-            </button>
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "services" ? "active" : ""}`}
-              onClick={() => showToast("Services Menu: 12 assigned capabilities.")}
-            >
-              Services
-            </button>
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "availability" ? "active" : ""}`}
-              onClick={() => setActiveModal("blockLeave")}
-            >
-              Availability &amp; Leave
-            </button>
-            <button
-              type="button"
-              className={`wcal-nav-btn ${activeNavTab === "earnings" ? "active" : ""}`}
-              onClick={() => showToast("Earnings & Tips: ₹1,800 today • ₹350 tip.")}
-            >
-              Earnings &amp; Tips
-            </button>
-          </nav>
-
-          <div className="wcal-nav-right">
-            <button
-              type="button"
-              className="btn-block-leave-header"
-              onClick={() => setActiveModal("blockLeave")}
-            >
-              <span>📅</span> Block Time / Request Leave
-            </button>
-
-            <button
-              type="button"
-              className="wcal-icon-btn"
-              title="Notifications"
-              onClick={() => showToast("Shift Notification: Roster verified for Sep 5.")}
-            >
-              <span>🔔</span>
-              <span className="wcal-notif-dot" />
-            </button>
-
-            <div
-              className="wcal-user-avatar-pill"
-              title={stylistName}
-              onClick={() => navigate("/worker/dashboard")}
-            >
-              {stylistName.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Sub-header status bar */}
       <div className="wcal-sub-strip">
         <div className="wcal-sub-strip-inner">
           <span className="wcal-live-dot-small" />
@@ -226,11 +132,11 @@ export default function WorkerCalendar() {
         </div>
       </div>
 
-      {/* ====================================================================
-          2. WORKER CALENDAR MAIN CONTENT
-          ==================================================================== */}
+      
       <main className="wcal-main">
-        {/* Worker Calendar Hero Title Card */}
+        
+        <WorkerSalonBanner />
+
         <section className="wcal-header-card">
           <div className="wcal-header-left">
             <div className="wcal-calendar-icon-box">
@@ -301,15 +207,9 @@ export default function WorkerCalendar() {
           </div>
         </section>
 
-        {/* ==================================================================
-            3. TWO-COLUMN SPLIT LAYOUT
-            ================================================================== */}
+        
         <div className="wcal-split-layout">
-          {/* ================================================================
-              LEFT COLUMN: CALENDAR GRID & PROJECTIONS
-              ================================================================ */}
           <div className="wcal-left-column">
-            {/* Calendar Grid Card */}
             <div className="wcal-calendar-card">
               <div className="wcal-cal-top-bar">
                 <div className="wcal-cal-month-title">
@@ -347,7 +247,7 @@ export default function WorkerCalendar() {
                 </div>
               </div>
 
-              {/* Calendar Grid */}
+              
               <table className="wcal-grid-table">
                 <thead>
                   <tr className="wcal-grid-header">
@@ -414,7 +314,7 @@ export default function WorkerCalendar() {
                 </tbody>
               </table>
 
-              {/* Legend Footer */}
+              
               <div className="wcal-legend-bar">
                 <div className="wcal-legend-item">
                   <span className="wcal-dot booked" />

@@ -27,6 +27,12 @@ export default function OwnerWorkerLeaves() {
   const [approveModalLeave, setApproveModalLeave] = useState(null);
   const [approving, setApproving] = useState(false);
 
+  // Reject Modal State
+  const [rejectModalLeave, setRejectModalLeave] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectError, setRejectError] = useState("");
+
   // Add Leave Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addWorkerId, setAddWorkerId] = useState("");
@@ -220,15 +226,37 @@ export default function OwnerWorkerLeaves() {
     }
   };
 
-  // Reject Leave
-  const handleRejectLeave = async (leave) => {
+  // Open Reject Modal
+  const handleOpenRejectModal = (leave) => {
+    setRejectModalLeave(leave);
+    setRejectReason("");
+    setRejectError("");
+  };
+
+  // Confirm Reject Leave with reason
+  const handleConfirmReject = async (e) => {
+    if (e) e.preventDefault();
+    if (!rejectModalLeave) return;
+    if (!rejectReason.trim()) {
+      setRejectError("Please enter a reason for rejecting this leave.");
+      return;
+    }
+
+    setRejecting(true);
+    setRejectError("");
     try {
-      await api.post(`/salons/owner/leaves/${leave.id}/reject/`);
+      await api.post(`/salons/owner/leaves/${rejectModalLeave.id}/reject/`, {
+        rejection_reason: rejectReason.trim(),
+      });
       showToast(`Leave request rejected.`);
+      setRejectModalLeave(null);
+      setRejectReason("");
       fetchLeaves();
     } catch (err) {
       console.error("Failed to reject leave:", err);
       showToast("Could not reject leave request.");
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -266,7 +294,7 @@ export default function OwnerWorkerLeaves() {
       <OwnerNavbar activeTab="Worker Leaves" />
 
       <main className="owl-main-container">
-        {/* Breadcrumb */}
+        
         <div className="owl-breadcrumb">
           <Link to="/owner/dashboard" className="owl-breadcrumb-link">
             Owner Dashboard
@@ -405,7 +433,7 @@ export default function OwnerWorkerLeaves() {
                       <button
                         type="button"
                         className="btn-owl-reject"
-                        onClick={() => handleRejectLeave(leave)}
+                        onClick={() => handleOpenRejectModal(leave)}
                       >
                         Reject
                       </button>
@@ -439,11 +467,11 @@ export default function OwnerWorkerLeaves() {
               <table className="owl-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "30%" }}>Worker</th>
-                    <th style={{ width: "22%" }}>Date</th>
-                    <th style={{ width: "22%" }}>Leave Type</th>
-                    <th style={{ width: "16%" }}>Status</th>
-                    <th style={{ width: "10%", textAlign: "right" }}>Action</th>
+                    <th style={{ width: "26%" }}>Worker</th>
+                    <th style={{ width: "18%" }}>Date</th>
+                    <th style={{ width: "18%" }}>Leave Type</th>
+                    <th style={{ width: "14%" }}>Status</th>
+                    <th style={{ width: "24%" }}>Reason</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -474,11 +502,6 @@ export default function OwnerWorkerLeaves() {
                         <div style={{ fontWeight: 600, color: "#18281e" }}>
                           {formatDateLabel(item.date)}
                         </div>
-                        {item.reason && (
-                          <div style={{ fontSize: "0.76rem", color: "#64748b" }}>
-                            {item.reason}
-                          </div>
-                        )}
                       </td>
                       <td>
                         <span className={`owl-type-badge ${item.leave_type.toLowerCase()}`}>
@@ -492,15 +515,23 @@ export default function OwnerWorkerLeaves() {
                           {item.status === "CANCELLED" && "— Cancelled"}
                         </span>
                       </td>
-                      <td style={{ textAlign: "right" }}>
-                        <button
-                          type="button"
-                          className="btn-owl-delete-row"
-                          title="Delete leave record"
-                          onClick={() => handleDeleteLeave(item.id)}
-                        >
-                          🗑️
-                        </button>
+                      <td>
+                        {item.status === "REJECTED" ? (
+                          <div>
+                            <span style={{ color: "#991b1b", fontSize: "0.84rem", fontWeight: 600 }}>
+                              {item.rejection_reason || "Rejected by owner"}
+                            </span>
+                            {item.reason && item.rejection_reason && item.reason !== item.rejection_reason && (
+                              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>
+                                Requested: {item.reason}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: "#475569", fontSize: "0.84rem" }}>
+                            {item.reason || "—"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -741,6 +772,127 @@ export default function OwnerWorkerLeaves() {
                   disabled={addingSubmitting}
                 >
                   {addingSubmitting ? "Adding..." : "Add Leave"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: REJECT LEAVE MODAL (REASON REQUIRED) */}
+      {rejectModalLeave && (
+        <div
+          className="owl-modal-overlay"
+          onClick={() => !rejecting && setRejectModalLeave(null)}
+        >
+          <div
+            className="owl-modal-container"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="owl-modal-header">
+              <h3 className="owl-modal-title" style={{ color: "#991b1b" }}>
+                Reject Leave Request
+              </h3>
+              <button
+                type="button"
+                className="owl-modal-close"
+                onClick={() => !rejecting && setRejectModalLeave(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReject}>
+              <div className="owl-modal-body">
+                {rejectError && (
+                  <div
+                    style={{
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      fontSize: "0.85rem",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    ⚠️ {rejectError}
+                  </div>
+                )}
+
+                <div className="owl-detail-meta" style={{ marginBottom: "16px" }}>
+                  <div className="owl-detail-item">
+                    <span className="owl-detail-label">Worker:</span>
+                    <span className="owl-detail-val">{rejectModalLeave.worker_name}</span>
+                  </div>
+                  <div className="owl-detail-item">
+                    <span className="owl-detail-label">Date:</span>
+                    <span className="owl-detail-val">{formatDateLabel(rejectModalLeave.date)}</span>
+                  </div>
+                  <div className="owl-detail-item">
+                    <span className="owl-detail-label">Leave Type:</span>
+                    <span className="owl-detail-val">
+                      {rejectModalLeave.leave_type_display || rejectModalLeave.leave_type}
+                    </span>
+                  </div>
+                  {rejectModalLeave.reason && (
+                    <div className="owl-detail-item">
+                      <span className="owl-detail-label">Requested Reason:</span>
+                      <span className="owl-detail-val">{rejectModalLeave.reason}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: "8px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      marginBottom: "6px",
+                      color: "#18281e",
+                    }}
+                  >
+                    Reason for Rejection <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <textarea
+                    className="owl-filter-select"
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      resize: "vertical",
+                      minHeight: "80px",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                    placeholder="e.g. Salon is fully booked on this day, Staff shortage"
+                    value={rejectReason}
+                    onChange={(e) => {
+                      setRejectReason(e.target.value);
+                      if (rejectError) setRejectError("");
+                    }}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="owl-modal-footer">
+                <button
+                  type="button"
+                  className="btn-owl-cancel-modal"
+                  onClick={() => setRejectModalLeave(null)}
+                  disabled={rejecting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-owl-continue-modal"
+                  style={{ background: "#dc2626", borderColor: "#dc2626" }}
+                  disabled={rejecting}
+                >
+                  {rejecting ? "Rejecting..." : "Confirm Reject"}
                 </button>
               </div>
             </form>

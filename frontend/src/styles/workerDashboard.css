@@ -101,6 +101,29 @@
   margin-left: 4px;
 }
 
+.explore-brand-titles {
+  display: flex;
+  flex-direction: column;
+}
+
+.explore-brand-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.explore-brand-sub {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #059669;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-top: 2px;
+}
+
 /* Search bar inside header */
 .wd-nav-search-box {
   position: relative;

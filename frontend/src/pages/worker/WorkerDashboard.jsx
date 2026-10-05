@@ -1,35 +1,28 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
+import WorkerHeader from "../../components/worker/WorkerHeader";
+import WorkerSalonBanner from "../../components/worker/WorkerSalonBanner";
 import "../../styles/workerDashboard.css";
 
 export default function WorkerDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
-  // Top navbar profile menu & logout confirm states
-  const profileMenuRef = useRef(null);
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  // Active top navigation tab
   const [activeNavTab, setActiveNavTab] = useState("appointments");
 
-  // Filter and view controls
-  const [activeDateTab, setActiveDateTab] = useState("today"); // 'today' | 'tomorrow' | 'week'
-  const [activeSegmentTab, setActiveSegmentTab] = useState("upcoming"); // 'upcoming' | 'completed' | 'all'
+  const [activeDateTab, setActiveDateTab] = useState("today"); 
+  const [activeSegmentTab, setActiveSegmentTab] = useState("upcoming"); 
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState("");
 
-  // Modals state
-  const [activeModal, setActiveModal] = useState(null); // 'hairProfile' | 'stationCare' | 'concierge' | 'prepNotes' | 'receiptLog'
+  const [activeModal, setActiveModal] = useState(null); 
   const [activeModalData, setActiveModalData] = useState(null);
 
-  // In-chair / active service status
-  const [serviceStatus, setServiceStatus] = useState("prepped"); // 'prepped' | 'in_progress' | 'completed'
-
-  // Clean realistic fallback appointment dataset (1 hero, 1 upcoming, 1 completed)
+  const [serviceStatus, setServiceStatus] = useState("prepped"); 
+  
   const defaultHeroAppointment = {
     id: "apt-101",
     appId: "APPID: #101",
@@ -76,7 +69,7 @@ export default function WorkerDashboard() {
     },
   ];
 
-  // Dynamic state populated by backend
+
   const [salonInfo, setSalonInfo] = useState({
     id: null,
     name: "Indiranagar Flagship Salon",
@@ -99,7 +92,6 @@ export default function WorkerDashboard() {
   const [upcomingQueue, setUpcomingQueue] = useState(defaultUpcomingQueue);
   const [completedList, setCompletedList] = useState(defaultCompletedList);
 
-  // Stylist Profile Info (adapts dynamically from backend worker and salon profile)
   const stylistProfile = useMemo(() => {
     const defaultName = "Specialist";
     const name =
@@ -117,11 +109,11 @@ export default function WorkerDashboard() {
       workloadNote: `Assigned Station at ${salonInfo.name}`,
       avatar:
         workerData?.profile_photo ||
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+        "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?auto=format&fit=crop&w=160&q=80",
     };
   }, [user, workerData, salonInfo.name]);
 
-  // Load backend data if available, adapting seamlessly
+ 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
@@ -172,7 +164,7 @@ export default function WorkerDashboard() {
               }
             }
 
-            // Up to 1 or 2 upcoming appointments
+            
             const otherUpcoming = assigned.filter(
               (b) => b.id !== activeOrNext?.id && (b.status === "CONFIRMED" || b.status === "PENDING")
             );
@@ -194,7 +186,7 @@ export default function WorkerDashboard() {
               setUpcomingQueue([]);
             }
 
-            // Up to 1 or 2 completed appointments
+            
             const completed = assigned.filter((b) => b.status === "COMPLETED");
             if (completed.length > 0) {
               setCompletedList(
@@ -221,33 +213,12 @@ export default function WorkerDashboard() {
     fetchDashboard();
   }, []);
 
-  // Close profile dropdown on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
-        setShowProfileDropdown(false);
-      }
-    };
-    if (showProfileDropdown) {
-      document.addEventListener("mousedown", handleOutsideClick);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [showProfileDropdown]);
-
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  const handleLogout = () => {
-    logout();
-    setShowLogoutConfirm(false);
-    navigate("/login");
-  };
-
-  // Handlers for hero appointment actions
+  
   const handleStartService = async () => {
     if (serviceStatus === "prepped") {
       setServiceStatus("in_progress");
@@ -269,7 +240,7 @@ export default function WorkerDashboard() {
     window.print();
   };
 
-  // Filtered upcoming appointments based on search query
+  
   const filteredUpcoming = useMemo(() => {
     if (!searchQuery.trim()) return upcomingQueue;
     const q = searchQuery.toLowerCase();
@@ -281,7 +252,7 @@ export default function WorkerDashboard() {
     );
   }, [upcomingQueue, searchQuery]);
 
-  // Filtered completed appointments based on search query
+  
   const filteredCompleted = useMemo(() => {
     if (!searchQuery.trim()) return completedList;
     const q = searchQuery.toLowerCase();
@@ -295,197 +266,34 @@ export default function WorkerDashboard() {
 
   return (
     <div className="wd-container">
-      {/* ====================================================================
-          1. TOP NAVIGATION BAR
-          ==================================================================== */}
-      <header className="wd-navbar">
-        <div className="wd-navbar-inner">
-          <div className="wd-navbar-left">
-            <div className="wd-brand-link" onClick={() => navigate("/worker/dashboard")}>
-              <div className="wd-brand-icon">✻</div>
-              <div>
-                <span className="wd-brand-title">BookMySalon Pro</span>
-                <span className="wd-brand-sub">— Stylist Suite</span>
-              </div>
-            </div>
+      <WorkerHeader
+        activeTab={activeNavTab}
+        onTabChange={setActiveNavTab}
+        salonInfo={salonInfo}
+        stylistProfile={stylistProfile}
+        extraNavItems={
+          <>
+                      
+            {/* <button
+              type="button"
+              className={`wd-nav-tab ${activeNavTab === "payouts" ? "active" : ""}`}
+              onClick={() => {
+                setActiveNavTab("payouts");
+                showToast("Payouts: ₹1,800 settled today • ₹350 tips pending.");
+              }}
+            >
+              Payouts
+            </button> */}
+          </>
+        }
+      />
 
-            
-
-            {/* Global Search Input */}
-            <div className="wd-nav-search-box">
-              
-            </div>
-
-            {/* Navigation Tabs */}
-            <nav className="wd-nav-links">
-              <button
-                type="button"
-                className={`wd-nav-tab ${activeNavTab === "appointments" ? "active" : ""}`}
-                onClick={() => setActiveNavTab("appointments")}
-              >
-                Appointments
-              </button>
-              <button
-                type="button"
-                className="wd-nav-tab"
-                onClick={() => navigate("/worker/calendar")}
-              >
-                Calendar
-              </button>
-              <button
-                type="button"
-                className="wd-nav-tab"
-                onClick={() => navigate("/worker/leave")}
-              >
-                Leaves
-              </button>
-             
-              <button
-                type="button"
-                className={`wd-nav-tab ${activeNavTab === "profiles" ? "active" : ""}`}
-                onClick={() => {
-                  setActiveNavTab("profiles");
-                  setActiveModal("hairProfile");
-                  setActiveModalData(heroAppointment);
-                }}
-              >
-                Client Hair Profiles
-              </button>
-              <button
-                type="button"
-                className={`wd-nav-tab ${activeNavTab === "inventory" ? "active" : ""}`}
-                onClick={() => {
-                  setActiveNavTab("inventory");
-                  showToast("Inventory & Ops Log: 1 bottle Pure Argan Elixir remaining in Station 01.");
-                }}
-              >
-                Inventory &amp; Ops Log
-              </button>
-              <button
-                type="button"
-                className={`wd-nav-tab ${activeNavTab === "payouts" ? "active" : ""}`}
-                onClick={() => {
-                  setActiveNavTab("payouts");
-                  showToast("Payouts: ₹1,800 settled today • ₹350 tips pending.");
-                }}
-              >
-                Payouts
-              </button>
-            </nav>
-          </div>
-
-          <div className="wd-navbar-right">
-            {/* Round Worker Avatar with Dropdown */}
-            <div className="wd-nav-profile-menu-wrap" ref={profileMenuRef}>
-              <button
-                type="button"
-                className="wd-nav-profile-btn"
-                onClick={() => setShowProfileDropdown((prev) => !prev)}
-                title="Specialist Profile & Options"
-                aria-expanded={showProfileDropdown}
-              >
-                <img
-                  src={stylistProfile.avatar}
-                  alt={stylistProfile.name}
-                  className="wd-nav-profile-img"
-                />
-                <span className="wd-nav-profile-status-dot" title="On Duty" />
-              </button>
-
-              {showProfileDropdown && (
-                <div className="wd-nav-profile-dropdown">
-                  <div className="wd-dropdown-header">
-                    <img
-                      src={stylistProfile.avatar}
-                      alt={stylistProfile.name}
-                      className="wd-dropdown-avatar"
-                    />
-                    <div className="wd-dropdown-user-info">
-                      <div className="wd-dropdown-name">{stylistProfile.name}</div>
-                      <div className="wd-dropdown-role">{stylistProfile.roleBadge}</div>
-                      <div className="wd-dropdown-email">
-                        {user?.email || "worker@bookmysalon.com"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="wd-dropdown-divider" />
-
-                  <div className="wd-dropdown-meta-item">
-                    <span className="wd-meta-icon">🏛️</span>
-                    <span><strong>{salonInfo.name}</strong></span>
-                  </div>
-                  <div className="wd-dropdown-meta-item">
-                    <span className="wd-meta-icon">📍</span>
-                    <span>{salonInfo.address ? `${salonInfo.address}, ${salonInfo.city}` : salonInfo.city}</span>
-                  </div>
-                  <div className="wd-dropdown-meta-item">
-                    <span className="wd-meta-icon">🪑</span>
-                    <span>{stylistProfile.chair}</span>
-                  </div>
-                  <div className="wd-dropdown-meta-item">
-                    <span className="wd-meta-icon">⏰</span>
-                    <span>{stylistProfile.shift}</span>
-                  </div>
-
-                  <div className="wd-dropdown-divider" />
-
-                  <button
-                    type="button"
-                    className="wd-dropdown-item"
-                    onClick={() => {
-                      setShowProfileDropdown(false);
-                      navigate("/worker/leave");
-                    }}
-                  >
-                    <span className="wd-dropdown-icon">🏖️</span>
-                    <span>My Leaves &amp; Schedule</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="wd-dropdown-item wd-dropdown-logout-btn"
-                    onClick={() => {
-                      setShowProfileDropdown(false);
-                      setShowLogoutConfirm(true);
-                    }}
-                  >
-                    <span className="wd-dropdown-icon">🚪</span>
-                    <span>Logout</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ====================================================================
-          2. MAIN CONTENT
-          ==================================================================== */}
+     
       <main className="wd-main">
-        {/* Prominent Affiliated Salon Banner */}
-        <div className="wd-salon-affiliation-banner">
-          <div className="wd-salon-affil-left">
-            <div className="wd-salon-affil-icon">🏛️</div>
-            <div>
-              <div className="wd-salon-affil-label">Affiliated Salon Outlet</div>
-              <div className="wd-salon-affil-title">{salonInfo.name}</div>
-              <div className="wd-salon-affil-meta">
-                {salonInfo.category && <span>{salonInfo.category}</span>}
-                {salonInfo.category && <span>•</span>}
-                <span>📍 {salonInfo.address}{salonInfo.city ? `, ${salonInfo.city}` : ""}</span>
-                {salonInfo.phone && <span>•</span>}
-                {salonInfo.phone && <span>📞 {salonInfo.phone}</span>}
-              </div>
-            </div>
-          </div>
-          <span className="wd-salon-badge-verified">✓ Active Salon Specialist</span>
-        </div>
+        
+        <WorkerSalonBanner salonInfo={salonInfo} />
 
-        {/* ==================================================================
-            3. SPECIALIST PROFILE HERO CARD
-            ================================================================== */}
+       
         <section className="wd-stylist-hero-card">
           <div className="wd-stylist-left">
             <div className="wd-avatar-wrapper">
@@ -518,7 +326,7 @@ export default function WorkerDashboard() {
             </div>
           </div>
 
-          <div className="wd-stylist-actions">
+          {/* <div className="wd-stylist-actions">
             <button
               type="button"
               className="btn-station-log"
@@ -533,12 +341,10 @@ export default function WorkerDashboard() {
             >
               <span>🎧</span> Contact Concierge Desk
             </button>
-          </div>
+          </div> */}
         </section>
 
-        {/* ==================================================================
-            4. 4 KPI SUMMARY CARDS
-            ================================================================== */}
+        
         <section className="wd-kpi-grid">
           {/* Card 1: Today's Appointments */}
           <div className="wd-kpi-card">
@@ -557,7 +363,7 @@ export default function WorkerDashboard() {
             </div>
           </div>
 
-          {/* Card 2: Settled Earnings Today */}
+         
           <div className="wd-kpi-card">
             <div>
               <div className="wd-kpi-top-row">
@@ -572,7 +378,7 @@ export default function WorkerDashboard() {
             </div>
           </div>
 
-          {/* Card 3: Chair Turnaround Rate */}
+         
           <div className="wd-kpi-card">
             <div>
               <div className="wd-kpi-top-row">
@@ -587,7 +393,7 @@ export default function WorkerDashboard() {
             </div>
           </div>
 
-          {/* Card 4: Waiting at Lounge (Dynamic Hero Callout) */}
+          
           <div className="wd-kpi-card lounge-card">
             <div>
               <div className="wd-lounge-header">
@@ -612,16 +418,9 @@ export default function WorkerDashboard() {
             </div>
           </div>
         </section>
-
-        {/* ==================================================================
-            5. MAIN SPLIT LAYOUT (LEFT FEED & RIGHT SIDEBAR)
-            ================================================================== */}
-        <div className="wd-split-layout">
-          {/* ================================================================
-              LEFT COLUMN: DATE BAR, HERO CARD, QUEUE & COMPLETED SESSIONS
-              ================================================================ */}
+ 
+        <div className="wd-split-layout">    
           <div className="wd-left-feed">
-            {/* Date & Filter Toolbar */}
             <div className="wd-date-toolbar">
               <div className="wd-date-row-1">
                 <div className="wd-date-stepper">
@@ -716,7 +515,7 @@ export default function WorkerDashboard() {
               </div>
             </div>
 
-            {/* Highlighted Hero Appointment Card (Sarah Jenkins) */}
+            {/* Highlighted Hero Appointment Card */}
             {(activeSegmentTab === "upcoming" || activeSegmentTab === "all") && (
               <div className="wd-hero-apt-card">
                 {/* Top strip */}
@@ -799,7 +598,6 @@ export default function WorkerDashboard() {
                   </div>
                 </div>
 
-                {/* Scalp & Client Note Callout */}
                 <div className="wd-client-scalp-note">
                   <span className="wd-note-icon">👜</span>
                   <div>
@@ -977,11 +775,7 @@ export default function WorkerDashboard() {
             )}
           </div>
 
-          {/* ================================================================
-              RIGHT COLUMN: CHAIR STATION, FEEDBACK & INVENTORY
-              ================================================================ */}
-          <aside className="wd-right-sidebar">
-            {/* Card 1: Chair #01 Live Station */}
+          <aside className="wd-right-sidebar">           
             <div className="wd-sidebar-card">
               <div className="wd-sidebar-card-header">
                 <h3 className="wd-sidebar-title">
@@ -990,7 +784,6 @@ export default function WorkerDashboard() {
                 <span className="wd-pill-ready">READY</span>
               </div>
 
-              {/* Sanitization Audit Box */}
               <div className="wd-sanitization-box">
                 <div className="wd-sanitization-top">
                   <span>Sanitization Audit</span>
@@ -1002,7 +795,6 @@ export default function WorkerDashboard() {
                 <div className="wd-sanitization-logtime">Log Time: 03:45 PM by Renu (A)</div>
               </div>
 
-              {/* Action links */}
               <div className="wd-station-links">
                 <button
                   type="button"
@@ -1037,7 +829,7 @@ export default function WorkerDashboard() {
               </div>
             </div>
 
-            {/* Card 2: Today's Client Feedback */}
+            
             <div className="wd-sidebar-card">
               <div className="wd-sidebar-card-header">
                 <h3 className="wd-sidebar-title">Today&apos;s Client Feedback</h3>
@@ -1061,7 +853,6 @@ export default function WorkerDashboard() {
               </div>
             </div>
 
-            {/* Card 3: Chair Inventory Alert */}
             <div className="wd-sidebar-card">
               <div className="wd-sidebar-card-header">
                 <h3 className="wd-sidebar-title">
@@ -1082,9 +873,7 @@ export default function WorkerDashboard() {
         </div>
       </main>
 
-      {/* ====================================================================
-          6. FIXED STICKY BOTTOM ACTION BAR
-          ==================================================================== */}
+      {/*  FIXED STICKY BOTTOM ACTION BAR  */}
       <footer className="wd-sticky-bar">
         <div className="wd-sticky-bar-inner">
           <div className="wd-sticky-left">
@@ -1115,10 +904,8 @@ export default function WorkerDashboard() {
         </div>
       </footer>
 
-      {/* ====================================================================
-          7. MODALS
-          ==================================================================== */}
-      {/* Hair Profile Modal */}
+      {/*  MODALS */}
+     
       {activeModal === "hairProfile" && (
         <div className="wd-modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="wd-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1370,90 +1157,6 @@ export default function WorkerDashboard() {
         </div>
       )}
 
-      {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div
-          className="wd-modal-overlay"
-          onClick={() => setShowLogoutConfirm(false)}
-        >
-          <div
-            className="wd-modal-box"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "420px", textAlign: "center" }}
-          >
-            <div style={{ padding: "28px 24px 20px" }}>
-              <div className="wd-logout-modal-icon-circle">
-                <img
-                  src={stylistProfile.avatar}
-                  alt={stylistProfile.name}
-                  className="wd-logout-modal-avatar"
-                />
-              </div>
-
-              <h3
-                style={{
-                  margin: "16px 0 8px",
-                  fontSize: "18px",
-                  fontWeight: "700",
-                  color: "var(--wd-text-primary, #0f172a)",
-                }}
-              >
-                Confirm Logout
-              </h3>
-              <p
-                style={{
-                  margin: "0 0 20px",
-                  fontSize: "13.5px",
-                  color: "var(--wd-text-muted, #64748b)",
-                  lineHeight: "1.5",
-                }}
-              >
-                Are you sure you want to log out of Stylist Suite? Any unstarted services will remain in queue.
-              </p>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  style={{
-                    padding: "9px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#475569",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => setShowLogoutConfirm(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    padding: "9px 22px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#dc2626",
-                    color: "#ffffff",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    boxShadow: "0 2px 6px rgba(220, 38, 38, 0.25)",
-                  }}
-                  onClick={handleLogout}
-                >
-                  Yes, Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast Notification */}
       {toastMessage && (

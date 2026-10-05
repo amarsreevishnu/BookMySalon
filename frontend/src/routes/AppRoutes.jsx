@@ -19,13 +19,15 @@ import AddWorker from "../pages/owner/AddWorker";
 import WorkerManagement from "../pages/owner/WorkerManagement";
 import OwnerSchedule from "../pages/owner/OwnerSchedule";
 import OwnerWorkerLeaves from "../pages/owner/OwnerWorkerLeaves";
+import OwnerServices from "../pages/owner/OwnerServices";
 import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import WorkerLeave from "../pages/worker/WorkerLeave";
+import WorkerCalendar from "../pages/worker/WorkerCalendar";
+import WorkerProfile from "../pages/worker/WorkerProfile";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
 import AdminServicesList from "../pages/admin/AdminServicesList";
-import WorkerCalendar from "../pages/worker/WorkerCalendar";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -66,6 +68,7 @@ function AppRoutes() {
         <Route path="/owner/dashboard" element={<OwnerDashboard />} />
         
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
+        <Route path="/owner/services" element={<OwnerServices />} />
         <Route path="/owner/workers" element={<WorkerManagement />} />
         <Route path="/owner/schedule" element={<OwnerSchedule />} />
         <Route path="/owner/worker-leaves" element={<OwnerWorkerLeaves />} />
@@ -81,6 +84,7 @@ function AppRoutes() {
         <Route path="/worker/calendar" element={<WorkerCalendar />} />
         <Route path="/worker/leave" element={<WorkerLeave />} />
         <Route path="/worker/leaves" element={<WorkerLeave />} />
+        <Route path="/worker/profile" element={<WorkerProfile />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

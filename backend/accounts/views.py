@@ -1,4 +1,5 @@
 import json
+import re
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
@@ -587,6 +588,132 @@ class CustomerChangePasswordView(APIView):
 
         return Response(
             {"message": "Password changed successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class OwnerChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if getattr(user, "role", None) not in [User.Role.OWNER, User.Role.ADMIN]:
+            return Response(
+                {"error": "Only salon owners can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+        confirm_password = request.data.get("confirm_password")
+
+        if not current_password or not new_password:
+            return Response(
+                {"error": "Current password and new password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not user.check_password(current_password):
+            return Response(
+                {"error": "Current password does not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if current_password == new_password:
+            return Response(
+                {"error": "New password cannot be the same as your current password."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(new_password) < 8:
+            return Response(
+                {"error": "New password must be at least 8 characters long."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if confirm_password and new_password != confirm_password:
+            return Response(
+                {"error": "New password and confirmation password do not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password reset successfully using current password."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class WorkerChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+        confirm_password = request.data.get("confirm_password")
+
+        if not current_password or not new_password:
+            return Response(
+                {"error": "Current password and new password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not user.check_password(current_password):
+            return Response(
+                {"error": "Current password does not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if current_password == new_password:
+            return Response(
+                {"error": "New password cannot be the same as your current password."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(new_password) < 8:
+            return Response(
+                {"error": "New password must be at least 8 characters long."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not re.search(r"[A-Z]", new_password):
+            return Response(
+                {"error": "New password must contain at least one uppercase letter (A-Z)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not re.search(r"[a-z]", new_password):
+            return Response(
+                {"error": "New password must contain at least one lowercase letter (a-z)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not re.search(r"\d", new_password):
+            return Response(
+                {"error": "New password must contain at least one digit (0-9)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_password):
+            return Response(
+                {"error": "New password must contain at least one special character (!@#$%^&*...)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if confirm_password and new_password != confirm_password:
+            return Response(
+                {"error": "New password and confirmation password do not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password reset successfully using current password."},
             status=status.HTTP_200_OK,
         )
 

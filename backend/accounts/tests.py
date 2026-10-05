@@ -88,3 +88,125 @@ class AdminUserManagementTestCase(APITestCase):
         self.customer.refresh_from_db()
         self.assertTrue(self.customer.is_active)
 
+
+class OwnerChangePasswordTestCase(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="salonowner@example.com",
+            password="currentPassword123",
+            first_name="Salon",
+            last_name="Owner",
+            role=User.Role.OWNER,
+        )
+        self.customer = User.objects.create_user(
+            email="customer@example.com",
+            password="customerPassword123",
+            first_name="Customer",
+            last_name="User",
+            role=User.Role.CUSTOMER,
+        )
+
+    def test_unauthenticated_cannot_change_password(self):
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "newSecurePassword123",
+                "confirm_password": "newSecurePassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_customer_cannot_use_owner_change_password(self):
+        self.client.force_authenticate(user=self.customer)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "customerPassword123",
+                "new_password": "newSecurePassword123",
+                "confirm_password": "newSecurePassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_owner_change_password_invalid_current_password(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "wrongPassword123",
+                "new_password": "newSecurePassword123",
+                "confirm_password": "newSecurePassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Current password does not match", res.data["error"])
+
+    def test_owner_change_password_same_password(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "currentPassword123",
+                "confirm_password": "currentPassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cannot be the same", res.data["error"])
+
+    def test_owner_change_password_mismatch(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "newSecurePassword123",
+                "confirm_password": "differentPassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("do not match", res.data["error"])
+
+    def test_owner_change_password_too_short(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "short",
+                "confirm_password": "short",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("at least 8 characters", res.data["error"])
+
+    def test_owner_change_password_success(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/accounts/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "brandNewPassword123",
+                "confirm_password": "brandNewPassword123",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.check_password("brandNewPassword123"))
+        self.assertFalse(self.owner.check_password("currentPassword123"))
+
+    def test_salons_endpoint_alias_success(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.post(
+            "/api/v1/salons/owner/change-password/",
+            {
+                "current_password": "currentPassword123",
+                "new_password": "brandNewPassword456",
+                "confirm_password": "brandNewPassword456",
+            },
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.check_password("brandNewPassword456"))
+

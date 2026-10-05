@@ -95,7 +95,9 @@ class AdminServiceListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
-        qs = Service.objects.select_related("category").all()
+        qs = Service.objects.select_related("category").annotate(
+            salon_offerings_count=Count("salon_offerings")
+        )
 
         category_id = request.query_params.get("category_id")
         if category_id:
@@ -336,7 +338,8 @@ class OwnerSalonServiceListCreateView(APIView):
         salon_id = request.query_params.get("salon_id")
         if salon_id:
             return get_object_or_404(Salon, pk=salon_id, owner=user)
-        return Salon.objects.filter(owner=user).first()
+        from salons.views import get_owner_salon
+        return get_owner_salon(user) or Salon.objects.filter(owner=user).first()
 
     def get(self, request):
         salon = self.get_salon(request)
@@ -345,6 +348,11 @@ class OwnerSalonServiceListCreateView(APIView):
                 {"error": "No registered salon found for this owner."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Synchronize any services already defined on the salon into SalonService offerings
+        from salons.views import sync_salon_services
+        if isinstance(salon.services, list) and salon.services:
+            sync_salon_services(salon, salon.services)
 
         offerings = SalonService.objects.filter(salon=salon).select_related(
             "service", "service__category"
@@ -356,6 +364,8 @@ class OwnerSalonServiceListCreateView(APIView):
                 "id": salon.id,
                 "name": salon.name,
                 "city": salon.city,
+                "address": salon.address,
+                "category": salon.category,
             },
             "count": offerings.count(),
             "services": serializer.data,
@@ -370,25 +380,74 @@ class OwnerSalonServiceListCreateView(APIView):
             )
 
         service_id = request.data.get("service")
-        if not service_id:
+        name = (request.data.get("name") or request.data.get("custom_name") or "").strip()
+
+        if not service_id and not name:
             return Response(
-                {"error": "Standard service ID ('service') is required."},
+                {"error": "Please select a standard service or provide a service name."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        standard_service = get_object_or_404(Service, pk=service_id, is_active=True)
+        category_id = request.data.get("category") or request.data.get("category_id")
+        price = request.data.get("price")
+        duration = request.data.get("duration")
+        description = (request.data.get("description") or "").strip()
 
-       
+        if service_id:
+            standard_service = get_object_or_404(Service, pk=service_id, is_active=True)
+            if price is None or price == "":
+                price = standard_service.standard_price
+            if duration is None or duration == "":
+                duration = standard_service.standard_duration
+            if not description:
+                description = standard_service.description
+            custom_name = (request.data.get("custom_name") or "").strip()
+        else:
+            # Custom service created specifically for this salon
+            if category_id:
+                if str(category_id).isdigit():
+                    category = get_object_or_404(ServiceCategory, pk=category_id)
+                else:
+                    category, _ = ServiceCategory.objects.get_or_create(
+                        name=str(category_id).strip(),
+                        defaults={"icon": "✂️"}
+                    )
+            else:
+                category = ServiceCategory.objects.first()
+                if not category:
+                    category = ServiceCategory.objects.create(name="General", icon="✂️")
+
+            if price is None or price == "":
+                price = 500.00
+            if duration is None or duration == "":
+                duration = 45
+
+            standard_service, _ = Service.objects.get_or_create(
+                category=category,
+                name=name,
+                defaults={
+                    "standard_price": price,
+                    "standard_duration": duration,
+                    "description": description,
+                    "is_active": True,
+                }
+            )
+            custom_name = name
+
         if SalonService.objects.filter(salon=salon, service=standard_service).exists():
             return Response(
                 {"error": f"Service '{standard_service.name}' is already added to your salon. You can edit its price or duration instead."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        price = request.data.get("price", standard_service.standard_price)
-        duration = request.data.get("duration", standard_service.standard_duration)
-        custom_name = request.data.get("custom_name", "")
-        description = request.data.get("description", standard_service.description)
+        try:
+            price = float(price)
+            duration = int(duration)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Price must be a valid number and duration must be in minutes."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         offering = SalonService.objects.create(
             salon=salon,
@@ -399,6 +458,22 @@ class OwnerSalonServiceListCreateView(APIView):
             description=description,
             is_active=True,
         )
+
+        # Sync back to salon.services JSONField
+        all_offerings = SalonService.objects.filter(salon=salon).select_related("service", "service__category")
+        salon.services = [
+            {
+                "id": ss.id,
+                "name": ss.effective_name,
+                "category": ss.service.category.name if ss.service and ss.service.category else "General",
+                "price": f"₹{ss.price}",
+                "duration": f"{ss.duration} mins",
+                "description": ss.effective_description,
+                "is_active": ss.is_active,
+            }
+            for ss in all_offerings
+        ]
+        salon.save(update_fields=["services"])
 
         serializer = SalonServiceSerializer(offering)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -427,6 +502,21 @@ class OwnerSalonServiceDetailView(APIView):
         serializer = SalonServiceSerializer(offering, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            salon = offering.salon
+            all_offerings = SalonService.objects.filter(salon=salon).select_related("service", "service__category")
+            salon.services = [
+                {
+                    "id": ss.id,
+                    "name": ss.effective_name,
+                    "category": ss.service.category.name if ss.service and ss.service.category else "General",
+                    "price": f"₹{ss.price}",
+                    "duration": f"{ss.duration} mins",
+                    "description": ss.effective_description,
+                    "is_active": ss.is_active,
+                }
+                for ss in all_offerings
+            ]
+            salon.save(update_fields=["services"])
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -436,7 +526,22 @@ class OwnerSalonServiceDetailView(APIView):
     def delete(self, request, pk):
         offering = self.get_object(pk, request.user)
         name = offering.effective_name
+        salon = offering.salon
         offering.delete()
+        all_offerings = SalonService.objects.filter(salon=salon).select_related("service", "service__category")
+        salon.services = [
+            {
+                "id": ss.id,
+                "name": ss.effective_name,
+                "category": ss.service.category.name if ss.service and ss.service.category else "General",
+                "price": f"₹{ss.price}",
+                "duration": f"{ss.duration} mins",
+                "description": ss.effective_description,
+                "is_active": ss.is_active,
+            }
+            for ss in all_offerings
+        ]
+        salon.save(update_fields=["services"])
         return Response(
             {"message": f"Service '{name}' removed from your salon."},
             status=status.HTTP_200_OK,

@@ -58,15 +58,37 @@ export default function AdminServicesList() {
   const loadCatalogData = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem("access_token");
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+
       const [statsRes, catRes, srvRes] = await Promise.all([
-        api.get("/services/admin/stats/").catch(() => null),
-        api.get("/services/admin/categories/").catch(() => null),
-        api.get("/services/admin/services/").catch(() => null),
+        api.get("/services/admin/stats/", config).catch((err) => {
+          console.error("Stats API failed:", err);
+          return null;
+        }),
+        api.get("/services/admin/categories/", config).catch((err) => {
+          console.error("Categories API failed:", err);
+          return null;
+        }),
+        api.get("/services/admin/services/", config).catch((err) => {
+          console.error("Services API failed:", err);
+          return null;
+        }),
       ]);
 
       if (statsRes?.data) setStats(statsRes.data);
-      if (catRes?.data) setCategories(catRes.data);
-      if (srvRes?.data) setServices(srvRes.data);
+      if (catRes?.data) {
+        const catList = Array.isArray(catRes.data)
+          ? catRes.data
+          : catRes.data?.results || catRes.data?.categories || [];
+        setCategories(catList);
+      }
+      if (srvRes?.data) {
+        const srvList = Array.isArray(srvRes.data)
+          ? srvRes.data
+          : srvRes.data?.results || srvRes.data?.services || [];
+        setServices(srvList);
+      }
     } catch (err) {
       console.error("Failed to fetch catalog:", err);
       showToast("Notice: Loaded standard baseline catalog.");
@@ -81,13 +103,15 @@ export default function AdminServicesList() {
 
   // Filtered standard services
   const filteredServices = useMemo(() => {
-    return services.filter((srv) => {
+    const list = Array.isArray(services) ? services : [];
+    return list.filter((srv) => {
+      if (!srv) return false;
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
-        srv.name.toLowerCase().includes(q) ||
+        (srv.name && srv.name.toLowerCase().includes(q)) ||
         (srv.description && srv.description.toLowerCase().includes(q)) ||
-        srv.category_name?.toLowerCase().includes(q);
+        (srv.category_name && srv.category_name.toLowerCase().includes(q));
 
       const matchCat =
         selectedCategoryFilter === "ALL" ||
@@ -469,7 +493,40 @@ export default function AdminServicesList() {
                 ) : filteredServices.length === 0 ? (
                   <div className="admin-empty-state">
                     <h3>No Services Found</h3>
-                    <p>No services matched your filter or search criteria.</p>
+                    {services.length === 0 ? (
+                      <div style={{ marginTop: "8px" }}>
+                        <p style={{ marginBottom: "14px", color: "#64748b" }}>
+                          No services currently found in the master catalog.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-admin-pri"
+                          onClick={handleSeedCatalog}
+                          style={{ margin: "0 auto", display: "inline-flex", gap: "6px" }}
+                        >
+                          <span>⚡</span> Initialize Starter Catalog
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: "8px" }}>
+                        <p style={{ color: "#64748b" }}>
+                          No services match your active filter or search criteria.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-admin-sec"
+                          onClick={() => {
+                            setSearchQuery("");
+                            setSelectedCategoryFilter("ALL");
+                            setSelectedStatusFilter("ALL");
+                            setSelectedGenderFilter("ALL");
+                          }}
+                          style={{ margin: "12px auto 0", display: "inline-flex", gap: "6px" }}
+                        >
+                          <span>↺</span> Reset Filters
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <table className="admin-services-table">

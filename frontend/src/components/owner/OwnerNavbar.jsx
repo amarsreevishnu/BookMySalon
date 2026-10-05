@@ -9,7 +9,7 @@ export const DEFAULT_NAV_TABS = [
   "Services",
   "Workers",
   "Worker Leaves",
-  "Schedule",
+  "Salon Schedule",
   "Customers",
   "Offers",
   "Revenue",
@@ -23,7 +23,6 @@ export default function OwnerNavbar({
   workersCount,
   tabs = DEFAULT_NAV_TABS,
   showSubNav = true,
-  // Optional backward compatibility flag if mounted standalone
   withHeader = false,
   headerProps = {},
 }) {
@@ -39,6 +38,10 @@ export default function OwnerNavbar({
       if (location.pathname !== "/owner/workers") {
         navigate("/owner/workers");
       }
+    } else if (tab === "Services") {
+      if (location.pathname !== "/owner/services") {
+        navigate("/owner/services");
+      }
     } else if (tab === "Salon" || tab === "Salon Profile" || tab === "Profile") {
       if (location.pathname !== "/owner/salon-profile") {
         navigate("/owner/salon-profile");
@@ -47,7 +50,7 @@ export default function OwnerNavbar({
       if (location.pathname !== "/owner/worker-leaves") {
         navigate("/owner/worker-leaves");
       }
-    } else if (tab === "Schedule") {
+    } else if (tab === "Salon Schedule") {
       if (location.pathname !== "/owner/schedule") {
         navigate("/owner/schedule");
       }

@@ -22,9 +22,21 @@ from .views import (
     CustomerToggleFavoriteView,
     CustomerBookingsListView,
     CustomerFavoritesListView,
+    OwnerChangePasswordView,
+    WorkerChangePasswordView,
 )
 
 urlpatterns = [
+    path(
+        "worker/change-password/",
+        WorkerChangePasswordView.as_view(),
+        name="worker-change-password",
+    ),
+    path(
+        "owner/change-password/",
+        OwnerChangePasswordView.as_view(),
+        name="owner-change-password",
+    ),
     path(
         "customer/profile/",
         CustomerProfileView.as_view(),
