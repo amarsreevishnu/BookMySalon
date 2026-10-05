@@ -24,9 +24,7 @@ from .serializers import (
 
 
 class AdminCategoryListCreateView(APIView):
-    """
-    Super Admin: List all service categories (active + inactive) or create a new category.
-    """
+   
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -52,9 +50,7 @@ class AdminCategoryListCreateView(APIView):
 
 
 class AdminCategoryDetailView(APIView):
-    """
-    Super Admin: Retrieve, update (edit/deactivate), or delete a category.
-    """
+ 
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -94,13 +90,7 @@ class AdminCategoryDetailView(APIView):
 
 
 class AdminServiceListCreateView(APIView):
-    """
-    Super Admin: List all platform catalog services or create a standard service.
-    Supports query parameters:
-      - category_id
-      - is_active (true/false)
-      - q (search by name/description)
-    """
+    
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -138,9 +128,7 @@ class AdminServiceListCreateView(APIView):
 
 
 class AdminServiceDetailView(APIView):
-    """
-    Super Admin: Retrieve, update (edit/deactivate), or delete a standard service.
-    """
+    
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -180,9 +168,7 @@ class AdminServiceDetailView(APIView):
 
 
 class AdminServicesStatsView(APIView):
-    """
-    Super Admin: Dashboard analytics for catalog services.
-    """
+   
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -233,10 +219,7 @@ class AdminServicesStatsView(APIView):
 
 
 class AdminSeedInitialServicesView(APIView):
-    """
-    Super Admin / Auto-seed utility: Populates standard starter catalog
-    (Hair, Skin, Spa, Nails) if not already populated.
-    """
+   
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     authentication_classes = [JWTAuthentication]
 
@@ -330,10 +313,7 @@ class AdminSeedInitialServicesView(APIView):
 
 
 class OwnerStandardCatalogListView(APIView):
-    """
-    Salon Owner: Browse standard catalog services available on the platform
-    to add to their salon's offerings.
-    """
+   
     permission_classes = [IsAuthenticated, IsSalonOwner]
     authentication_classes = [JWTAuthentication]
 
@@ -347,9 +327,7 @@ class OwnerStandardCatalogListView(APIView):
 
 
 class OwnerSalonServiceListCreateView(APIView):
-    """
-    Salon Owner: List own salon's services or add a standard service with custom price/duration.
-    """
+    
     permission_classes = [IsAuthenticated, IsSalonOwner]
     authentication_classes = [JWTAuthentication]
 
@@ -400,7 +378,7 @@ class OwnerSalonServiceListCreateView(APIView):
 
         standard_service = get_object_or_404(Service, pk=service_id, is_active=True)
 
-        # Check for duplicate
+       
         if SalonService.objects.filter(salon=salon, service=standard_service).exists():
             return Response(
                 {"error": f"Service '{standard_service.name}' is already added to your salon. You can edit its price or duration instead."},
@@ -427,9 +405,7 @@ class OwnerSalonServiceListCreateView(APIView):
 
 
 class OwnerSalonServiceDetailView(APIView):
-    """
-    Salon Owner: Retrieve, update price/duration/status, or remove a service offering.
-    """
+  
     permission_classes = [IsAuthenticated, IsSalonOwner, IsSalonOwnerOfOffering]
     authentication_classes = [JWTAuthentication]
 
@@ -470,9 +446,7 @@ class OwnerSalonServiceDetailView(APIView):
 
 
 class PublicCategoriesListView(APIView):
-    """
-    Public / Customer: Browse platform service categories and active services.
-    """
+    
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -484,9 +458,7 @@ class PublicCategoriesListView(APIView):
 
 
 class PublicSalonServicesListView(APIView):
-    """
-    Public / Customer: View and compare active services offered at a specific salon.
-    """
+    
     permission_classes = [AllowAny]
 
     def get(self, request, salon_id):

@@ -58,7 +58,7 @@ class SalonSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, "copy") else dict(data)
 
-        # Coordinate precision handling
+        
         for field in ("latitude", "longitude"):
             if field in data:
                 val = data[field]
@@ -70,11 +70,9 @@ class SalonSerializer(serializers.ModelSerializer):
                     except (ValueError, TypeError):
                         pass
 
-        # Save cover image to MEDIA_ROOT if base64 or UploadedFile
         if "cover_image" in data and data["cover_image"]:
             data["cover_image"] = save_image_to_media(data["cover_image"], subfolder="salons/covers")
 
-        # Save gallery images to MEDIA_ROOT if base64 or UploadedFiles
         if "images" in data and data["images"]:
             raw_imgs = data["images"]
             if isinstance(raw_imgs, str):
@@ -91,7 +89,6 @@ class SalonSerializer(serializers.ModelSerializer):
                         saved_list.append(saved_path)
                 data["images"] = saved_list
 
-                # If cover_image is empty, default to first gallery image path
                 if not data.get("cover_image") and saved_list:
                     data["cover_image"] = saved_list[0]
 
@@ -108,6 +105,7 @@ class SalonSerializer(serializers.ModelSerializer):
 
 
 class WorkerProfileSerializer(serializers.ModelSerializer):
+
     email = serializers.ReadOnlyField(source="user.email")
     first_name = serializers.ReadOnlyField(source="user.first_name")
     last_name = serializers.ReadOnlyField(source="user.last_name")
@@ -165,6 +163,7 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
 
 
 class WorkerCreateSerializer(serializers.Serializer):
+
     full_name = serializers.CharField(max_length=150, write_only=True)
     email = serializers.EmailField(write_only=True)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
@@ -199,7 +198,6 @@ class WorkerCreateSerializer(serializers.Serializer):
         normalized = value.strip().lower()
         existing_user = User.objects.filter(email__iexact=normalized).first()
         if existing_user:
-            # If user already has a linked worker profile or has an owner/admin/customer account
             has_profile = WorkerProfile.objects.filter(user=existing_user).exists()
             if has_profile or existing_user.role != User.Role.WORKER:
                 raise serializers.ValidationError("An account with this email address already exists.")
@@ -234,7 +232,6 @@ class WorkerCreateSerializer(serializers.Serializer):
         last_name = name_parts[1] if len(name_parts) > 1 else ""
 
         with transaction.atomic():
-            # 1. Reuse existing orphaned worker user without profile or create brand new user
             user = User.objects.filter(email__iexact=email, role=User.Role.WORKER).first()
             if user:
                 user.first_name = first_name
@@ -252,7 +249,6 @@ class WorkerCreateSerializer(serializers.Serializer):
                     is_active=True,
                 )
 
-            # 2. Process profile photo & optional ID card if provided
             saved_photo = ""
             if profile_photo:
                 saved_photo = save_image_to_media(profile_photo, subfolder="workers/photos") or profile_photo
@@ -264,7 +260,6 @@ class WorkerCreateSerializer(serializers.Serializer):
             if id_card_photo:
                 saved_id_card = save_image_to_media(id_card_photo, subfolder="workers/id_cards") or id_card_photo
 
-            # 3. Create worker-specific profile attached to backend salon
             profile = WorkerProfile.objects.create(
                 user=user,
                 salon=salon,
@@ -285,7 +280,6 @@ class WorkerCreateSerializer(serializers.Serializer):
                 is_active=True,
             )
 
-        # Attach raw password for one-time response display and email sending
         profile._temporary_password = raw_password
         return profile
 
@@ -475,7 +469,7 @@ class WorkerLeaveSerializer(serializers.ModelSerializer):
         if leave_date and leave_date < today:
             raise serializers.ValidationError({"date": "Leave cannot be scheduled for a past date."})
 
-        # Planned leave types require 7 days advance notice
+       
         planned_types = [
             WorkerLeave.LeaveType.WEEK_OFF,
             WorkerLeave.LeaveType.MONTH_OFF,
@@ -489,7 +483,6 @@ class WorkerLeaveSerializer(serializers.ModelSerializer):
                     "date": f"Planned leaves must be scheduled at least 7 days in advance. Earliest allowed date is {min_allowed_date}."
                 })
 
-        # Check existing non-cancelled leave for the same worker and date
         if worker and leave_date:
             existing = WorkerLeave.objects.filter(worker=worker, date=leave_date).exclude(
                 status=WorkerLeave.Status.CANCELLED

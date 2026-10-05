@@ -7,10 +7,17 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 
 from rest_framework import generics, status, viewsets
-from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from .models import CustomerProfile
+from salons.models import Salon
+from bookings.models import Booking
+from salons.media_utils import save_image_to_media
+from datetime import datetime
+from django.utils import timezone
 
 from .serializers import (
     ForgotPasswordRequestSerializer,
@@ -318,14 +325,6 @@ class AdminUserToggleBlockView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
-from rest_framework.permissions import IsAuthenticated
-from .models import CustomerProfile
-from salons.models import Salon
-from bookings.models import Booking
-from salons.media_utils import save_image_to_media
-from datetime import datetime
-from django.utils import timezone
 
 
 class CustomerProfileView(APIView):

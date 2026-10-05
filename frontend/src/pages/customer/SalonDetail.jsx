@@ -6,7 +6,7 @@ import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonDetail.css";
 
-// Helper for formatting time (e.g., "09:00" -> "9:00 AM")
+
 function formatTime12(timeStr) {
   if (!timeStr) return "";
   if (timeStr.includes("AM") || timeStr.includes("PM")) return timeStr;
@@ -21,7 +21,6 @@ function formatTime12(timeStr) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
-// Rich fallback data matching reference design
 const DEFAULT_SALON_DATA = {
   id: 1,
   name: "Aura Luxe Salon & Spa",
@@ -57,7 +56,7 @@ const DEFAULT_SALON_DATA = {
       description: "Custom French hand-painted highlights, gloss toner & Kérastase bond repair infusion.",
       badge: "Best Seller",
     },
-    {
+      {
       id: 102,
       category: "Hair",
       name: "Organic Keratin Smoothing Therapy",
@@ -74,70 +73,8 @@ const DEFAULT_SALON_DATA = {
       price: 1250,
       description: "Consultation, relaxing scalp wash with Davines shampoo, texture sculpting and signature blowout.",
       badge: "Essential",
-    },
-    {
-      id: 104,
-      category: "Hair",
-      name: "Botanical Scalp Detox & Hair Spa",
-      duration: "60 mins",
-      price: 1800,
-      description: "Steam scalp exfoliation, Ayurvedic essential oil massage, and intensely hydrating hair mask.",
-      badge: "Organic",
-    },
-    {
-      id: 105,
-      category: "Spa & Wellness",
-      name: "Ayurvedic Abhyanga & Deep Tissue Massage",
-      duration: "75 mins",
-      price: 3200,
-      description: "Warm herbal medicated oils applied with rhythmic synchronized strokes to release deep muscle knots.",
-      badge: "Holistic",
-    },
-    {
-      id: 106,
-      category: "Spa & Wellness",
-      name: "Aroma Steam & Swedish Relaxation Ritual",
-      duration: "60 mins",
-      price: 2800,
-      description: "Lavender & eucalyptus aromatherapeutic massage followed by cedarwood steam therapy.",
-      badge: null,
-    },
-    {
-      id: 107,
-      category: "Nails & Grooming",
-      name: "Russian Gel Manicure & Hand Spa",
-      duration: "60 mins",
-      price: 1650,
-      description: "Precision cuticle e-file care, collagen soak, scrub, tension massage & high-shine gel polish.",
-      badge: "Trending",
-    },
-    {
-      id: 108,
-      category: "Nails & Grooming",
-      name: "Deluxe Pedicure with Hot Stone Reflexology",
-      duration: "60 mins",
-      price: 1950,
-      description: "Himalayan salt foot soak, callus removal, volcanic basalt stone massage and organic polish.",
-      badge: null,
-    },
-    {
-      id: 109,
-      category: "Facial & Skin",
-      name: "Hydra-Luxe Radiance Facial Treatment",
-      duration: "75 mins",
-      price: 3600,
-      description: "Hydro-dermabrasion deep pore suction, botanical antioxidant infusion and LED photo-light therapy.",
-      badge: "Glow Pick",
-    },
-    {
-      id: 110,
-      category: "Facial & Skin",
-      name: "Pure 24K Gold Luxury Illuminating Facial",
-      duration: "90 mins",
-      price: 4800,
-      description: "Cellular renewal facial with real 24K gold foil sheets, lymphatic drain massage & peptide serum.",
-      badge: "VIP Exclusive",
-    },
+    }
+    
   ],
   stylists: [
     {
@@ -253,10 +190,10 @@ export default function SalonDetail() {
 
   // Booking & Cart State
   const [selectedServices, setSelectedServices] = useState([
-    // Pre-select 1 signature service for rich presentation matching demo
+    
     DEFAULT_SALON_DATA.services[0],
   ]);
-  const [selectedStylist, setSelectedStylist] = useState(null); // null means "Any Available Professional"
+  const [selectedStylist, setSelectedStylist] = useState(null); 
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("11:30 AM");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -265,7 +202,7 @@ export default function SalonDetail() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Next 7 days generator
+  
   const dateSlots = useMemo(() => {
     const list = [];
     const today = new Date();
@@ -308,7 +245,7 @@ export default function SalonDetail() {
     "08:00 PM",
   ];
 
-  // Fetch Salon Data from backend with fallback
+  // Fetch Salon Data from backend 
   useEffect(() => {
     let isMounted = true;
     async function fetchSalonDetails() {
@@ -328,7 +265,7 @@ export default function SalonDetail() {
           if (parsedImages.length === 0) {
             parsedImages = DEFAULT_SALON_DATA.images;
           } else {
-            // Fill up with default images if less than 5 to keep mosaic grid complete
+            
             parsedImages = [...parsedImages, ...DEFAULT_SALON_DATA.images.slice(parsedImages.length)];
           }
 
@@ -427,13 +364,13 @@ export default function SalonDetail() {
             offDays: Array.isArray(apiData.off_days) ? apiData.off_days : [],
           });
 
-          // Set first service as pre-selected if available
+          
           if (serviceList.length > 0) {
             setSelectedServices([serviceList[0]]);
           }
         }
       } catch (err) {
-        // Fallback to default mock salon data seamlessly
+        
         setSalon({
           ...DEFAULT_SALON_DATA,
           id: id || 1,
@@ -457,7 +394,7 @@ export default function SalonDetail() {
     }, 2800);
   };
 
-  // Cart / Service Toggle
+  
   const handleToggleService = (service) => {
     setSelectedServices((prev) => {
       const exists = prev.some((s) => s.id === service.id);
@@ -471,7 +408,7 @@ export default function SalonDetail() {
     });
   };
 
-  // Bill calculations
+ 
   const billSummary = useMemo(() => {
     const subtotal = selectedServices.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
     const taxRate = 0.05; // 5% GST
@@ -496,7 +433,7 @@ export default function SalonDetail() {
     };
   }, [selectedServices, appliedCoupon]);
 
-  // Apply Coupon
+  
   const handleApplyCoupon = (coupon) => {
     if (billSummary.subtotal < coupon.minSpend) {
       showToast(`Add items worth ₹${coupon.minSpend} to apply ${coupon.code}`);
@@ -506,7 +443,7 @@ export default function SalonDetail() {
     showToast(`Coupon ${coupon.code} applied successfully! 🎉`);
   };
 
-  // Share link handler
+  
   const handleShare = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href);
@@ -516,13 +453,13 @@ export default function SalonDetail() {
     }
   };
 
-  // Save / Favorite handler
+  
   const handleSaveToggle = () => {
     setIsSaved(!isSaved);
     showToast(!isSaved ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
   };
 
-  // Service categories available
+  
   const availableCategories = useMemo(() => {
     const cats = new Set(salon.services.map((s) => s.category || "General"));
     return ["All", ...Array.from(cats)];
@@ -533,7 +470,7 @@ export default function SalonDetail() {
     return salon.services.filter((s) => (s.category || "General") === selectedServiceCategory);
   }, [salon.services, selectedServiceCategory]);
 
-  // Scroll to section helper
+  
   const handleTabClick = (tabKey, elementId) => {
     setActiveTab(tabKey);
     const el = document.getElementById(elementId);
@@ -548,14 +485,14 @@ export default function SalonDetail() {
     <div className="salon-detail-page">
       <CustomerHeader />
 
-      {/* Floating Notification Toast */}
+      
       {toastMessage && (
         <div className="salon-detail-toast" role="status">
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Breadcrumb & Share Actions */}
+     
       <section className="salon-detail-topbar">
         <div className="salon-detail-container topbar-flex">
           <nav className="detail-breadcrumbs" aria-label="Breadcrumb">
@@ -588,7 +525,7 @@ export default function SalonDetail() {
         </div>
       </section>
 
-      {/* Hero Photo Gallery Mosaic */}
+      
       <section className="salon-gallery-section">
         <div className="salon-detail-container">
           <div className="salon-gallery-mosaic">
@@ -1261,7 +1198,7 @@ export default function SalonDetail() {
                 type="button"
                 className="proceed-booking-cta"
                 disabled={selectedServices.length === 0 || dateSlots[selectedDateIdx]?.isOffDay}
-                onClick={() => setShowBookingModal(true)}
+                onClick={() => setShowBookingModal(false)}
               >
                 <span>
                   {dateSlots[selectedDateIdx]?.isOffDay
