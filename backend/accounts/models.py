@@ -52,6 +52,8 @@ class User(AbstractUser):
         default=Role.CUSTOMER,
     )
 
+    must_change_password = models.BooleanField(default=False)
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 

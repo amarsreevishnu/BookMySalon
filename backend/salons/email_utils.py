@@ -124,6 +124,7 @@ BookMySalon Super Admin Operations
     <p class="text">
       Congratulations! Your salon application for <strong>{salon.name}</strong> has been verified and approved by the Super Admin team.
     </p>
+    <p>We recommend changing your password after your first login</p>
     <div class="credentials-box">
       <div style="font-size: 12px; font-weight: 700; color: #204b31; text-transform: uppercase; margin-bottom: 12px;">Your Owner Login Credentials</div>
       <div class="cred-row"><span class="cred-label">Login Email:</span> <span class="cred-val">{recipient}</span></div>
@@ -356,3 +357,82 @@ Best regards,
     except Exception as e:
         logger.error(f"Failed to send worker credentials email to {recipient}: {e}")
         return False
+
+
+def send_salon_email_otp(email: str, otp: str) -> bool:
+    """
+    Sends a 6-digit OTP verification code to the salon applicant's official email.
+    """
+    subject = f"{otp} is your BookMySalon Partner Verification Code"
+    recipient = email.strip().lower()
+
+    plain_message = f"""
+Dear Salon Partner,
+
+Thank you for choosing BookMySalon to showcase your salon.
+Your 6-digit email verification code is: {otp}
+
+This verification code is valid for 2 minutes. Enter this code on the salon registration page to verify your official contact email.
+
+If you did not initiate this request, please disregard this email.
+
+Warm regards,
+BookMySalon Partner Onboarding Team
+"""
+
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f9f7; margin: 0; padding: 24px; color: #1b2d21; }}
+        .card {{ max-width: 500px; margin: 0 auto; background: #ffffff; border: 1px solid #e1e8e2; border-radius: 12px; padding: 36px; box-shadow: 0 4px 12px rgba(27, 45, 33, 0.05); }}
+        .brand {{ display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #244933; margin-bottom: 16px; background: #eaf2ec; padding: 4px 10px; border-radius: 6px; }}
+        .title {{ color: #1b2d21; font-size: 22px; font-weight: 700; margin: 0 0 12px; }}
+        .text {{ color: #44564b; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }}
+        .otp-box {{ background: #f2f7f3; border: 1.5px dashed #2d6a4f; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 24px; }}
+        .otp-code {{ font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #1b4332; margin: 0; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }}
+        .meta-text {{ font-size: 12px; color: #66786c; margin-top: 8px; }}
+        .footer {{ color: #84968a; font-size: 12px; line-height: 1.5; margin-top: 28px; border-top: 1px solid #e8efe9; padding-top: 18px; text-align: center; }}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <span class="brand">BookMySalon Partner Network</span>
+        <h2 class="title">Verify Your Official Salon Email</h2>
+        <p class="text">
+          Thank you for applying to join the BookMySalon luxury partner network. Use the 6-digit verification code below to verify your official salon contact address:
+        </p>
+        <div class="otp-box">
+          <p class="otp-code">{otp}</p>
+          <div class="meta-text">Valid for <strong>1 minutes</strong></div>
+        </div>
+        <p class="text" style="font-size: 13px; color: #5a6e61;">
+          Your official salon credentials will be dispatched to this verified address upon Super Admin approval. If you did not make this request, you can safely ignore this email.
+        </p>
+        <div class="footer">
+          BookMySalon Partner Operations &bull; Premium Salon & Spa Platform
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "BookMySalon Partner Network <noreply@bookmysalon.com>")
+
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=from_email,
+            recipient_list=[recipient],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        logger.info(f"Salon email OTP sent to {recipient}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send salon OTP email to {recipient}: {e}")
+        return False
+

@@ -34,9 +34,6 @@ export default function NotFound() {
 
   return (
     <div className="nf-wrapper">
-      {/* --------------------------------------------------------------------
-          TOP HEADER BRAND
-          -------------------------------------------------------------------- */}
       <header className="nf-header">
         <Link to={isAuthenticated ? dashboardPath : "/"} className="nf-brand">
           <div className="nf-logo-crest">
@@ -80,9 +77,6 @@ export default function NotFound() {
         </div>
       </header>
 
-      {/* --------------------------------------------------------------------
-          MAIN 404 CARD
-          -------------------------------------------------------------------- */}
       <main className="nf-container">
         <div className="nf-card">
           {/* Badge */}
@@ -203,9 +197,6 @@ export default function NotFound() {
         </div>
       </main>
 
-      {/* --------------------------------------------------------------------
-          FOOTER
-          -------------------------------------------------------------------- */}
       <footer className="nf-footer">
         © {new Date().getFullYear()} BookMySalon Technologies. All rights reserved.
       </footer>

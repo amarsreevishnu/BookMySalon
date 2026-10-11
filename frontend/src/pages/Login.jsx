@@ -1,12 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 
 import api from "../api/axios";
 import AuthLayout from "../components/AuthLayout";
-// import Navbar from "../components/Navbar";
 
 import GoogleButton from "../components/auth/GoogleButton";
 
@@ -24,13 +23,36 @@ function Login() {
 
     const { login } = useAuth();
     
-    const [error, setError] = useState(
-        () => location.state?.error || new URLSearchParams(location.search).get("error") || ""
-    );
+    const [error, setError] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        const errParam = params.get("error");
+        const msgParam = params.get("msg");
+
+        if (msgParam) return msgParam;
+        if (errParam === "USER_BLOCKED") {
+            return "Your account has been deactivated or blocked by administration.";
+        }
+        if (errParam === "SALON_BLOCKED") {
+            return "Your salon has been suspended by administration.";
+        }
+        return location.state?.error || errParam || "";
+    });
+
     const [successMessage, setSuccessMessage] = useState(
         () => location.state?.message || ""
     );
     const [loading, setLoading] = useState(false);
+
+    // Listen to custom auth:blocked events if user is already on Login page
+    useEffect(() => {
+        const handleAuthBlocked = (event) => {
+            if (event.detail?.message) {
+                setError(event.detail.message);
+            }
+        };
+        window.addEventListener("auth:blocked", handleAuthBlocked);
+        return () => window.removeEventListener("auth:blocked", handleAuthBlocked);
+    }, []);
 
     const handleChange = (event) => {
         const { name, value } = event.target;
@@ -56,7 +78,6 @@ function Login() {
             
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            console.log("Login response:", response.data);
             
             // Navigate based on user role
             if (user.role === "ADMIN" || user.is_superuser) {
@@ -72,11 +93,27 @@ function Login() {
             const responseData = error.response?.data;
                 
             if (typeof responseData === "object" && responseData !== null) {
-                setError(
-                    Object.values(responseData)
-                        .flat()
-                        .join(" ")
-                );
+                const rawCode = responseData.code || responseData.detail?.code;
+                const code = Array.isArray(rawCode) ? rawCode[0] : rawCode;
+                const rawMsg = responseData.detail?.message || responseData.detail || responseData.message;
+                const msg = Array.isArray(rawMsg) ? rawMsg[0] : (typeof rawMsg === "string" ? rawMsg : null);
+                
+                if (code === "USER_BLOCKED" || code === "SALON_BLOCKED") {
+                    setError(
+                        msg ||
+                        (code === "SALON_BLOCKED"
+                            ? "Your salon has been suspended by administration."
+                            : "Your account has been deactivated or blocked by administration.")
+                    );
+                } else if (msg) {
+                    setError(msg);
+                } else {
+                    setError(
+                        Object.values(responseData)
+                            .flat()
+                            .join(" ")
+                    );
+                }
             } else {
                 setError(responseData || "Login failed. Please try again.");
             }

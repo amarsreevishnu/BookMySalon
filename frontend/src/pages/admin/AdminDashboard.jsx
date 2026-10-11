@@ -76,17 +76,15 @@ export default function AdminDashboard() {
       const token = localStorage.getItem("access_token");
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-      // 1. Fetch Stats
       try {
         const statsRes = await api.get("/salons/admin/stats/", config);
         if (statsRes.data) {
           setStats((prev) => ({ ...prev, ...statsRes.data }));
         }
       } catch {
-        // Fallback silently if stats endpoint fails
+        
       }
 
-      // 2. Fetch Salons
       setLoadingSalons(true);
       const salonsRes = await api.get("/salons/admin/salons/?status=all", config);
       if (salonsRes.data) {
@@ -162,7 +160,6 @@ export default function AdminDashboard() {
         setShowRejectInput(false);
         setRejectionReason("");
 
-        // Refresh stats
         fetchDashboardData();
       }
     } catch (err) {
@@ -183,7 +180,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-layout">
-      {/* Toast Notification */}
       {toastMessage && (
         <div
           style={{
@@ -218,7 +214,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Left Sidebar Navigation */}
       <AdminSidebar
         pendingCount={pendingCount}
         salonsCount={salons.length || stats.total_salons}
@@ -233,9 +228,9 @@ export default function AdminDashboard() {
         onLogout={handleLogout}
       />
 
-      {/* Main Content Area */}
+      
       <main className="admin-main">
-        {/* Topbar */}
+        
         <header className="admin-topbar">
           <div className="admin-search-wrap">
             <span className="admin-search-icon">🔍</span>
@@ -284,9 +279,9 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* Content Container */}
+        
         <div className="admin-content-container">
-          {/* Breadcrumb & Title */}
+          
           <div className="admin-breadcrumb">
             Platform Operations &gt; Super Admin Authority &gt; Executive Dashboard
           </div>
@@ -317,7 +312,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* 5 Stat Cards */}
+          
           <div className="admin-metrics-grid">
             <div className="admin-metric-card">
               <div className="admin-metric-header">
@@ -375,7 +370,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* 3 Pipeline Alert Cards */}
+          
           <div className="admin-pipeline-grid">
             <div className="admin-pipeline-card">
               <div className="admin-pipeline-top">

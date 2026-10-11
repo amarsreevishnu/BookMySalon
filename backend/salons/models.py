@@ -1,5 +1,7 @@
+from datetime import timedelta
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Salon(models.Model):
@@ -188,3 +190,23 @@ class WorkerLeave(models.Model):
 
     def __str__(self):
         return f"{self.worker} - {self.date} - {self.leave_type}"
+
+
+class SalonEmailOTP(models.Model):
+    email = models.EmailField(unique=True, db_index=True)
+    otp = models.CharField(max_length=6)
+    attempts = models.PositiveIntegerField(default=0)
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def is_otp_expired(self):
+        return timezone.now() > self.created_at + timedelta(seconds=120)
+
+    def is_verification_valid(self):
+        if not self.is_verified or not self.verified_at:
+            return False
+        return timezone.now() <= self.verified_at + timedelta(hours=24)
+
+    def __str__(self):
+        return f"Salon OTP for {self.email} (verified={self.is_verified})"

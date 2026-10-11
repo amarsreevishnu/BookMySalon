@@ -12,22 +12,20 @@ export default function AdminUserList() {
   const { logout } = useAuth();
   const searchInputRef = useRef(null);
 
-  // State
+  
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("ALL"); // ALL | ACTIVE | BLOCKED
+  const [activeTab, setActiveTab] = useState("ALL"); 
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("newest"); // newest | oldest | name-asc | name-desc
+  const [sortBy, setSortBy] = useState("newest"); 
   const [inspectingUser, setInspectingUser] = useState(null);
   const [blockConfirmUser, setBlockConfirmUser] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10); // 10 customers per page default
+  const [pageSize, setPageSize] = useState(10); 
 
-  // Reset pagination to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, activeTab, sortBy, pageSize]);
@@ -39,7 +37,6 @@ export default function AdminUserList() {
     }, duration);
   };
 
-  // Keyboard shortcut: '/' to search, 'Escape' to close modals
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "/" && document.activeElement !== searchInputRef.current) {
@@ -58,7 +55,6 @@ export default function AdminUserList() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [blockConfirmUser, inspectingUser]);
 
-  // Fetch Customers from Backend
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -85,7 +81,6 @@ export default function AdminUserList() {
     fetchUsers();
   }, []);
 
-  // Trigger block action: asks for confirmation before blocking active customer; unblocks directly
   const handleInitiateBlock = (user) => {
     if (!user) return;
     if (user.is_active) {
@@ -95,10 +90,9 @@ export default function AdminUserList() {
     }
   };
 
-  // Alias so both handleToggleBlock and handleInitiateBlock resolve reliably
   const handleToggleBlock = handleInitiateBlock;
 
-  // Perform backend call to block or unblock
+  
   const executeToggleBlock = async (user) => {
     if (!user) return;
     setIsProcessing(true);
@@ -189,7 +183,6 @@ export default function AdminUserList() {
   const endIndex = Math.min(startIndex + pageSize, filteredUsers.length);
   const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
-  // Helper for generating page numbers with smart ellipsis
   const getPageNumbers = () => {
     if (totalPages <= 5) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -211,7 +204,7 @@ export default function AdminUserList() {
     ];
   };
 
-  // CSV Export
+  
   const exportUsersCSV = () => {
     if (!filteredUsers.length) {
       showToast("No customers available to export.", 2500);
@@ -257,7 +250,7 @@ export default function AdminUserList() {
 
   return (
     <div className="asl-layout">
-      {/* Toast Notification */}
+      
       {toastMessage && (
         <div
           style={{
@@ -293,15 +286,15 @@ export default function AdminUserList() {
         </div>
       )}
 
-      {/* Shared Admin Navigation Sidebar */}
+      
       <AdminSidebar
         usersCount={totalCount}
         onLogout={handleLogout}
       />
 
-      {/* Main Container */}
+      
       <main className="asl-main">
-        {/* Top Sticky Bar */}
+        
         <header className="asl-topbar">
           <div className="asl-topbar-title">
             <span className="asl-breadcrumb">Super Admin /</span>
@@ -328,9 +321,9 @@ export default function AdminUserList() {
           </div>
         </header>
 
-        {/* Body Content */}
+        
         <div className="asl-body">
-          {/* KPI Summary Cards */}
+          
           <section className="asl-metrics-grid" aria-label="Customer metrics">
             <div
               className={`asl-metric-card ${activeTab === "ALL" ? "active-tab" : ""}`}
@@ -387,12 +380,8 @@ export default function AdminUserList() {
             </div>
           </section>
 
-          {/* Control Bar: Tabs + Search + Sort */}
+          
           <div className="asl-controls-card">
-            {/* Tabs */}
-           
-
-            {/* Toolbar Filters: Search & Sort */}
             <div className="asl-toolbar-filters">
               <div className="asl-search-wrap">
                 <span className="asl-search-icon">🔍</span>
@@ -435,7 +424,7 @@ export default function AdminUserList() {
             </div>
           </div>
 
-          {/* Results Summary */}
+          
           <div className="asl-results-bar">
             <span>
               Showing <strong>{filteredUsers.length}</strong> of {totalCount} customers
@@ -464,7 +453,7 @@ export default function AdminUserList() {
             </div>
           )}
 
-          {/* Empty State */}
+          
           {!loading && filteredUsers.length === 0 && (
             <div className="asl-empty-card">
               <div className="asl-empty-icon">👥</div>
@@ -672,7 +661,7 @@ export default function AdminUserList() {
                   </div>
 
                   <div className="asl-pagination-controls">
-                    {/* Rows per page selector */}
+                    
                     <div className="asl-pagination-size-select">
                       <label htmlFor="user-page-size">Per page:</label>
                       <select
@@ -748,9 +737,7 @@ export default function AdminUserList() {
         isProcessing={isProcessing}
       />
 
-      {/* ======================================================================
-          BLOCK CONFIRMATION MODAL (Yes or Cancel)
-         ====================================================================== */}
+      {/*BLOCK CONFIRMATION MODAL (Yes or Cancel) */}
       {blockConfirmUser && (
         <div
           className="asl-modal-backdrop user-modal-backdrop"

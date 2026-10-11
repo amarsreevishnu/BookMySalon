@@ -4,9 +4,8 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 import "../../styles/adminServices.css";
 
 export default function AdminServicesList() {
-  const [activeTab, setActiveTab] = useState("services"); // 'services' | 'categories'
+  const [activeTab, setActiveTab] = useState("services"); 
 
-  // Data states
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
   const [stats, setStats] = useState({
@@ -16,13 +15,11 @@ export default function AdminServicesList() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Filters state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("ALL");
   const [selectedGenderFilter, setSelectedGenderFilter] = useState("ALL");
 
-  // Modals state
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryForm, setCategoryForm] = useState({
@@ -45,7 +42,7 @@ export default function AdminServicesList() {
     is_active: true,
   });
 
-  const [deleteConfirm, setDeleteConfirm] = useState(null); // { type: 'category' | 'service', id, name }
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [toastMessage, setToastMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -54,7 +51,6 @@ export default function AdminServicesList() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Fetch initial catalog data
   const loadCatalogData = async () => {
     setLoading(true);
     try {
@@ -101,7 +97,7 @@ export default function AdminServicesList() {
     loadCatalogData();
   }, []);
 
-  // Filtered standard services
+  
   const filteredServices = useMemo(() => {
     const list = Array.isArray(services) ? services : [];
     return list.filter((srv) => {
@@ -141,9 +137,6 @@ export default function AdminServicesList() {
     }
   };
 
-  // ============================================================================
-  // Category Actions
-  // ============================================================================
   const openCreateCategory = () => {
     setEditingCategory(null);
     setCategoryForm({
@@ -216,9 +209,7 @@ export default function AdminServicesList() {
     }
   };
 
-  // ============================================================================
-  // Service Actions
-  // ============================================================================
+  
   const openCreateService = () => {
     setEditingService(null);
     setServiceForm({
@@ -285,9 +276,7 @@ export default function AdminServicesList() {
     }
   };
 
-  // ============================================================================
-  // Delete Handler
-  // ============================================================================
+  
   const executeDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -310,7 +299,7 @@ export default function AdminServicesList() {
       <AdminSidebar activeTab="SERVICES" />
 
       <div className="admin-services-main">
-        {/* Top Header Bar */}
+        
         <header className="admin-services-topbar">
           <div className="admin-services-title-area">
             <h1>Platform Services &amp; Master Catalog</h1>
@@ -343,9 +332,9 @@ export default function AdminServicesList() {
           </div>
         </header>
 
-        {/* Content Body */}
+        
         <div className="admin-services-content">
-          {/* KPI Analytics Bar */}
+          
           <section className="admin-services-kpi-grid">
             <div className="admin-kpi-card">
               <div className="admin-kpi-top">
@@ -406,7 +395,7 @@ export default function AdminServicesList() {
             </div>
           </section>
 
-          {/* Navigation Tabs */}
+          
           <div className="admin-services-tabs-bar">
             <div className="admin-services-tab-group">
               <button
@@ -428,12 +417,10 @@ export default function AdminServicesList() {
             </div>
           </div>
 
-          {/* ================================================================
-              TAB 1: SERVICES CATALOG
-              ================================================================ */}
+          
           {activeTab === "services" && (
             <>
-              {/* Filter Controls Bar */}
+              
               <div className="admin-filter-bar">
                 <div className="admin-search-wrapper">
                   <span className="admin-search-icon">🔍</span>
@@ -484,7 +471,7 @@ export default function AdminServicesList() {
                 </div>
               </div>
 
-              {/* Services Table Card */}
+              
               <div className="admin-table-card">
                 {loading ? (
                   <div className="admin-empty-state">
@@ -627,9 +614,7 @@ export default function AdminServicesList() {
             </>
           )}
 
-          {/* ================================================================
-              TAB 2: SERVICE CATEGORIES
-              ================================================================ */}
+          
           {activeTab === "categories" && (
             <div className="admin-categories-cards-grid">
               {categories.map((cat) => (
@@ -718,9 +703,7 @@ export default function AdminServicesList() {
         </div>
       </div>
 
-      {/* ====================================================================
-          MODAL: CREATE / EDIT CATEGORY
-          ==================================================================== */}
+      
       {categoryModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setCategoryModalOpen(false)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -824,7 +807,7 @@ export default function AdminServicesList() {
                     </label>
                   </div>
 
-                  {/* Image Preview if provided */}
+                  
                   {categoryForm.image && (
                     <div
                       style={{
@@ -918,9 +901,7 @@ export default function AdminServicesList() {
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL: CREATE / EDIT STANDARD SERVICE
-          ==================================================================== */}
+      
       {serviceModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setServiceModalOpen(false)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -1073,9 +1054,7 @@ export default function AdminServicesList() {
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL: DELETE CONFIRMATION
-          ==================================================================== */}
+      
       {deleteConfirm && (
         <div className="admin-modal-overlay" onClick={() => setDeleteConfirm(null)}>
           <div className="admin-modal-card" style={{ maxWidth: "420px" }} onClick={(e) => e.stopPropagation()}>
@@ -1121,7 +1100,7 @@ export default function AdminServicesList() {
         </div>
       )}
 
-      {/* Toast Notification */}
+      
       {toastMessage && (
         <div className="admin-toast-notice">
           <span>{toastMessage}</span>

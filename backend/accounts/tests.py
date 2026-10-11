@@ -210,3 +210,50 @@ class OwnerChangePasswordTestCase(APITestCase):
         self.owner.refresh_from_db()
         self.assertTrue(self.owner.check_password("brandNewPassword456"))
 
+
+class LoginBlockedUserTestCase(APITestCase):
+    def setUp(self):
+        self.active_user = User.objects.create_user(
+            email="activeuser@example.com",
+            password="correctPassword123",
+            first_name="Active",
+            last_name="User",
+        )
+        self.blocked_user = User.objects.create_user(
+            email="blockeduser@example.com",
+            password="correctPassword123",
+            first_name="Blocked",
+            last_name="User",
+            is_active=False,
+        )
+
+    def test_active_user_login_success(self):
+        res = self.client.post(
+            "/api/v1/accounts/login/",
+            {"email": "activeuser@example.com", "password": "correctPassword123"},
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("access", res.data)
+
+    def test_blocked_user_login_returns_user_blocked(self):
+        res = self.client.post(
+            "/api/v1/accounts/login/",
+            {"email": "blockeduser@example.com", "password": "correctPassword123"},
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        # Verify it returns USER_BLOCKED code, not Invalid email or password
+        self.assertIn("code", res.data)
+        code = res.data["code"]
+        code_val = code[0] if isinstance(code, list) else code
+        self.assertEqual(code_val, "USER_BLOCKED")
+
+    def test_wrong_password_returns_invalid_credentials(self):
+        res = self.client.post(
+            "/api/v1/accounts/login/",
+            {"email": "blockeduser@example.com", "password": "wrongPassword999"},
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        error_str = str(res.data)
+        self.assertIn("Invalid email or password", error_str)
+
+

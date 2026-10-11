@@ -168,7 +168,6 @@ export default function CreateSalon() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // Form states
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -183,7 +182,7 @@ export default function CreateSalon() {
     longitude: "77.5946",
   });
 
-  // Dynamic Service Catalog & Categories from Backend
+  // Service Catalog & Categories from Backend
   const [categoriesList, setCategoriesList] = useState([]);
   const [catalogServices, setCatalogServices] = useState([]);
   const [activeSuggestionCategory, setActiveSuggestionCategory] = useState("ALL");
@@ -222,6 +221,28 @@ export default function CreateSalon() {
   const [isLinkExpired, setIsLinkExpired] = useState(false);
   const [expiredLinkInfo, setExpiredLinkInfo] = useState({ error: "", salonName: "", statusCode: "" });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // states for Email verification
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verifiedEmailAddress, setVerifiedEmailAddress] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpError, setOtpError] = useState("");
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState("");
+
+  
+  useEffect(() => {
+    let timer;
+    if (otpCountdown > 0) {
+      timer = setInterval(() => {
+        setOtpCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [otpCountdown]);
 
   // Load prefilled data if in resubmit mode, else restore draft if present
   useEffect(() => {
@@ -266,6 +287,12 @@ export default function CreateSalon() {
             latitude: data.latitude !== null && data.latitude !== undefined ? String(data.latitude) : "12.9716",
             longitude: data.longitude !== null && data.longitude !== undefined ? String(data.longitude) : "77.5946",
           });
+
+          if (data.email) {
+            setIsEmailVerified(true);
+            setVerifiedEmailAddress(data.email);
+          }
+
 
           if (data.opening_hours?.days && Array.isArray(data.opening_hours.days)) {
             setOpeningHours(data.opening_hours.days);
@@ -421,10 +448,116 @@ export default function CreateSalon() {
     }
   };
 
+  const isValidEmail = (email) => {
+    return Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+  };
+
+  const handleSendEmailOtp = async () => {
+    setOtpError("");
+    setOtpSuccessMessage("");
+    if (!formData.email.trim()) {
+      setOtpError("Please enter an official contact email address first.");
+      return;
+    }
+    if (!isValidEmail(formData.email)) {
+      setOtpError("Please enter a valid official contact email address.");
+      return;
+    }
+
+    setIsSendingOtp(true);
+    try {
+      const res = await api.post("/salons/verify-email/send-otp/", {
+        email: formData.email.trim(),
+      });
+      setOtpSent(true);
+      setOtpCountdown(60);
+      setOtpSuccessMessage(res.data?.message || `Verification code sent to ${formData.email.trim()}`);
+    } catch (err) {
+      const errMsg =
+        err.response?.data?.email?.[0] ||
+        err.response?.data?.error ||
+        "Failed to send verification code. Please check email address and try again.";
+      setOtpError(errMsg);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setOtpError("");
+    setOtpSuccessMessage("");
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setOtpError("Please enter the complete 6-digit verification code.");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      await api.post("/salons/verify-email/verify-otp/", {
+        email: formData.email.trim(),
+        otp: otpCode.trim(),
+      });
+      setIsEmailVerified(true);
+      setVerifiedEmailAddress(formData.email.trim());
+      setOtpSent(false);
+      setOtpCode("");
+      setOtpSuccessMessage("Official contact email successfully verified!");
+      setErrorMessage("");
+    } catch (err) {
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.otp?.[0] ||
+        "Invalid or expired verification code. Please retry or request a new code.";
+      setOtpError(errMsg);
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleResendEmailOtp = async () => {
+    if (otpCountdown > 0) return;
+    setOtpError("");
+    setOtpSuccessMessage("");
+    setIsSendingOtp(true);
+    try {
+      const res = await api.post("/salons/verify-email/resend-otp/", {
+        email: formData.email.trim(),
+      });
+      setOtpCountdown(60);
+      setOtpSuccessMessage(res.data?.message || "A new verification code has been sent.");
+    } catch (err) {
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.email?.[0] ||
+        "Failed to resend code. Please try again in a few moments.";
+      setOtpError(errMsg);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleChangeVerifiedEmail = () => {
+    setIsEmailVerified(false);
+    setVerifiedEmailAddress("");
+    setOtpSent(false);
+    setOtpCode("");
+    setOtpError("");
+    setOtpSuccessMessage("");
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === "email" && isEmailVerified && value.trim().toLowerCase() !== verifiedEmailAddress.toLowerCase()) {
+      setIsEmailVerified(false);
+      setVerifiedEmailAddress("");
+      setOtpSent(false);
+      setOtpCode("");
+      setOtpError("");
+      setOtpSuccessMessage("");
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
 
   const handleCategorySelect = (cat) => {
     setFormData((prev) => ({ ...prev, category: cat }));
@@ -607,6 +740,7 @@ export default function CreateSalon() {
   // Calculate readiness percentage
   const checklist = {
     basic: Boolean(formData.name.trim() && formData.description.trim() && formData.phone.trim()),
+    email: Boolean(isEmailVerified || (isResubmitMode && formData.email.trim())),
     location: Boolean(formData.address.trim() && formData.city.trim()),
     hours: openingHours.some((d) => d.isOpen),
     pricing: services.length > 0,
@@ -615,7 +749,7 @@ export default function CreateSalon() {
   };
 
   const completedCount = Object.values(checklist).filter(Boolean).length;
-  const readinessPercent = Math.round((completedCount / 6) * 100);
+  const readinessPercent = Math.round((completedCount / 7) * 100);
 
   const minPrice = services.length > 0
     ? Math.min(
@@ -633,22 +767,66 @@ export default function CreateSalon() {
     }
   };
 
-  const handleInitiateSubmit = (e) => {
+  const handleSubmit = (e) => {
     if (e) e.preventDefault();
     setErrorMessage("");
 
-    if (!formData.name.trim()) {
+    const name = formData.name.trim();
+
+    if (!name) {
       setErrorMessage("Please provide your salon name.");
       scrollToSection(1, "card-basic");
       return;
     }
-    if (!formData.phone.trim()) {
-      setErrorMessage("Please provide a contact phone number.");
+
+    const letterCount = (name.match(/[a-zA-Z]/g) || []).length;
+
+    if (!/^[a-zA-Z]/.test(name)) {
+      setErrorMessage("Salon name must start with a letter.");
+      scrollToSection(1, "card-basic");
+      return;
+    }
+
+    if (letterCount < 3) {
+      setErrorMessage("Salon name must contain at least 3 letters.");
+      scrollToSection(1, "card-basic");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9 &'()-]+$/.test(name)) {
+      setErrorMessage("Salon name contains invalid characters.");
       scrollToSection(1, "card-basic");
       return;
     }
     if (!formData.email.trim()) {
       setErrorMessage("Please provide an official contact email for credentials.");
+      scrollToSection(1, "card-basic");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setErrorMessage("Please provide a valid official contact email address.");
+      scrollToSection(1, "card-basic");
+      return;
+    }
+    if (!isEmailVerified && !isResubmitMode) {
+      setErrorMessage("Please verify your official contact email with the OTP code before submitting.");
+      scrollToSection(1, "card-basic");
+      if (!otpSent) {
+        handleSendEmailOtp();
+      }
+      return;
+    }
+    const phone = formData.phone.trim();
+    if (!phone.trim()) {
+      setErrorMessage("Please provide a contact phone number.");
+      scrollToSection(1, "card-basic");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setErrorMessage(
+        "Please enter a valid 10-digit Indian mobile number."
+      );
       scrollToSection(1, "card-basic");
       return;
     }
@@ -1157,23 +1335,146 @@ export default function CreateSalon() {
               </div>
 
               <div className="cs-form-row-2">
-                <div className="cs-form-group">
-                  <label className="cs-label">
-                    Official Contact Email <span className="required">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="owner@yourparlour.com"
-                    className="cs-input"
-                    required
-                  />
-                  <span style={{ fontSize: "11px", color: "#66786c", marginTop: "4px", display: "block" }}>
-                    Your login credentials will be emailed here upon Super Admin approval.
-                  </span>
+                <div className="cs-form-group cs-email-verify-group">
+                  <div className="cs-label-row">
+                    <label className="cs-label" htmlFor="cs-official-email">
+                      Official Contact Email <span className="required">*</span>
+                    </label>
+                    {isEmailVerified && (
+                      <span className="cs-email-verified-pill">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Verified
+                      </span>
+                    )}
+                  </div>
+                  <div className="cs-email-input-wrapper">
+                    <input
+                      id="cs-official-email"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="owner@yourparlour.com"
+                      className={`cs-input ${isEmailVerified ? "cs-input-verified" : ""}`}
+                      readOnly={isEmailVerified}
+                      required
+                    />
+                    {isEmailVerified ? (
+                      <button
+                        type="button"
+                        className="cs-email-change-btn"
+                        onClick={handleChangeVerifiedEmail}
+                        title="Click to edit or re-verify a different email"
+                      >
+                        Change
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="cs-email-verify-btn"
+                        onClick={handleSendEmailOtp}
+                        disabled={isSendingOtp || !isValidEmail(formData.email)}
+                      >
+                        {isSendingOtp ? (
+                          <span className="cs-btn-spinner-sm"></span>
+                        ) : otpSent ? (
+                          "Resend Code"
+                        ) : (
+                          "Verify Email"
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {!otpSent && !isEmailVerified && (
+                    <span className="cs-field-subtext">
+                      We will send a 6-digit verification code to verify official ownership.
+                    </span>
+                  )}
+                  {isEmailVerified && (
+                    <span className="cs-field-subtext cs-field-subtext-success">
+                      ✓ Email verified. Credentials will be sent here upon Super Admin approval.
+                    </span>
+                  )}
+
+                  {/* Inline OTP Verification Panel */}
+                  {otpSent && !isEmailVerified && (
+                    <div className="cs-inline-otp-panel">
+                      <div className="cs-inline-otp-header">
+                        <div className="cs-inline-otp-icon">✉</div>
+                        <div className="cs-inline-otp-meta">
+                          <strong>Verification Code Sent</strong>
+                          <span>Check inbox for <strong>{formData.email}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="cs-inline-otp-body">
+                        <label className="cs-inline-otp-label">Enter 6-Digit Code</label>
+                        <div className="cs-inline-otp-input-row">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            autoComplete="one-time-code"
+                            placeholder="• • • • • •"
+                            value={otpCode}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setOtpCode(val);
+                              if (otpError) setOtpError("");
+                            }}
+                            className="cs-inline-otp-input"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            className="cs-inline-otp-submit-btn"
+                            onClick={handleVerifyEmailOtp}
+                            disabled={isVerifyingOtp || otpCode.length !== 6}
+                          >
+                            {isVerifyingOtp ? "Verifying..." : "Verify Code"}
+                          </button>
+                        </div>
+
+                        <div className="cs-inline-otp-footer">
+                          <div className="cs-inline-otp-countdown">
+                            {otpCountdown > 0 ? (
+                              <>
+                                <span className="cs-otp-dot-pulse" />
+                                <span>Expires in {otpCountdown}s</span>
+                              </>
+                            ) : (
+                              <span className="cs-otp-expired-msg">Code expired</span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="cs-inline-otp-resend-btn"
+                            onClick={handleResendEmailOtp}
+                            disabled={otpCountdown > 0 || isSendingOtp}
+                          >
+                            {isSendingOtp ? "Sending..." : "Resend Code"}
+                          </button>
+                        </div>
+
+                        {otpError && (
+                          <div className="cs-inline-otp-alert error">
+                            {otpError}
+                          </div>
+                        )}
+                        {otpSuccessMessage && !otpError && (
+                          <div className="cs-inline-otp-alert success">
+                            {otpSuccessMessage}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
 
                 <div className="cs-form-group">
                   <label className="cs-label">
@@ -1778,7 +2079,7 @@ export default function CreateSalon() {
               <button
                 type="button"
                 className="cs-submit-btn"
-                onClick={handleInitiateSubmit}
+                onClick={handleSubmit}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -1786,7 +2087,7 @@ export default function CreateSalon() {
                     <span className="cs-spinner" /> {isResubmitMode ? "Resubmitting Application..." : "Submitting Application..."}
                   </>
                 ) : (
-                  <>{isResubmitMode ? "Resubmit Corrected Application →" : "Submit for Admin Approval →"}</>
+                  <>{isResubmitMode ? "Resubmit Application →" : "Submit for Admin Approval →"}</>
                 )}
               </button>
             </div>
@@ -1886,6 +2187,13 @@ export default function CreateSalon() {
                   <span>Basic Details & Category</span>
                 </div>
 
+                <div className={`cs-checklist-item ${checklist.email ? "done" : ""}`}>
+                  <div className={`cs-check-icon ${checklist.email ? "done" : "pending"}`}>
+                    {checklist.email ? "✓" : ""}
+                  </div>
+                  <span>Official Contact Email</span>
+                </div>
+
                 <div className={`cs-checklist-item ${checklist.location ? "done" : ""}`}>
                   <div className={`cs-check-icon ${checklist.location ? "done" : "pending"}`}>
                     {checklist.location ? "✓" : ""}
@@ -1938,6 +2246,7 @@ export default function CreateSalon() {
         </>
       )}
       </main>
+
 
       {/* Confirmation Modal before Resubmission */}
       {showConfirmModal && (

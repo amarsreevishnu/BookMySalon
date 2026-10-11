@@ -7,11 +7,13 @@ from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 
-from rest_framework import generics, status, viewsets
+from rest_framework import generics, status, viewsets, exceptions
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .models import CustomerProfile
 from salons.models import Salon
@@ -132,12 +134,77 @@ class LoginView(generics.GenericAPIView):
                     "last_name": user.last_name,
                     "is_superuser": user.is_superuser,
                     "is_staff": user.is_staff,
+                    "must_change_password": getattr(user, "must_change_password", False),
                 },
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             },
             status=status.HTTP_200_OK,
         )
+
+
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        try:
+            data = super().validate(attrs)
+        except Exception as e:
+            err_str = str(e).lower()
+            if "no active account" in err_str or "inactive" in err_str:
+                raise exceptions.AuthenticationFailed(
+                    detail={
+                        "code": "USER_BLOCKED",
+                        "message": "Your account has been deactivated or blocked by administration.",
+                    },
+                    code="user_blocked",
+                )
+            raise e
+
+        refresh = RefreshToken(attrs["refresh"])
+        user_id = refresh.payload.get("user_id")
+
+        if user_id:
+            user = User.objects.filter(id=user_id).first()
+            if not user or not user.is_active:
+                raise exceptions.AuthenticationFailed(
+                    detail={
+                        "code": "USER_BLOCKED",
+                        "message": "Your account has been deactivated or blocked by administration.",
+                    },
+                    code="user_blocked",
+                )
+
+            # Check salon status for OWNER and WORKER
+            if not getattr(user, "is_superuser", False) and getattr(user, "role", None) != User.Role.ADMIN:
+                if user.role == User.Role.OWNER:
+                    salon = Salon.objects.filter(owner=user).first()
+                    if salon and salon.approval_status == Salon.ApprovalStatus.BLOCKED:
+                        raise exceptions.AuthenticationFailed(
+                            detail={
+                                "code": "SALON_BLOCKED",
+                                "message": f"Your salon '{salon.name}' has been suspended by platform administration.",
+                            },
+                            code="salon_blocked",
+                        )
+                elif user.role == User.Role.WORKER:
+                    worker_profile = getattr(user, "worker_profile", None)
+                    if (
+                        worker_profile
+                        and worker_profile.salon
+                        and worker_profile.salon.approval_status == Salon.ApprovalStatus.BLOCKED
+                    ):
+                        raise exceptions.AuthenticationFailed(
+                            detail={
+                                "code": "SALON_BLOCKED",
+                                "message": f"Your affiliated salon '{worker_profile.salon.name}' has been suspended by platform administration.",
+                            },
+                            code="salon_blocked",
+                        )
+
+        return data
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    serializer_class = CustomTokenRefreshSerializer
 
 
 def google_success(request):
@@ -148,6 +215,12 @@ def google_success(request):
         )
 
     user = request.user
+    if not user.is_active:
+        return redirect(
+            f"{settings.FRONTEND_URL}/login"
+            "?error=USER_BLOCKED"
+        )
+
     if not getattr(user, "role", None):
         user.role = User.Role.CUSTOMER
         user.save(update_fields=["role"])
@@ -638,6 +711,7 @@ class OwnerChangePasswordView(APIView):
             )
 
         user.set_password(new_password)
+        user.must_change_password = False
         user.save()
 
         return Response(

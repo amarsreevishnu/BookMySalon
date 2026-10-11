@@ -22,6 +22,9 @@ from .views import (
     PendingSalonListView,
     SalonApprovalView,
     SalonCreateView,
+    SalonSendEmailOTPView,
+    SalonVerifyEmailOTPView,
+    SalonResendEmailOTPView,
     SalonResubmitDataView,
     SalonResubmitView,
     WorkerBookingStatusUpdateView,
@@ -138,6 +141,21 @@ urlpatterns = [
         "owner/walk-in/",
         OwnerQuickWalkInView.as_view(),
         name="owner-quick-walk-in",
+    ),
+    path(
+        "verify-email/send-otp/",
+        SalonSendEmailOTPView.as_view(),
+        name="salon-send-email-otp",
+    ),
+    path(
+        "verify-email/verify-otp/",
+        SalonVerifyEmailOTPView.as_view(),
+        name="salon-verify-email-otp",
+    ),
+    path(
+        "verify-email/resend-otp/",
+        SalonResendEmailOTPView.as_view(),
+        name="salon-resend-email-otp",
     ),
     path(
         "create/",

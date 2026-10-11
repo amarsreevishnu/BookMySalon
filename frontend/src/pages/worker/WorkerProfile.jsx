@@ -10,7 +10,6 @@ import "../../styles/workerDashboard.css";
 export default function WorkerProfile() {
   const { user } = useAuth();
 
-  // Profile data states
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -20,7 +19,6 @@ export default function WorkerProfile() {
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState("");
   const [passwordErrorMsg, setPasswordErrorMsg] = useState("");
 
-  // Affiliated Salon state
   const [salonInfo, setSalonInfo] = useState({
     name: "Affiliated Salon Outlet",
     city: "",
@@ -29,7 +27,6 @@ export default function WorkerProfile() {
     phone: "",
   });
 
-  // Stylist Hero State
   const [stylistMeta, setStylistMeta] = useState({
     chair: "Chair #01",
     shift: "09:30 AM - 06:30 PM",
@@ -39,7 +36,6 @@ export default function WorkerProfile() {
     rating: "4.92 ★",
   });
 
-  // Profile Form State
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -51,22 +47,22 @@ export default function WorkerProfile() {
     profile_photo: "",
   });
 
-  // Profile Validation Errors
+  
   const [formErrors, setFormErrors] = useState({});
 
-  // Password Reset Form State
+  
   const [passwordData, setPasswordData] = useState({
     current_password: "",
     new_password: "",
     confirm_password: "",
   });
 
-  // Password Visibility Toggles
+  
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Password Validation Errors
+  
   const [passwordErrors, setPasswordErrors] = useState({});
 
   const showToast = (msg) => {
@@ -74,11 +70,11 @@ export default function WorkerProfile() {
     setTimeout(() => setToastMessage(""), 4000);
   };
 
-  // Fetch dynamic worker profile and salon details
+  
   const fetchProfileData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch dashboard context for salon & live stats
+     
       const dashRes = await api.get("/salons/worker/dashboard/").catch(() => null);
       if (dashRes?.data) {
         const { salon, worker, kpi_stats } = dashRes.data;
@@ -103,7 +99,7 @@ export default function WorkerProfile() {
         }
       }
 
-      // 2. Fetch full worker profile details
+      
       const profRes = await api.get("/salons/worker/profile/").catch(() => null);
       if (profRes?.data) {
         const p = profRes.data;
@@ -127,7 +123,7 @@ export default function WorkerProfile() {
           }));
         }
       } else if (dashRes?.data?.worker) {
-        // Fallback to dashboard worker data if profile view was empty
+        
         const w = dashRes.data.worker;
         const nameParts = (w.full_name || user?.full_name || "").split(" ");
         setFormData({
@@ -145,7 +141,7 @@ export default function WorkerProfile() {
             "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?auto=format&fit=crop&w=240&q=80",
         });
       } else {
-        // Fallback to user auth data
+        
         setFormData({
           first_name: user?.first_name || "",
           last_name: user?.last_name || "",
@@ -171,7 +167,6 @@ export default function WorkerProfile() {
     fetchProfileData();
   }, [fetchProfileData]);
 
-  // Client-side Profile Validation
   const validateProfileField = (name, value) => {
     let error = "";
     const trimmed = String(value || "").trim();
@@ -240,7 +235,6 @@ export default function WorkerProfile() {
     setProfileErrorMsg("");
   };
 
-  // Avatar Image Upload
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -327,7 +321,6 @@ export default function WorkerProfile() {
     }
   };
 
-  // Password Reset Validation Rules
   const passwordRules = useMemo(() => {
     const pw = passwordData.new_password || "";
     return {
@@ -350,7 +343,6 @@ export default function WorkerProfile() {
     setPasswordSuccessMsg("");
     setPasswordErrorMsg("");
 
-    // Live validation
     if (name === "current_password") {
       setPasswordErrors((prev) => ({
         ...prev,
@@ -377,7 +369,6 @@ export default function WorkerProfile() {
     }
   };
 
-  // Submit Password Reset
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
 
@@ -457,7 +448,7 @@ export default function WorkerProfile() {
 
   return (
     <div className="wp-page-wrapper">
-      {/* Top Header */}
+      
       <WorkerHeader
         activeTab="profile"
         salonInfo={salonInfo}
@@ -465,10 +456,9 @@ export default function WorkerProfile() {
       />
 
       <main className="wp-main-content">
-        {/* Affiliated Salon Outlet Banner */}
         <WorkerSalonBanner salonInfo={salonInfo} />
 
-        {/* Breadcrumb */}
+       
         <div className="wp-breadcrumb">
           <Link to="/worker/dashboard" className="wp-breadcrumb-link">
             Specialist Dashboard
@@ -477,7 +467,7 @@ export default function WorkerProfile() {
           <span className="wp-breadcrumb-current">My Profile &amp; Settings</span>
         </div>
 
-        {/* Page Title */}
+        
         <div className="wp-header-row">
           <h1 className="wp-header-title">Specialist Profile &amp; Security</h1>
           <p className="wp-header-subtitle">
@@ -492,9 +482,6 @@ export default function WorkerProfile() {
           </div>
         ) : (
           <div className="wp-layout-grid">
-            {/* ================================================================
-                LEFT COLUMN: SPECIALIST HERO CARD & LIVE DETAILS
-                ================================================================ */}
             <aside>
               <div className="wp-card wp-hero-card">
                 <div className="wp-avatar-wrapper">
@@ -561,11 +548,8 @@ export default function WorkerProfile() {
               </div>
             </aside>
 
-            {/* ================================================================
-                RIGHT COLUMN: EDIT PROFILE FORM & PASSWORD RESET
-                ================================================================ */}
+            
             <div>
-              {/* Profile Details Card */}
               <div className="wp-card">
                 <div className="wp-card-header">
                   <h2 className="wp-card-title">
@@ -590,7 +574,6 @@ export default function WorkerProfile() {
 
                 <form onSubmit={handleProfileSubmit}>
                   <div className="wp-form-grid">
-                    {/* First Name */}
                     <div className="wp-form-group">
                       <label htmlFor="first_name_input" className="wp-label">
                         <span>First Name *</span>
@@ -610,7 +593,6 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Last Name */}
                     <div className="wp-form-group">
                       <label htmlFor="last_name_input" className="wp-label">
                         <span>Last Name</span>
@@ -629,7 +611,6 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Email (Read-only) */}
                     <div className="wp-form-group">
                       <label htmlFor="email_input" className="wp-label">
                         <span>Email Address</span>
@@ -647,7 +628,7 @@ export default function WorkerProfile() {
                       <span className="wp-field-hint">Used for official account notifications.</span>
                     </div>
 
-                    {/* Phone Number */}
+                    
                     <div className="wp-form-group">
                       <label htmlFor="phone_input" className="wp-label">
                         <span>Mobile Number *</span>
@@ -669,7 +650,7 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Specialization */}
+                    
                     <div className="wp-form-group">
                       <label htmlFor="specialization_input" className="wp-label">
                         <span>Specialization *</span>
@@ -689,7 +670,7 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Experience */}
+                    
                     <div className="wp-form-group">
                       <label htmlFor="experience_input" className="wp-label">
                         <span>Experience</span>
@@ -708,7 +689,7 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Bio */}
+                    
                     <div className="wp-form-group full-width">
                       <label htmlFor="bio_input" className="wp-label">
                         <span>Professional Bio / Notes</span>
@@ -743,7 +724,7 @@ export default function WorkerProfile() {
                 </form>
               </div>
 
-              {/* Password Reset Card */}
+              
               <div className="wp-card">
                 <div className="wp-card-header">
                   <h2 className="wp-card-title">
@@ -768,7 +749,7 @@ export default function WorkerProfile() {
 
                 <form onSubmit={handlePasswordSubmit}>
                   <div className="wp-form-grid">
-                    {/* Current Password */}
+                    
                     <div className="wp-form-group full-width">
                       <label htmlFor="current_password_input" className="wp-label">
                         <span>Current Password *</span>
@@ -798,7 +779,7 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* New Password */}
+                    
                     <div className="wp-form-group">
                       <label htmlFor="new_password_input" className="wp-label">
                         <span>New Password *</span>
@@ -828,7 +809,7 @@ export default function WorkerProfile() {
                       )}
                     </div>
 
-                    {/* Confirm New Password */}
+                    
                     <div className="wp-form-group">
                       <label htmlFor="confirm_password_input" className="wp-label">
                         <span>Confirm New Password *</span>
@@ -859,7 +840,7 @@ export default function WorkerProfile() {
                     </div>
                   </div>
 
-                  {/* Password Strength Checklist */}
+                  
                   <div className="wp-password-rules-box">
                     <div className="wp-password-rules-title">Password Requirements</div>
                     <div className="wp-password-rules-grid">
@@ -906,7 +887,7 @@ export default function WorkerProfile() {
         )}
       </main>
 
-      {/* Floating Toast */}
+      
       {toastMessage && (
         <div className="wp-toast">
           <span>✨</span>

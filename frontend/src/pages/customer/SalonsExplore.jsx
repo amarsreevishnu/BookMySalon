@@ -6,7 +6,7 @@ import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonsExplore.css";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 
-// Format 24-hr time string (e.g. "09:00", "21:00") into 12-hr format ("9:00 AM", "9:00 PM")
+
 export function formatTime12(timeStr) {
   if (!timeStr) return "";
   if (timeStr.includes("AM") || timeStr.includes("PM")) return timeStr;
@@ -20,7 +20,7 @@ export function formatTime12(timeStr) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
-// Dynamically extracts opening hours & holiday status for a salon based on selected date
+
 export function getSalonOpeningHoursInfo(salon, selectedDateParam = "Today") {
   if (!salon) {
     return {
@@ -45,7 +45,7 @@ export function getSalonOpeningHoursInfo(salon, selectedDateParam = "Today") {
 
   const openingHours = salon.opening_hours;
 
-  // 1. If opening_hours contains days array
+ 
   let daysList = [];
   if (openingHours && typeof openingHours === "object") {
     if (Array.isArray(openingHours.days)) {
@@ -85,7 +85,7 @@ export function getSalonOpeningHoursInfo(salon, selectedDateParam = "Today") {
     }
   }
 
-  // 2. If opening_hours is a string (e.g. from mock/legacy fallback)
+  
   if (typeof openingHours === "string" && openingHours.trim()) {
     const isClosed = openingHours.toLowerCase().includes("closed") || openingHours.toLowerCase().includes("off");
     return {
@@ -98,7 +98,7 @@ export function getSalonOpeningHoursInfo(salon, selectedDateParam = "Today") {
     };
   }
 
-  // 3. Fallback default
+ 
   return {
     isOpen: true,
     statusText: "Open Today",
@@ -124,7 +124,7 @@ export default function SalonsExplore() {
     }
   }, [user]);
 
-  // Read URL query params passed from CustomerHome
+  
   const searchParams = useMemo(() => new URLSearchParams(routeLocation.search), [routeLocation.search]);
 
   // Top Bar Search & Booking Inputs
@@ -133,7 +133,6 @@ export default function SalonsExplore() {
   const [selectedDate, setSelectedDate] = useState("Today");
   const [timeWindow, setTimeWindow] = useState("All Day Slots");
 
-  // Sidebar Filter States (clean defaults so all approved salons appear immediately)
   const [instantSlots, setInstantSlots] = useState(false);
   const [distanceRadius, setDistanceRadius] = useState("Any");
   const [minRating, setMinRating] = useState(0);
@@ -142,21 +141,16 @@ export default function SalonsExplore() {
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPurity, setSelectedPurity] = useState([]);
 
-  // Sorting & View mode
   const [sortBy, setSortBy] = useState("Recommended for You");
   const [viewMode, setViewMode] = useState("list");
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  // Favorites state
   const [savedFavorites, setSavedFavorites] = useState(new Set([1]));
 
-  // Feedback Toast
   const [toastMessage, setToastMessage] = useState("");
 
-  // Modals state
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bookingModalSalon, setBookingModalSalon] = useState(null);
@@ -164,7 +158,6 @@ export default function SalonsExplore() {
   const [bookingTime, setBookingTime] = useState("2:30 PM");
   const [detailsModalSalon, setDetailsModalSalon] = useState(null);
 
-  // Raw salons from backend & services catalog
   const [salonsList, setSalonsList] = useState([]);
   const [servicesCatalog, setServicesCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -172,14 +165,12 @@ export default function SalonsExplore() {
   console.log(salonsList);
   
 
-  // Auto-dismiss toast
   useEffect(() => {
     if (!toastMessage) return;
     const timer = setTimeout(() => setToastMessage(""), 3500);
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Fetch Salons and Services Catalog from Backend apps
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -188,13 +179,11 @@ export default function SalonsExplore() {
         const token = localStorage.getItem("access_token");
         const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-        // 1. Fetch salons from salons app
         const salonsRes = await api.get("/salons/explore/", config);
         if (salonsRes.data && salonsRes.data.salons && isMounted) {
           setSalonsList(salonsRes.data.salons);
         }
 
-        // 2. Fetch categories and offerings from services app
         try {
           const servicesRes = await api.get("/services/public/categories/", config);
           if (Array.isArray(servicesRes.data) && isMounted) {
@@ -215,7 +204,6 @@ export default function SalonsExplore() {
     };
   }, []);
 
-  // Dynamically extract locations from fetched salons
   const availableLocations = useMemo(() => {
     const locs = new Set();
     salonsList.forEach((s) => {
@@ -224,16 +212,13 @@ export default function SalonsExplore() {
     return ["All Locations", ...Array.from(locs)];
   }, [salonsList]);
 
-  // Dynamically extract categories & service tags combining services app + active salons
   const availableCategories = useMemo(() => {
     const catSet = new Set();
 
-    // Prioritize categories from services app
     servicesCatalog.forEach((cat) => {
       if (cat.name) catSet.add(cat.name);
     });
 
-    // Add categories & service tags from active salons
     salonsList.forEach((s) => {
       if (s.category) catSet.add(s.category);
       if (s.tags && Array.isArray(s.tags)) {
@@ -247,11 +232,10 @@ export default function SalonsExplore() {
     return Array.from(catSet);
   }, [servicesCatalog, salonsList]);
 
-  // Filter salons dynamically
   const filteredSalons = useMemo(() => {
     let list = salonsList.length > 0 ? [...salonsList] : [];
 
-    // Filter by text search
+
     if (treatmentQuery.trim()) {
       const q = treatmentQuery.toLowerCase();
       list = list.filter(
@@ -334,7 +318,7 @@ export default function SalonsExplore() {
       list = list.filter((s) => s.price_tier === priceTier);
     }
 
-    // Filter by Offers & Purity tags (dynamic)
+    
     if (selectedPurity.length > 0) {
       list = list.filter((s) => {
         return selectedPurity.some((purity) => {
@@ -527,17 +511,11 @@ export default function SalonsExplore() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          TOP HEADER
-          -------------------------------------------------------------------- */}
       <CustomerHeader />
 
-      {/* --------------------------------------------------------------------
-          FLOATING 4-PART SEARCH & BOOKING BAR
-          -------------------------------------------------------------------- */}
       <section className="explore-filter-bar-wrapper">
         <div className="explore-filter-bar">
-          {/* Segment 1: Location */}
+          
           <div className="filter-bar-segment">
             <div className="filter-segment-icon green">📍</div>
             <div className="filter-segment-content">
@@ -556,7 +534,6 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Segment 2: Treatment or Stylist */}
           <div className="filter-bar-segment" style={{ flex: 1.4 }}>
             <div className="filter-segment-icon gold">✨</div>
             <div className="filter-segment-content">
@@ -590,7 +567,6 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Segment 3: Date */}
           <div className="filter-bar-segment">
             <div className="filter-segment-icon gold">📅</div>
             <div className="filter-segment-content">
@@ -608,7 +584,6 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Segment 4: Time Window */}
           <div className="filter-bar-segment">
             <div className="filter-segment-icon gold">⏱</div>
             <div className="filter-segment-content">
@@ -626,7 +601,6 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Action Button */}
           <button
             type="button"
             className="btn-search-salons"
@@ -638,13 +612,10 @@ export default function SalonsExplore() {
         </div>
       </section>
 
-      {/* --------------------------------------------------------------------
-          MAIN 2-COLUMN SECTION
-          -------------------------------------------------------------------- */}
       <main className="explore-main-content">
-        {/* ======================= LEFT FILTERS SIDEBAR ======================= */}
+        
         <aside className="explore-sidebar">
-          {/* Header */}
+          
           <div className="sidebar-header">
             <div className="sidebar-title">
               <span>⚡</span>
@@ -664,7 +635,7 @@ export default function SalonsExplore() {
             </button>
           </div>
 
-          {/* Section 1: Instant Slots Toggle */}
+          
           <div className="instant-slots-card">
             <div>
               <div className="instant-slots-title">
@@ -686,7 +657,7 @@ export default function SalonsExplore() {
             </label>
           </div>
 
-          {/* Section 2: Distance Radius */}
+          
           <div className="filter-section-block">
             <div className="filter-section-header">
               <span className="filter-section-label">Distance Radius</span>
@@ -706,7 +677,7 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Section 3: Guest Rating */}
+          
           <div className="filter-section-block">
             <span className="filter-section-label">Guest Rating</span>
             <div className="filter-checkbox-list">
@@ -729,7 +700,7 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Section 4: Price Level */}
+          
           <div className="filter-section-block">
             <span className="filter-section-label">Price Level</span>
             <div className="price-level-grid">
@@ -750,7 +721,7 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Section 5: Atmosphere & Gender */}
+          
           <div className="filter-section-block">
             <span className="filter-section-label">Atmosphere & Gender</span>
             <div className="filter-segmented-pills">
@@ -767,7 +738,7 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Section 6: Holistic Services */}
+          
           <div className="filter-section-block">
             <span className="filter-section-label">Holistic Services</span>
             <div className="filter-checkbox-list">
@@ -788,7 +759,7 @@ export default function SalonsExplore() {
             </div>
           </div>
 
-          {/* Section 7: Offers & Purity */}
+          
           <div className="filter-section-block">
             <span className="filter-section-label">Offers & Purity</span>
             <div className="filter-checkbox-list">
@@ -814,9 +785,8 @@ export default function SalonsExplore() {
           </div>
         </aside>
 
-        {/* ======================= RIGHT RESULTS COLUMN ======================= */}
+        
         <section className="explore-results-column">
-          {/* Header Bar */}
           <div className="results-header-bar">
             <div className="results-title-group">
               <div className="results-title-row">
@@ -1124,9 +1094,7 @@ export default function SalonsExplore() {
         </div>
       </footer>
 
-      {/* --------------------------------------------------------------------
-          MODAL: BOOK SLOT / CONTACT SALON
-          -------------------------------------------------------------------- */}
+      
       {bookingModalSalon && (
         <div className="explore-modal-overlay" onClick={() => setBookingModalSalon(null)}>
           <div className="explore-modal-window" onClick={(e) => e.stopPropagation()}>
@@ -1250,9 +1218,7 @@ export default function SalonsExplore() {
         </div>
       )}
 
-      {/* --------------------------------------------------------------------
-          MODAL: VIEW SALON DETAILS
-          -------------------------------------------------------------------- */}
+    
       {detailsModalSalon && (
         <div className="explore-modal-overlay" onClick={() => setDetailsModalSalon(null)}>
           <div className="explore-modal-window" onClick={(e) => e.stopPropagation()}>

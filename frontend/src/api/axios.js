@@ -41,17 +41,73 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+const extractBlockStatus = (error) => {
+  const data = error?.response?.data;
+  if (!data) return null;
+
+  // Direct code or nested detail.code
+  const code = data.code || data.detail?.code;
+  if (code === "USER_BLOCKED") {
+    return {
+      type: "USER_BLOCKED",
+      message: data.message || data.detail?.message || "Your account has been deactivated or blocked by administration.",
+    };
+  }
+  if (code === "SALON_BLOCKED") {
+    return {
+      type: "SALON_BLOCKED",
+      message: data.message || data.detail?.message || "Your salon has been suspended by platform administration.",
+    };
+  }
+
+  // String check fallback
+  const raw = JSON.stringify(data).toLowerCase();
+  if (raw.includes("user_blocked") || (raw.includes("inactive") && (raw.includes("account") || raw.includes("user")))) {
+    return {
+      type: "USER_BLOCKED",
+      message: "Your account has been deactivated or blocked by administration.",
+    };
+  }
+  if (raw.includes("salon_blocked") || (raw.includes("salon") && raw.includes("suspended"))) {
+    return {
+      type: "SALON_BLOCKED",
+      message: "Your salon has been suspended by platform administration.",
+    };
+  }
+
+  return null;
+};
+
+const handleBlockedLogout = (blockInfo) => {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("user");
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("auth:blocked", { detail: blockInfo }));
+    const targetUrl = `/login?error=${encodeURIComponent(blockInfo.type)}&msg=${encodeURIComponent(blockInfo.message)}`;
+    if (window.location.pathname !== "/login") {
+      window.location.href = targetUrl;
+    }
+  }
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    
+    // Check immediately if this is a USER_BLOCKED or SALON_BLOCKED error
+    const blockInfo = extractBlockStatus(error);
+    if (blockInfo) {
+      handleBlockedLogout(blockInfo);
+      return Promise.reject(error);
+    }
+
     if (!error.response || error.response.status !== 401) {
       return Promise.reject(error);
     }
 
-    
     const requestUrl = originalRequest?.url || "";
     if (
       requestUrl.includes("/accounts/login/") ||
@@ -63,7 +119,6 @@ api.interceptors.response.use(
 
     const refreshToken = localStorage.getItem("refresh_token");
     if (!refreshToken) {
-      
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");
@@ -110,6 +165,13 @@ api.interceptors.response.use(
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
+
+      const refreshBlock = extractBlockStatus(refreshError);
+      if (refreshBlock) {
+        handleBlockedLogout(refreshBlock);
+        return Promise.reject(refreshError);
+      }
+
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");

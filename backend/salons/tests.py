@@ -284,3 +284,80 @@ class SalonEmailAndResubmitTests(APISimpleTestCase):
         self.assertEqual(post_res.data.get("status_code"), "NOT_REJECTED")
 
 
+class SalonEmailVerificationTests(APISimpleTestCase):
+    @patch("salons.serializers.Salon.objects.filter")
+    @patch("salons.views.send_salon_email_otp")
+    @patch("salons.views.SalonEmailOTP.objects.get_or_create")
+    def test_send_email_otp_success(self, mock_get_or_create, mock_send_email, mock_salon_filter):
+        mock_salon_qs = MagicMock()
+        mock_salon_qs.exists.return_value = False
+        mock_salon_filter.return_value = mock_salon_qs
+
+        mock_record = MagicMock()
+        mock_get_or_create.return_value = (mock_record, True)
+        mock_send_email.return_value = True
+
+
+        response = self.client.post(
+            "/api/v1/salons/verify-email/send-otp/",
+            {"email": "partner@luxesalon.com"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("verification code has been sent", response.data["message"])
+        mock_send_email.assert_called_once()
+
+    @patch("salons.views.SalonEmailOTP.objects.filter")
+    def test_verify_email_otp_invalid_code(self, mock_filter):
+        mock_record = MagicMock()
+        mock_record.otp = "123456"
+        mock_record.attempts = 0
+        mock_record.is_otp_expired.return_value = False
+        mock_qs = MagicMock()
+        mock_qs.first.return_value = mock_record
+        mock_filter.return_value = mock_qs
+
+        response = self.client.post(
+            "/api/v1/salons/verify-email/verify-otp/",
+            {"email": "partner@luxesalon.com", "otp": "999999"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid verification code", response.data["error"])
+
+    @patch("salons.views.SalonEmailOTP.objects.filter")
+    def test_verify_email_otp_correct_code(self, mock_filter):
+        mock_record = MagicMock()
+        mock_record.otp = "123456"
+        mock_record.attempts = 0
+        mock_record.is_otp_expired.return_value = False
+        mock_qs = MagicMock()
+        mock_qs.first.return_value = mock_record
+        mock_filter.return_value = mock_qs
+
+        response = self.client.post(
+            "/api/v1/salons/verify-email/verify-otp/",
+            {"email": "partner@luxesalon.com", "otp": "123456"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_verified"])
+
+    @patch("salons.views.SalonEmailOTP.objects.filter")
+    def test_create_salon_blocks_unverified_email(self, mock_filter):
+        mock_qs = MagicMock()
+        mock_qs.first.return_value = None  # No verified record
+        mock_filter.return_value = mock_qs
+
+        salon_payload = {
+            "name": "Emerald Spa",
+            "email": "unverified@test.com",
+            "phone": "+91 9876543210",
+            "address": "123 MG Road",
+            "city": "Bengaluru",
+        }
+        response = self.client.post("/api/v1/salons/create/", salon_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+        self.assertIn("must be verified", str(response.data["email"]))
+
+
+
+

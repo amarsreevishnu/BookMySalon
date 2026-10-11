@@ -726,7 +726,15 @@
   color: #e8a037;
   font-weight: 700;
 }
-
+.no-staff-message {
+  width: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  background: #f9fafb;
+  border-radius: 10px;
+}
 /* --------------------------------------------------------------------------
    Widget: Revenue Progression
    -------------------------------------------------------------------------- */

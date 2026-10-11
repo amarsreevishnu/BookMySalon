@@ -24,6 +24,7 @@ from .views import (
     CustomerFavoritesListView,
     OwnerChangePasswordView,
     WorkerChangePasswordView,
+    CustomTokenRefreshView,
 )
 
 urlpatterns = [
@@ -114,7 +115,7 @@ urlpatterns = [
     ),
     path(
         "token/refresh/",
-        TokenRefreshView.as_view(),
+        CustomTokenRefreshView.as_view(),
         name="token_refresh",
     ),
     path(

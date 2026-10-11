@@ -52,13 +52,14 @@ export default function AdminSalonsList() {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
-  const [sortBy, setSortBy] = useState("newest"); // newest, oldest, name-asc, name-desc, city
+  const [sortBy, setSortBy] = useState("newest"); 
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'grid'
 
   // Modals & Action States
   const [inspectingSalon, setInspectingSalon] = useState(null);
   const [rejectDialogSalon, setRejectDialogSalon] = useState(null);
   const [blockConfirmSalon, setBlockConfirmSalon] = useState(null);
+  const [unblockConfirmSalon, setUnblockConfirmSalon] = useState(null);
   const [selectedPresetReason, setSelectedPresetReason] = useState("");
   const [customRejectReason, setCustomRejectReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -81,7 +82,9 @@ export default function AdminSalonsList() {
         searchInputRef.current?.focus();
       }
       if (e.key === "Escape") {
-        if (blockConfirmSalon) {
+        if (unblockConfirmSalon) {
+          setUnblockConfirmSalon(null);
+        } else if (blockConfirmSalon) {
           setBlockConfirmSalon(null);
         } else if (rejectDialogSalon) {
           setRejectDialogSalon(null);
@@ -92,7 +95,7 @@ export default function AdminSalonsList() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [blockConfirmSalon, rejectDialogSalon, inspectingSalon]);
+  }, [unblockConfirmSalon, blockConfirmSalon, rejectDialogSalon, inspectingSalon]);
 
   // Fetch Salons from Backend
   const fetchSalons = async () => {
@@ -336,19 +339,18 @@ export default function AdminSalonsList() {
     }
   };
 
-  // Handle Salon Block / Unblock Toggle: opens confirmation modal before block
+  
   const handleInitiateBlock = (salon) => {
     if (!salon) return;
     if (salon.approval_status === "APPROVED") {
       setBlockConfirmSalon(salon);
     } else if (salon.approval_status === "BLOCKED") {
-      handleDecision(salon.id, "APPROVED");
+      setUnblockConfirmSalon(salon);
     }
   };
 
   const handleToggleBlock = handleInitiateBlock;
 
-  // Export Data to CSV
   const handleExportCSV = () => {
     if (!filteredSalons.length) {
       alert("No salons available to export.");
@@ -451,9 +453,9 @@ export default function AdminSalonsList() {
         onLogout={handleLogout}
       />
 
-      {/* Main Container */}
+      
       <main className="asl-main">
-        {/* Top Sticky Bar */}
+       
         <header className="asl-topbar">
           <div className="asl-topbar-title">
             <span className="asl-breadcrumb">Super Admin /</span>
@@ -483,9 +485,9 @@ export default function AdminSalonsList() {
           </div>
         </header>
 
-        {/* Body Content */}
+        
         <div className="asl-body">
-          {/* KPI Summary Cards */}
+          
           <section className="asl-metrics-grid" aria-label="Directory metrics">
             <div
               className={`asl-metric-card ${activeTab === "ALL" ? "active-tab" : ""}`}
@@ -558,10 +560,10 @@ export default function AdminSalonsList() {
             </div>
           </section>
 
-          {/* Filtering & Controls Toolbar */}
+         
           <section className="asl-toolbar">
             <div className="asl-toolbar-top">
-              {/* Status Tabs */}
+              
               <div className="asl-tabs" role="tablist">
                 <button
                   type="button"
@@ -607,7 +609,7 @@ export default function AdminSalonsList() {
                 </button>
               </div>
 
-              {/* View Switcher */}
+              
               <div className="asl-view-toggle">
                 <button
                   type="button"
@@ -628,7 +630,7 @@ export default function AdminSalonsList() {
               </div>
             </div>
 
-            {/* Search, Category, Sorting Row */}
+            
             <div className="asl-toolbar-filters">
               <div className="asl-search-wrap">
                 <span className="asl-search-icon">🔍</span>
@@ -679,7 +681,6 @@ export default function AdminSalonsList() {
             </div>
           </section>
 
-          {/* Directory Content Display */}
           {loading ? (
             <div className="asl-empty-state">
               <div className="asl-empty-icon">⏳</div>
@@ -740,7 +741,7 @@ export default function AdminSalonsList() {
 
                       return (
                         <tr key={salon.id}>
-                          {/* Salon Cell */}
+                        
                           <td>
                             <div className="asl-salon-cell">
                               <img
@@ -767,7 +768,7 @@ export default function AdminSalonsList() {
                             </div>
                           </td>
 
-                          {/* Contact Cell */}
+                          
                           <td>
                             <div className="asl-contact-cell">
                               <span className="asl-contact-city">
@@ -782,7 +783,7 @@ export default function AdminSalonsList() {
                             </div>
                           </td>
 
-                          {/* Services Cell */}
+                          
                           <td>
                             <div className="asl-services-cell">
                               <span className="asl-services-badge">
@@ -795,7 +796,7 @@ export default function AdminSalonsList() {
                             </div>
                           </td>
 
-                          {/* Schedule Cell */}
+                          
                           <td>
                             <div style={{ fontSize: "12px", color: "#475e50" }}>
                               {salon.opening_hours?.days ? (
@@ -1600,6 +1601,110 @@ export default function AdminSalonsList() {
               >
                 <span>🚫</span>
                 <span>{isProcessing ? "Blocking..." : "Yes, Block Salon"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------------
+          Unblock Salon Confirmation Modal Dialog (Yes or Cancel)
+          -------------------------------------------------------------------------- */}
+      {unblockConfirmSalon && (
+        <div
+          className="asl-modal-backdrop"
+          onClick={() => !isProcessing && setUnblockConfirmSalon(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Unblock Salon Modal"
+          style={{ zIndex: 100000 }}
+        >
+          <div
+            className="asl-dialog-panel"
+            style={{ maxWidth: 460 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background: "#dcfce7",
+                  color: "#16a34a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 24,
+                  flexShrink: 0,
+                }}
+              >
+                <span>🔓</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "#172a1d",
+                  }}
+                >
+                  Unblock Salon Venue?
+                </h3>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: "#556c5e",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Are you sure you want to unblock{" "}
+                  <strong style={{ color: "#172a1d" }}>
+                    {unblockConfirmSalon.name}
+                  </strong>{" "}
+                  (<code>ID #{unblockConfirmSalon.id}</code>)?
+                  <br />
+                  <br />
+                  This venue will be reactivated, restored to public customer search and explore, and its owner and staff will regain full platform access.
+                </p>
+              </div>
+            </div>
+
+            <div className="asl-dialog-actions" style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                className="asl-btn-outline"
+                disabled={isProcessing}
+                onClick={() => setUnblockConfirmSalon(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={async () => {
+                  const salonToUnblock = unblockConfirmSalon;
+                  setUnblockConfirmSalon(null);
+                  await handleDecision(salonToUnblock.id, "APPROVED");
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 18px",
+                  borderRadius: 8,
+                  background: "#166534",
+                  color: "#ffffff",
+                  border: "none",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                <span>✓</span>
+                <span>{isProcessing ? "Unblocking..." : "Yes, Unblock Salon"}</span>
               </button>
             </div>
           </div>

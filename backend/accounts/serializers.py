@@ -157,12 +157,42 @@ class LoginSerializer(serializers.Serializer):
             email=email,
             password=password,
         )
-
+        
         if user is None:
+            candidate_user = User.objects.filter(email__iexact=email).first()
+            if candidate_user and candidate_user.check_password(password):
+                if not candidate_user.is_active:
+                    raise serializers.ValidationError(
+                        {"code": "USER_BLOCKED", "detail": "Your account has been deactivated or blocked by administration."}
+                    )
             raise serializers.ValidationError("Invalid email or password.")
 
         if not user.is_active:
-            raise serializers.ValidationError("This account is inactive.")
+            raise serializers.ValidationError(
+                {"code": "USER_BLOCKED", "detail": "Your account has been deactivated or blocked by administration."}
+            )
+
+        if not getattr(user, "is_superuser", False) and getattr(user, "role", None) != User.Role.ADMIN:
+            from salons.models import Salon
+            if user.role == User.Role.OWNER:
+                salon = Salon.objects.filter(owner=user).first()
+                if salon and salon.approval_status == Salon.ApprovalStatus.BLOCKED:
+                    raise serializers.ValidationError(
+                        {"code": "SALON_BLOCKED", "detail": f"Your salon '{salon.name}' has been suspended by administration."}
+                    )
+            elif user.role == User.Role.WORKER:
+                worker_profile = getattr(user, "worker_profile", None)
+                if (
+                    worker_profile
+                    and worker_profile.salon
+                    and worker_profile.salon.approval_status == Salon.ApprovalStatus.BLOCKED
+                ):
+                    raise serializers.ValidationError(
+                        {
+                            "code": "SALON_BLOCKED",
+                            "detail": f"Your affiliated salon '{worker_profile.salon.name}' has been suspended by administration.",
+                        }
+                    )
 
         attrs["user"] = user
         return attrs

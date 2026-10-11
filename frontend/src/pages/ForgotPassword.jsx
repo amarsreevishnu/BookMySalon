@@ -7,23 +7,19 @@ import "../styles/auth.css";
 function ForgotPassword() {
     const navigate = useNavigate();
 
-    // Step state: "EMAIL" | "OTP" | "NEW_PASSWORD" | "SUCCESS"
     const [step, setStep] = useState("EMAIL");
 
-    // Form fields
     const [email, setEmail] = useState("");
     const [otp, setOtp] = useState("");
     const [resetToken, setResetToken] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
-    // Feedback & loading state
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
 
-    // Resend countdown timer (60s)
     const [countdown, setCountdown] = useState(60);
     const [timerActive, setTimerActive] = useState(false);
 
@@ -47,7 +43,6 @@ function ForgotPassword() {
         return responseData || "Something went wrong. Please try again.";
     };
 
-    // Step 1: Request OTP for Email
     const handleEmailSubmit = async (e) => {
         e.preventDefault();
         setError("");
@@ -72,7 +67,6 @@ function ForgotPassword() {
         }
     };
 
-    // Handle OTP digits input
     const handleOtpChange = (e) => {
         const val = e.target.value.replace(/\D/g, "");
         if (val.length <= 6) {
@@ -140,7 +134,7 @@ function ForgotPassword() {
         setTimerActive(false);
     };
 
-    // Step 3: Set New Password
+    
     const handleResetPasswordSubmit = async (e) => {
         e.preventDefault();
         setError("");

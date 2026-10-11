@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from datetime import timedelta
 from django.utils import timezone
-from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
+from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave, SalonEmailOTP
 from bookings.models import Booking
 from .media_utils import save_image_to_media, build_full_media_url
 
@@ -15,7 +15,6 @@ User = get_user_model()
 class SalonSerializer(serializers.ModelSerializer):
     owner_email = serializers.ReadOnlyField(source="owner.email")
     approval_status = serializers.ReadOnlyField()
-
     class Meta:
         model = Salon
         fields = [
@@ -54,7 +53,8 @@ class SalonSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "owner", "approval_status", "created_at", "updated_at"]
-
+    
+    
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, "copy") else dict(data)
 
@@ -497,3 +497,29 @@ class WorkerLeaveSerializer(serializers.ModelSerializer):
 
         attrs["worker"] = worker
         return attrs
+
+
+class SalonSendEmailOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if Salon.objects.filter(email__iexact=email, approval_status=Salon.ApprovalStatus.APPROVED).exists():
+            raise serializers.ValidationError(
+                "An approved salon is already registered with this official email. Please log in to your owner dashboard."
+            )
+        return email
+
+
+class SalonVerifyEmailOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6, min_length=6)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_otp(self, value):
+        value = value.strip()
+        if not value.isdigit() or len(value) != 6:
+            raise serializers.ValidationError("Verification code must be exactly 6 digits.")
+        return value

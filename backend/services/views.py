@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from accounts.authentication import CustomJWTAuthentication as JWTAuthentication
 
 from salons.models import Salon
 from .models import ServiceCategory, Service, SalonService
@@ -239,38 +239,7 @@ class AdminSeedInitialServicesView(APIView):
                     {"name": "Keratin Protein Smoothing", "price": 3500, "duration": 150, "gender": "ALL"},
                 ],
             },
-            {
-                "name": "Skin",
-                "icon": "✨",
-                "description": "Dermatological facials, cleanups, exfoliations and skin brightening.",
-                "services": [
-                    {"name": "Hydra Glow Oxygen Facial", "price": 1800, "duration": 60, "gender": "ALL"},
-                    {"name": "Deep Pore Extraction & Cleanup", "price": 750, "duration": 35, "gender": "ALL"},
-                    {"name": "Collagen Age-Defying Therapy", "price": 2400, "duration": 75, "gender": "ALL"},
-                    {"name": "Charcoal Detox Clarifying Mask", "price": 600, "duration": 30, "gender": "ALL"},
-                ],
-            },
-            {
-                "name": "Spa",
-                "icon": "🌿",
-                "description": "Holistic body therapies, tension relief and deep relaxation.",
-                "services": [
-                    {"name": "Swedish Full Body Massage", "price": 2200, "duration": 60, "gender": "ALL"},
-                    {"name": "Aromatherapy Herbal Relaxation", "price": 2500, "duration": 75, "gender": "ALL"},
-                    {"name": "Hot Stone Destress Therapy", "price": 3000, "duration": 90, "gender": "ALL"},
-                    {"name": "Foot Reflexology & Acupressure", "price": 800, "duration": 40, "gender": "ALL"},
-                ],
-            },
-            {
-                "name": "Nails",
-                "icon": "💅",
-                "description": "Express and luxury manicures, pedicures, and nail art.",
-                "services": [
-                    {"name": "Express Gel Manicure", "price": 650, "duration": 40, "gender": "ALL"},
-                    {"name": "Botanical Spa Pedicure & Scrub", "price": 850, "duration": 50, "gender": "ALL"},
-                    {"name": "Custom Gel Nail Extension & Art", "price": 1800, "duration": 90, "gender": "FEMALE"},
-                ],
-            },
+            
         ]
 
         created_categories = 0

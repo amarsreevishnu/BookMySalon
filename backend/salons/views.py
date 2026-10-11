@@ -1,12 +1,25 @@
+import json
+import re
+import secrets
+import string
+from django.contrib.auth import get_user_model
+from django.db.models import Q,Count
+from django.http import JsonResponse
+from django.utils import timezone
 from django.shortcuts import render
+from rest_framework.views import APIView
+from datetime import timedelta
+from django.conf import settings
+from django.core.mail import send_mail
+from django.core.signing import TimestampSigner
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from accounts.authentication import CustomJWTAuthentication as JWTAuthentication
 
 from services.models import SalonService
 
-from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
+from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave, SalonEmailOTP
 from bookings.models import Booking
 from .serializers import (
     SalonSerializer,
@@ -15,21 +28,16 @@ from .serializers import (
     BookingSerializer,
     SalonOffDaySerializer,
     WorkerLeaveSerializer,
+    SalonSendEmailOTPSerializer,
+    SalonVerifyEmailOTPSerializer,
 )
 from .media_utils import save_image_to_media, build_full_media_url
-
-import json
-import re
-import secrets
-from django.contrib.auth import get_user_model
-from django.db.models import Q
-from django.utils import timezone
-from rest_framework.views import APIView
 from .email_utils import (
     send_salon_approval_email,
     send_salon_rejection_email,
     send_worker_credentials_email,
     verify_salon_resubmit_token,
+    send_salon_email_otp,
 )
 
 User = get_user_model()
@@ -131,17 +139,17 @@ def get_owner_salon(user):
     if not user or not user.is_authenticated:
         return None
 
-    # 1. Direct owner of an approved salon
+    
     salon = Salon.objects.filter(owner=user, approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
     if salon:
         return salon
 
-    # 2. Direct owner of any salon (e.g. pending review)
+    
     salon = Salon.objects.filter(owner=user).order_by("-id").first()
     if salon:
         return salon
 
-    # 3. Match by owner user email
+    
     if getattr(user, "email", None):
         salon = Salon.objects.filter(email__iexact=user.email, approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
         if not salon:
@@ -161,7 +169,7 @@ def get_owner_salon(user):
                 pass
             return salon
 
-    # 4. Fallback for ADMIN / OWNER accounts: prioritize APPROVED salons
+   
     if getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff:
         approved = Salon.objects.filter(approval_status=Salon.ApprovalStatus.APPROVED).order_by("-id").first()
         if approved:
@@ -169,6 +177,133 @@ def get_owner_salon(user):
         return Salon.objects.order_by("-id").first()
 
     return None
+
+
+class SalonSendEmailOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = SalonSendEmailOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        otp = f"{secrets.randbelow(900000) + 100000}"
+
+        otp_record, _ = SalonEmailOTP.objects.get_or_create(email=email)
+        otp_record.otp = otp
+        otp_record.attempts = 0
+        otp_record.is_verified = False
+        otp_record.verified_at = None
+        otp_record.save()
+
+        sent = send_salon_email_otp(email, otp)
+        if not sent:
+            return Response(
+                {"error": "Failed to send verification code. Please check your email address and try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                "message": f"A 6-digit verification code has been sent to {email}.",
+                "email": email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class SalonVerifyEmailOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = SalonVerifyEmailOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        otp = serializer.validated_data["otp"]
+
+        otp_record = SalonEmailOTP.objects.filter(email=email).first()
+        if not otp_record:
+            return Response(
+                {"error": "No verification request found for this email. Please request a code first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if otp_record.attempts >= 5:
+            return Response(
+                {"error": "Too many failed attempts. Please request a new verification code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if otp_record.is_otp_expired():
+            return Response(
+                {"error": "Verification code has expired. Please request a new code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if otp_record.otp != otp:
+            otp_record.attempts += 1
+            otp_record.save(update_fields=["attempts"])
+            remaining = 5 - otp_record.attempts
+            return Response(
+                {"error": f"Invalid verification code. {remaining} attempt(s) remaining."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        otp_record.is_verified = True
+        otp_record.verified_at = timezone.now()
+        otp_record.attempts = 0
+        otp_record.save(update_fields=["is_verified", "verified_at", "attempts"])
+
+        return Response(
+            {
+                "message": "Official email successfully verified!",
+                "is_verified": True,
+                "email": email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class SalonResendEmailOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = SalonSendEmailOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        otp_record = SalonEmailOTP.objects.filter(email=email).first()
+        if otp_record and (timezone.now() - otp_record.created_at).total_seconds() < 30:
+            remaining = int(30 - (timezone.now() - otp_record.created_at).total_seconds())
+            return Response(
+                {"error": f"Please wait {remaining} seconds before requesting another code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        otp = f"{secrets.randbelow(900000) + 100000}"
+        if not otp_record:
+            otp_record = SalonEmailOTP(email=email)
+
+        otp_record.otp = otp
+        otp_record.attempts = 0
+        otp_record.is_verified = False
+        otp_record.verified_at = None
+        otp_record.save()
+
+        sent = send_salon_email_otp(email, otp)
+        if not sent:
+            return Response(
+                {"error": "Failed to send verification code. Please check your email address and try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                "message": f"A new 6-digit verification code has been sent to {email}.",
+                "email": email,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class SalonCreateView(generics.CreateAPIView):
@@ -186,6 +321,30 @@ class SalonCreateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
+        # Enforce email verification
+        email = (serializer.validated_data.get("email") or data.get("email", "")).strip().lower()
+        if email:
+            is_authenticated_owner = (
+                request.user.is_authenticated
+                and getattr(request.user, "email", "").lower() == email
+            )
+            if not is_authenticated_owner:
+                otp_record = SalonEmailOTP.objects.filter(email__iexact=email).first()
+                if not otp_record or not otp_record.is_verification_valid():
+                    return Response(
+                        {
+                            "email": [
+                                "Official contact email must be verified with an OTP before submitting the salon application."
+                            ]
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        else:
+            return Response(
+                {"email": ["Official contact email is required."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         owner = None
         if request.user.is_authenticated and getattr(request.user, "role", None) == "OWNER":
             owner = request.user
@@ -194,6 +353,7 @@ class SalonCreateView(generics.CreateAPIView):
             owner=owner,
             approval_status=Salon.ApprovalStatus.PENDING,
         )
+
 
         # Synchronize services into SalonService model
         sync_salon_services(salon, salon.services)
@@ -463,7 +623,10 @@ class SalonApprovalView(generics.UpdateAPIView):
             if not salon.owner and salon.email:
                 user = User.objects.filter(email__iexact=salon.email).first()
                 if not user:
-                    temp_password = f"Salon@{secrets.randbelow(9000) + 1000}"
+
+                    characters = string.ascii_letters + string.digits + "@#$!%&*"
+                    temp_password = ''.join(secrets.choice(characters) for _ in range(8))
+
                     user = User.objects.create_user(
                         email=salon.email.lower().strip(),
                         password=temp_password,
@@ -471,6 +634,8 @@ class SalonApprovalView(generics.UpdateAPIView):
                         role=User.Role.OWNER,
                         is_active=True,
                     )
+                    user.must_change_password = True
+                    user.save(update_fields=["must_change_password"])
                     owner_created = True
                 else:
                     if user.role != User.Role.OWNER:
@@ -562,65 +727,46 @@ class ApprovedSalonListView(generics.ListAPIView):
 
 
 class OwnerDashboardView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [OptionalJWTAuthentication]
 
     def get(self, request):
         user = request.user
         salon = None
-
+       
         if user and user.is_authenticated:
             salon = get_owner_salon(user)
 
-        if not salon:
-            salon = Salon.objects.first()
-
-        salon_name = salon.name if salon else "ABC Salon & Spa - Indiranagar Flagship"
-        salon_city = salon.city if salon else "Indiranagar, Bangalore"
-        salon_category = salon.category if salon else "Hair & Styling • Spa"
+        
+        salon_name = salon.name if salon else ""
+        salon_city = salon.city if salon else ""
+        salon_category = salon.category if salon else ""
         outlet_code = f"#{salon.id:02d}" if salon else "#04"
 
-        staff_on_duty = [
-            {
-                "id": 1,
-                "name": "Rahul Sharma",
-                "station": "Station 01",
-                "role": "Senior Hair Stylist",
-                "rating": 4.9,
-                "booked_count": 8,
-                "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
-                "is_active": True,
-            },
-            {
-                "id": 2,
-                "name": "Anjali Sen",
-                "station": "Station 02",
-                "role": "Skin & Spa Specialist",
-                "rating": 4.95,
-                "booked_count": 6,
-                "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
-                "is_active": True,
-            },
-        ]
+        staff_on_duty = [ ]
         if salon:
-            real_workers = WorkerProfile.objects.filter(salon=salon).select_related("user")
-            if real_workers.exists():
-                staff_on_duty = []
-                for idx, w in enumerate(real_workers, start=1):
-                    full_name = f"{w.user.first_name} {w.user.last_name}".strip() or w.user.email.split("@")[0].title()
-                    staff_on_duty.append({
-                        "id": w.id,
-                        "worker_id": w.id,
-                        "name": full_name,
-                        "station": f"Station {idx:02d}",
-                        "role": w.specialization or "Stylist",
-                        "rating": 4.9,
-                        "booked_count": w.assigned_bookings.count(),
-                        "avatar": build_full_media_url(request, w.profile_photo) if w.profile_photo else "",
-                        "is_active": w.is_active,
-                        "phone": w.phone_number,
-                        "experience": w.experience,
-                    })
+            real_workers = (
+                WorkerProfile.objects
+                .filter(salon=salon)
+                .select_related("user")
+                .annotate(booked_count=Count("assigned_bookings"))
+            )
+            staff_on_duty = []
+            for idx, w in enumerate(real_workers, start=1):
+                full_name = f"{w.user.first_name} {w.user.last_name}".strip() or w.user.email.split("@")[0].title()
+                staff_on_duty.append({
+                    "id": w.id,
+                    "worker_id": w.id,
+                    "name": full_name,
+                    "station": f"Station {idx:02d}",
+                    "role": w.specialization or "Stylist",
+                    "rating": 4.9,
+                    "booked_count": w.booked_count,
+                    "avatar": build_full_media_url(request, w.profile_photo) if w.profile_photo else "",
+                    "is_active": w.is_active,
+                    "phone": w.phone_number,
+                    "experience": w.experience,
+                })
 
         popular_services = []
         if salon:
@@ -653,22 +799,6 @@ class OwnerDashboardView(APIView):
                     "bookings": 32,
                     "contribution_pct": 58,
                     "avg_price": "₹450",
-                },
-                {
-                    "id": 2,
-                    "name": "Facial & Cleanups",
-                    "icon": "sparkles",
-                    "bookings": 18,
-                    "contribution_pct": 32,
-                    "avg_price": "₹1,200",
-                },
-                {
-                    "id": 3,
-                    "name": "Spa & Hair Rituals",
-                    "icon": "lotus",
-                    "bookings": 12,
-                    "contribution_pct": 21,
-                    "avg_price": "₹1,650",
                 },
             ]
 
@@ -1101,7 +1231,6 @@ class WorkerDashboardView(APIView):
 
         bookings_qs = Booking.objects.filter(worker=worker).order_by("-booking_date", "-booking_time")
 
-        # Auto-seed sample bookings if newly created worker has none yet
         today = timezone.localdate()
         if not bookings_qs.exists():
             try:

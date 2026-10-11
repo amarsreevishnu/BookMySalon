@@ -9,7 +9,7 @@ function Register() {
     const navigate = useNavigate();
     const { login } = useAuth();
 
-    const [step, setStep] = useState("DETAILS"); // "DETAILS" | "OTP"
+    const [step, setStep] = useState("DETAILS");
 
     const [formData, setFormData] = useState({
         email: "",

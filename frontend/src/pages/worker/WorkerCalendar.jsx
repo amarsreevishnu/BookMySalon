@@ -10,26 +10,21 @@ export default function WorkerCalendar() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Active top navigation tab
   const [activeNavTab, setActiveNavTab] = useState("calendar");
 
-  // View state: 'month' | 'week' | 'day'
+
   const [activeView, setActiveView] = useState("month");
 
-  // Selected date state (defaults to Sep 5, 2026 as in design)
   const [selectedDay, setSelectedDay] = useState(5);
   const [selectedMonth, setSelectedMonth] = useState("September");
   const [selectedYear, setSelectedYear] = useState(2026);
 
-  // Modals state
-  const [activeModal, setActiveModal] = useState(null); // 'blockLeave' | 'assignWalkin' | 'clientNotes' | 'formula' | 'sync'
+  const [activeModal, setActiveModal] = useState(null); 
   const [modalData, setModalData] = useState(null);
   const [toastMessage, setToastMessage] = useState("");
 
-  // Service status for Sarah Jenkins
-  const [sarahStatus, setSarahStatus] = useState("confirmed"); // 'confirmed' | 'in_chair' | 'completed'
+  const [sarahStatus, setSarahStatus] = useState("confirmed"); 
 
-  // Stylist Profile Info (adapts if logged in worker has custom details)
   const stylistName = user?.first_name
     ? `${user.first_name} ${user.last_name || ""}`.trim()
     : "Rahul Kumar";
@@ -39,8 +34,7 @@ export default function WorkerCalendar() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Calendar cells definition matching the image
-  // 5 rows x 7 days = 35 cells for September 2026 (starting Tuesday Sep 1 or Monday Aug 31)
+
   const calendarCells = useMemo(() => {
     return [
       // Row 1
@@ -415,9 +409,7 @@ export default function WorkerCalendar() {
             </div>
           </div>
 
-          {/* ================================================================
-              RIGHT COLUMN: SCHEDULED SHIFT TIMELINE
-              ================================================================ */}
+          
           <aside className="wcal-right-column">
             {/* Header info */}
             <div className="wcal-shift-header">

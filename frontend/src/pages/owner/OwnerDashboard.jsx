@@ -10,7 +10,7 @@ import "../../styles/ownerDashboard.css";
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout, user, updateUser } = useAuth();
 
   const searchInputRef = useRef(null);
   
@@ -119,8 +119,15 @@ export default function OwnerDashboard() {
 
   
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  
-  
+
+  // Temp-password reminder modal
+  const [showTempPasswordModal, setShowTempPasswordModal] = useState(false);
+
+  useEffect(() => {
+    if (user?.must_change_password === true) {
+      setShowTempPasswordModal(true);
+    }
+  }, [user?.must_change_password]);
 
   
   const [activeTab, setActiveTab] = useState("Dashboard");
@@ -209,7 +216,11 @@ export default function OwnerDashboard() {
       setNewPassword("");
       setConfirmPassword("");
 
-      
+      // Clear the must_change_password flag in Redux + localStorage so modal never reappears
+      if (user?.must_change_password) {
+        updateUser({ ...user, must_change_password: false });
+      }
+
       setTimeout(() => {
         setIsResetPasswordOpen(false);
         setPasswordSuccess("");
@@ -325,26 +336,7 @@ export default function OwnerDashboard() {
       },
     ],
     staff_on_duty: [
-      {
-        id: 1,
-        name: "Rahul Sharma",
-        station: "Station 01",
-        role: "Senior Hair Stylist",
-        rating: 4.9,
-        booked_count: 8,
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
-        is_active: true,
-      },
-      {
-        id: 2,
-        name: "Anjali Sen",
-        station: "Station 02",
-        role: "Skin & Spa Specialist",
-        rating: 4.95,
-        booked_count: 6,
-        avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
-        is_active: true,
-      },
+      
     ],
     revenue_progression: {
       peak_window: "11 AM - 1 PM",
@@ -369,27 +361,10 @@ export default function OwnerDashboard() {
         color: "#2b5a45",
         avg_price: "₹450",
       },
-      {
-        id: 2,
-        name: "Facial & Cleanups",
-        icon: "💆",
-        bookings: 18,
-        contribution_pct: 32,
-        color: "#635339",
-        avg_price: "₹1,200",
-      },
-      {
-        id: 3,
-        name: "Spa & Hair Rituals",
-        icon: "🌸",
-        bookings: 12,
-        contribution_pct: 21,
-        color: "#734139",
-        avg_price: "₹1,650",
-      },
     ],
   });
 
+  console.log(dashboardData);
   
   useEffect(() => {
     if (!toastMessage) return;
@@ -990,44 +965,57 @@ export default function OwnerDashboard() {
               </div>
 
               <div className="staff-duty-grid">
-                {dashboardData.staff_on_duty.map((staff) => (
-                  <div key={staff.id} className="staff-card">
-                    <div className="staff-avatar-wrapper">
-                      {staff.avatar ? (
-                        <img src={staff.avatar} alt={staff.name} className="staff-avatar-img" />
-                      ) : (
-                        <div
-                          className="staff-avatar-img"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            background: "#eef7f2",
-                            color: "#1e392a",
-                            fontWeight: "bold",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {staff.name?.charAt(0).toUpperCase() || "S"}
-                        </div>
-                      )}
-                      {staff.is_active && <span className="staff-online-dot" />}
-                    </div>
+                {dashboardData.staff_on_duty?.length > 0 ? (
+                  dashboardData.staff_on_duty.map((staff) => (
+                    <div key={staff.id} className="staff-card">
+                      <div className="staff-avatar-wrapper">
+                        {staff.avatar ? (
+                          <img
+                            src={staff.avatar}
+                            alt={staff.name}
+                            className="staff-avatar-img"
+                          />
+                        ) : (
+                          <div
+                            className="staff-avatar-img"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: "#eef7f2",
+                              color: "#1e392a",
+                              fontWeight: "bold",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {staff.name?.charAt(0).toUpperCase() || "S"}
+                          </div>
+                        )}
 
-                    <div className="staff-info">
-                      <div className="staff-name-row">
-                        <span className="staff-name">{staff.name}</span>
-                        <span className="staff-station-pill">{staff.station}</span>
+                        {staff.is_active && <span className="staff-online-dot" />}
                       </div>
-                      <span className="staff-role-desc">{staff.role}</span>
-                      <div className="staff-metric-row">
-                        <span className="staff-rating-star">★ {staff.rating}</span>
-                        <span>•</span>
-                        <span>{staff.booked_count} booked today</span>
+
+                      <div className="staff-info">
+                        <div className="staff-name-row">
+                          <span className="staff-name">{staff.name}</span>
+                          <span className="staff-station-pill">{staff.station}</span>
+                        </div>
+
+                        <span className="staff-role-desc">{staff.role}</span>
+
+                        <div className="staff-metric-row">
+                          <span className="staff-rating-star">★ {staff.rating}</span>
+                          <span>•</span>
+                          <span>{staff.booked_count} booked today</span>
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="no-staff-message">
+                    <span>No staff members added yet</span>
                   </div>
-                ))}
+                )}
               </div>
             </section>
 
@@ -1580,6 +1568,44 @@ export default function OwnerDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Temporary Password Reminder Modal ── */}
+      {showTempPasswordModal && (
+        <div className="studio-modal-backdrop" style={{ zIndex: 2000 }}>
+          <div className="studio-modal-card" style={{ maxWidth: "440px" }}>
+            <div className="studio-modal-header" style={{ borderBottom: "2px solid #f59e0b" }}>
+              <span style={{ fontSize: "1.25rem" }}>⚠️ Security Reminder</span>
+            </div>
+            <div className="studio-modal-body" style={{ paddingTop: "16px" }}>
+              <p style={{ margin: "0 0 10px", fontWeight: 600, color: "#92400e" }}>
+                You are using a temporary password.
+              </p>
+              <p style={{ margin: 0, color: "#555", fontSize: "0.93rem", lineHeight: 1.5 }}>
+                For your account security, please change your password as soon as possible.
+                You can do this later, but we recommend doing it now.
+              </p>
+            </div>
+            <div className="studio-modal-footer">
+              <button
+                className="btn-modal-cancel"
+                onClick={() => setShowTempPasswordModal(false)}
+              >
+                I&apos;ll do it later
+              </button>
+              <button
+                className="btn-modal-submit"
+                onClick={() => {
+                  setShowTempPasswordModal(false);
+                  handleOpenResetPassword();
+                }}
+              >
+                Change Password Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
