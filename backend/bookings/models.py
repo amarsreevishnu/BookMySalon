@@ -52,6 +52,28 @@ class Booking(models.Model):
         choices=Status.choices,
         default=Status.CONFIRMED,
     )
+    class PaymentMethod(models.TextChoices):
+        PAY_AT_SALON = "PAY_AT_SALON", "Pay at Salon"
+        ONLINE = "ONLINE", "Online Payment"
+
+    class PaymentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PAID = "PAID", "Paid"
+        FAILED = "FAILED", "Failed"
+        REFUNDED = "REFUNDED", "Refunded"
+
+    payment_method = models.CharField(
+        max_length=30,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.PAY_AT_SALON,
+    )
+    payment_status = models.CharField(
+        max_length=30,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PENDING,
+    )
+    razorpay_order_id = models.CharField(max_length=100, blank=True, default="")
+    razorpay_payment_id = models.CharField(max_length=100, blank=True, default="")
     notes = models.TextField(blank=True, default="")
     expires_at = models.DateTimeField(
         null=True,

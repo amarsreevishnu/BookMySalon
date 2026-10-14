@@ -14,6 +14,11 @@ class BookingCreateSerializer(serializers.Serializer):
     client_name = serializers.CharField(max_length=150)
     client_phone = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
     client_email = serializers.EmailField(required=False, allow_blank=True, default='')
+    payment_method = serializers.ChoiceField(
+        choices=['PAY_AT_SALON', 'ONLINE'],
+        default='PAY_AT_SALON',
+        required=False,
+    )
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate(self, attrs):
@@ -69,6 +74,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'booking_time', 'start_time', 'end_time',
             'duration', 'duration_minutes',
             'station', 'status', 'notes',
+            'payment_method', 'payment_status', 'razorpay_order_id',
             'expires_at',
             'created_at', 'updated_at',
         ]

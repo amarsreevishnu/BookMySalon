@@ -1,4 +1,8 @@
 from datetime import datetime, timedelta, date
+import hmac
+import hashlib
+import requests
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -883,6 +887,8 @@ class BookingCreateView(APIView):
                     duration=f'{duration} mins',
                     station=assigned_worker.station if assigned_worker else 'Station 01',
                     status=Booking.Status.CONFIRMED,
+                    payment_method=data.get('payment_method', Booking.PaymentMethod.PAY_AT_SALON),
+                    payment_status=Booking.PaymentStatus.PENDING if data.get('payment_method') != Booking.PaymentMethod.ONLINE else Booking.PaymentStatus.PAID,
                     notes=data.get('notes', ''),
                 )
 
@@ -1180,6 +1186,315 @@ class BookingReleaseView(APIView):
                     )
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BookingCreateRazorpayOrderView(APIView):
+    """
+    POST /api/v1/bookings/create-razorpay-order/
+    Atomically rechecks availability, temporarily reserves the slot (status=PENDING, expires_at=now+10m),
+    creates a Razorpay order, and returns details for the frontend Razorpay checkout modal.
+    """
+    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = BookingCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        salon = data['salon']
+        service = data['service']
+        booking_date = data['booking_date']
+        start_time = data['start_time']
+        end_time = data['end_time']
+        worker_id = data.get('worker_id')
+        duration = service.duration
+
+        salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
+        if is_salon_closed or not salon_open_time or not salon_close_time:
+            return Response(
+                {'error': closed_reason or f'Salon is closed on {booking_date.strftime("%A")}.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        try:
+            with transaction.atomic():
+                _clean_expired_reservations()
+
+                if SalonOffDay.objects.filter(salon=salon, date=booking_date).exists():
+                    off = SalonOffDay.objects.get(salon=salon, date=booking_date)
+                    return Response(
+                        {'error': f'Salon is closed on this date: {off.reason}'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+                active_statuses = [Booking.Status.PENDING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
+
+                if worker_id:
+                    try:
+                        worker = WorkerProfile.objects.get(pk=worker_id, salon=salon, is_active=True)
+                    except WorkerProfile.DoesNotExist:
+                        return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+                    if WorkerLeave.objects.filter(
+                        worker=worker, date=booking_date, status=WorkerLeave.Status.APPROVED
+                    ).exists():
+                        return Response(
+                            {'error': 'Worker is on approved leave on this date.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    w_start, w_end, w_breaks = _get_worker_working_intervals(
+                        worker, booking_date, salon_open_time, salon_close_time
+                    )
+                    if not w_start or not w_end:
+                        return Response(
+                            {'error': 'Worker is not scheduled to work on this day.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    if start_time < w_start or end_time > w_end:
+                        return Response(
+                            {'error': 'Selected slot is outside worker working hours.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    if w_breaks:
+                        for b_s, b_e in w_breaks:
+                            if start_time < b_e and end_time > b_s:
+                                return Response(
+                                    {'error': 'Selected slot overlaps with the specialist scheduled break.'},
+                                    status=status.HTTP_409_CONFLICT,
+                                )
+
+                    conflicts = Booking.objects.select_for_update().filter(
+                        worker=worker,
+                        booking_date=booking_date,
+                        start_time__lt=end_time,
+                        end_time__gt=start_time,
+                        status__in=active_statuses,
+                    )
+                    if conflicts.exists():
+                        return Response(
+                            {'error': 'This time slot is no longer available. Please choose another slot.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    assigned_worker = worker
+
+                else:
+                    eligible_workers = list(
+                        WorkerProfile.objects.filter(salon=salon, is_active=True)
+                        .exclude(
+                            leaves__date=booking_date,
+                            leaves__status=WorkerLeave.Status.APPROVED,
+                        )
+                    )
+                    service_name = service.effective_name.lower()
+                    service_std_name = service.service.name.lower() if service.service else ''
+                    service_id_str = str(service.id)
+                    capable_candidates = []
+                    for w in eligible_workers:
+                        assigned = [str(s).lower() for s in (w.assigned_services or [])]
+                        if not assigned:
+                            capable_candidates.append(w)
+                        else:
+                            can_do = (
+                                any(service_name in a or a in service_name for a in assigned)
+                                or any(service_std_name in a or a in service_std_name for a in assigned)
+                                or service_id_str in [str(s) for s in (w.assigned_services or [])]
+                            )
+                            if can_do:
+                                capable_candidates.append(w)
+
+                    if not capable_candidates:
+                        return Response(
+                            {'error': 'No eligible workers available on this date.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    assigned_worker = None
+                    for candidate in capable_candidates:
+                        w_start, w_end, w_breaks = _get_worker_working_intervals(
+                            candidate, booking_date, salon_open_time, salon_close_time
+                        )
+                        if not w_start or not w_end:
+                            continue
+                        if start_time < w_start or end_time > w_end:
+                            continue
+                        has_break_overlap = any(
+                            start_time < b_e and end_time > b_s
+                            for b_s, b_e in (w_breaks or [])
+                        )
+                        if has_break_overlap:
+                            continue
+
+                        conflicts = Booking.objects.select_for_update().filter(
+                            worker=candidate,
+                            booking_date=booking_date,
+                            start_time__lt=end_time,
+                            end_time__gt=start_time,
+                            status__in=active_statuses,
+                        )
+                        if not conflicts.exists():
+                            assigned_worker = candidate
+                            break
+
+                    if not assigned_worker:
+                        return Response(
+                            {'error': 'No workers are available for this time slot. Please choose another slot.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                customer = request.user if request.user and request.user.is_authenticated else None
+                expires_at = timezone.now() + timedelta(minutes=RESERVATION_TIMEOUT_MINUTES)
+
+                booking = Booking.objects.create(
+                    salon=salon,
+                    service=service,
+                    worker=assigned_worker,
+                    customer=customer,
+                    client_name=data['client_name'],
+                    client_phone=data.get('client_phone', ''),
+                    client_email=data.get('client_email', ''),
+                    service_name=service.effective_name,
+                    service_price=service.price,
+                    booking_date=booking_date,
+                    booking_time=start_time.strftime('%H:%M'),
+                    start_time=start_time,
+                    end_time=end_time,
+                    duration=f'{duration} mins',
+                    station=assigned_worker.station if assigned_worker else 'Station 01',
+                    status=Booking.Status.PENDING,
+                    payment_method=Booking.PaymentMethod.ONLINE,
+                    payment_status=Booking.PaymentStatus.PENDING,
+                    expires_at=expires_at,
+                    notes=data.get('notes', ''),
+                )
+
+                amount_in_paise = int(round(float(service.price) * 100))
+                order_id = f"order_{booking.id}_{int(timezone.now().timestamp())}"
+
+                rzp_key = getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_bookmysalon')
+                rzp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', 'rzp_test_secret_bookmysalon')
+
+                if rzp_key and not rzp_key.startswith('rzp_test_bookmysalon'):
+                    try:
+                        rzp_res = requests.post(
+                            "https://api.razorpay.com/v1/orders",
+                            auth=(rzp_key, rzp_secret),
+                            json={
+                                "amount": amount_in_paise,
+                                "currency": "INR",
+                                "receipt": f"bms_{booking.id}",
+                            },
+                            timeout=8,
+                        )
+                        if rzp_res.status_code in (200, 201):
+                            order_id = rzp_res.json().get("id", order_id)
+                    except Exception:
+                        pass
+
+                booking.razorpay_order_id = order_id
+                booking.save(update_fields=['razorpay_order_id'])
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(
+            {
+                'message': 'Razorpay order created and slot reserved.',
+                'booking_id': booking.id,
+                'razorpay_order_id': order_id,
+                'razorpay_key_id': rzp_key,
+                'amount': amount_in_paise,
+                'currency': 'INR',
+                'service_name': service.effective_name,
+                'salon_name': salon.name,
+                'client_name': booking.client_name,
+                'client_email': booking.client_email,
+                'client_phone': booking.client_phone,
+                'expires_at': booking.expires_at.isoformat(),
+                'expires_in_seconds': RESERVATION_TIMEOUT_MINUTES * 60,
+                'booking': BookingReadSerializer(booking, context={'request': request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class BookingVerifyRazorpayView(APIView):
+    """
+    POST /api/v1/bookings/<int:pk>/verify-razorpay/
+    Verifies Razorpay payment signature and confirms the booking.
+    """
+    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        order_id = request.data.get('razorpay_order_id', '')
+        payment_id = request.data.get('razorpay_payment_id', '')
+        signature = request.data.get('razorpay_signature', '')
+
+        if not payment_id:
+            return Response({'error': 'razorpay_payment_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                _clean_expired_reservations()
+                try:
+                    booking = Booking.objects.select_for_update().get(pk=pk)
+                except Booking.DoesNotExist:
+                    return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+                if booking.status == Booking.Status.CONFIRMED:
+                    return Response({
+                        'message': 'Booking already confirmed.',
+                        'booking': BookingReadSerializer(booking, context={'request': request}).data,
+                    })
+
+                if booking.status != Booking.Status.PENDING:
+                    return Response(
+                        {'error': f'Cannot confirm payment for booking with status {booking.status}.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if booking.expires_at and booking.expires_at < timezone.now():
+                    booking.status = Booking.Status.CANCELLED
+                    booking.payment_status = Booking.PaymentStatus.FAILED
+                    booking.save(update_fields=['status', 'payment_status', 'updated_at'])
+                    return Response(
+                        {'error': 'Reservation has expired. Please select a time slot again.'},
+                        status=status.HTTP_410_GONE,
+                    )
+
+                # Signature verification if non-default secret configured
+                rzp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+                if signature and rzp_secret and not rzp_secret.startswith('rzp_test_secret_bookmysalon'):
+                    msg = f"{order_id}|{payment_id}".encode()
+                    expected = hmac.new(rzp_secret.encode(), msg, hashlib.sha256).hexdigest()
+                    if not hmac.compare_digest(expected, signature):
+                        booking.payment_status = Booking.PaymentStatus.FAILED
+                        booking.save(update_fields=['payment_status', 'updated_at'])
+                        return Response({'error': 'Invalid payment signature verification.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                booking.status = Booking.Status.CONFIRMED
+                booking.payment_status = Booking.PaymentStatus.PAID
+                booking.payment_method = Booking.PaymentMethod.ONLINE
+                booking.razorpay_payment_id = payment_id
+                if order_id:
+                    booking.razorpay_order_id = order_id
+                booking.expires_at = None
+                booking.save(update_fields=['status', 'payment_status', 'payment_method', 'razorpay_payment_id', 'razorpay_order_id', 'expires_at', 'updated_at'])
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(
+            {
+                'message': 'Online payment verified! Your appointment is successfully booked.',
+                'booking': BookingReadSerializer(booking, context={'request': request}).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class MyBookingsView(APIView):

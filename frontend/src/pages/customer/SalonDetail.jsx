@@ -21,6 +21,20 @@ function formatTime12(timeStr) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 const DEFAULT_SALON_DATA = {
   id: 1,
   name: "Aura Luxe Salon & Spa",
@@ -206,7 +220,41 @@ export default function SalonDetail() {
   const [bookingNotes, setBookingNotes] = useState("");
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("PAY_AT_SALON"); // "PAY_AT_SALON" or "ONLINE"
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
+
+  // Collapsible Sections State (Services, Stylists, Amenities, Offers, Reviews, Location, Booking)
+  const [openSections, setOpenSections] = useState({
+    services: true,
+    stylists: true,
+    amenities: true,
+    offers: true,
+    reviews: true,
+    location: true,
+    booking: true,
+  });
+
+  const toggleSection = (sectionKey) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
+
+  // Step-by-step collapse inside Book Appointment card
+  const [openBookingSteps, setOpenBookingSteps] = useState({
+    service: true,
+    date: true,
+    stylist: true,
+    slots: true,
+  });
+
+  const toggleBookingStep = (stepKey) => {
+    setOpenBookingSteps((prev) => ({
+      ...prev,
+      [stepKey]: !prev[stepKey],
+    }));
+  };
 
   useEffect(() => {
     try {
@@ -437,28 +485,106 @@ export default function SalonDetail() {
     }
     setBookingError("");
     setIsSubmittingBooking(true);
-    try {
-      const payload = {
-        salon_id: Number(salon.id),
-        service_id: activeService.id,
-        booking_date: activeDateObj.isoDate,
-        start_time: slotTime,
-        client_name: clientName.trim(),
-        client_phone: clientPhone.trim(),
-        client_email: clientEmail.trim(),
-        notes: bookingNotes.trim(),
-      };
-      if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
-        payload.worker_id = Number(selectedStylist.id);
+
+    const payload = {
+      salon_id: Number(salon.id),
+      service_id: activeService.id,
+      booking_date: activeDateObj.isoDate,
+      start_time: slotTime,
+      client_name: clientName.trim(),
+      client_phone: clientPhone.trim(),
+      client_email: clientEmail.trim(),
+      notes: bookingNotes.trim(),
+      payment_method: paymentMethod,
+    };
+    if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
+      payload.worker_id = Number(selectedStylist.id);
+    }
+
+    if (paymentMethod === "PAY_AT_SALON") {
+      try {
+        const response = await api.post("/bookings/create/", payload);
+        setConfirmedBookingData(response.data.booking);
+        setBookingSuccess(true);
+        showToast("Appointment booked successfully! 🎉");
+      } catch (err) {
+        const errMsg = err?.response?.data?.error || err?.response?.data?.detail || "Booking failed. Please try another slot.";
+        setBookingError(errMsg);
+      } finally {
+        setIsSubmittingBooking(false);
       }
-      const response = await api.post("/bookings/create/", payload);
-      setConfirmedBookingData(response.data.booking);
-      setBookingSuccess(true);
-      showToast("Appointment booked successfully! 🎉");
+      return;
+    }
+
+    // ONLINE PAYMENT (Razorpay)
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded && !window.Razorpay) {
+        throw new Error("Unable to load Razorpay checkout SDK. Please check your connection or choose Pay at Salon.");
+      }
+
+      const orderRes = await api.post("/bookings/create-razorpay-order/", payload);
+      const orderData = orderRes.data;
+
+      const options = {
+        key: orderData.razorpay_key_id,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: salon?.name || "BookMySalon",
+        description: `${orderData.service_name} Appointment`,
+        order_id: orderData.razorpay_order_id,
+        prefill: {
+          name: orderData.client_name,
+          email: orderData.client_email,
+          contact: orderData.client_phone,
+        },
+        theme: {
+          color: "#059669",
+        },
+        handler: async function (response) {
+          try {
+            setIsSubmittingBooking(true);
+            const verifyRes = await api.post(`/bookings/${orderData.booking_id}/verify-razorpay/`, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            setConfirmedBookingData(verifyRes.data.booking);
+            setBookingSuccess(true);
+            showToast("Online payment successful! Appointment booked. 🎉");
+          } catch (verErr) {
+            setBookingError(
+              verErr?.response?.data?.error ||
+                "Payment was received, but confirmation failed. Please contact salon support with payment ID " +
+                  response.razorpay_payment_id
+            );
+          } finally {
+            setIsSubmittingBooking(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsSubmittingBooking(false);
+            setBookingError("Online payment was cancelled. You can click Try Again or select Pay at Salon.");
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        setIsSubmittingBooking(false);
+        setBookingError(
+          `Payment failed: ${response.error?.description || "Transaction was declined."}. Please click Try Again or select Pay at Salon.`
+        );
+      });
+      rzp.open();
     } catch (err) {
-      const errMsg = err?.response?.data?.error || err?.response?.data?.detail || "Booking failed. Please try another slot.";
+      const errMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Could not initiate online payment. Please try again.";
       setBookingError(errMsg);
-    } finally {
       setIsSubmittingBooking(false);
     }
   };
@@ -709,12 +835,17 @@ export default function SalonDetail() {
   
   const handleTabClick = (tabKey, elementId) => {
     setActiveTab(tabKey);
-    const el = document.getElementById(elementId);
-    if (el) {
-      const yOffset = -120;
-      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: "smooth" });
+    if (tabKey && openSections[tabKey] !== undefined) {
+      setOpenSections((prev) => ({ ...prev, [tabKey]: true }));
     }
+    setTimeout(() => {
+      const el = document.getElementById(elementId);
+      if (el) {
+        const yOffset = -120;
+        const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+    }, 50);
   };
 
   return (
@@ -921,401 +1052,569 @@ export default function SalonDetail() {
 
             {/* 1. Services Section */}
             <section id="services-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("services")}
+              >
                 <div>
-                  <h2 className="section-title">Signature Services & Treatments</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Signature Services & Treatments</h2>
+                    <span className="section-badge-pill">{filteredServices.length} Available</span>
+                  </div>
                   <p className="section-subtitle">
                     Select one or more services to curate your personalized appointment.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.services ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("services");
+                  }}
+                  aria-expanded={openSections.services}
+                  title={openSections.services ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.services ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              {/* Service Categories Filter Pills */}
-              <div className="service-category-pills">
-                {availableCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    className={`category-pill-btn ${selectedServiceCategory === cat ? "active" : ""}`}
-                    onClick={() => setSelectedServiceCategory(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
+              {openSections.services && (
+                <div className="section-collapsible-body">
+                  {/* Service Categories Filter Pills */}
+                  <div className="service-category-pills">
+                    {availableCategories.map((cat) => (
+                      <button
+                        key={cat}
+                        className={`category-pill-btn ${selectedServiceCategory === cat ? "active" : ""}`}
+                        onClick={() => setSelectedServiceCategory(cat)}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Services List */}
-              <div className="services-card-list">
-                {filteredServices.map((service) => {
-                  const isAdded = selectedServices.some((s) => s.id === service.id);
-                  return (
-                    <article key={service.id} className={`service-item-card ${isAdded ? "item-selected" : ""}`}>
-                      <div className="service-item-main">
-                        <div className="service-item-top">
-                          <h3 className="service-name">{service.name}</h3>
-                          {service.badge && <span className="service-badge-pill">{service.badge}</span>}
-                        </div>
-                        <p className="service-description">{service.description}</p>
-                        <div className="service-specs-row">
-                          <span className="spec-item">
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {service.duration}
-                          </span>
-                          <span className="spec-dot">•</span>
-                          <span className="service-category-tag">{service.category}</span>
-                        </div>
-                      </div>
+                  {/* Services List */}
+                  <div className="services-card-list">
+                    {filteredServices.map((service) => {
+                      const isAdded = selectedServices.some((s) => s.id === service.id);
+                      return (
+                        <article key={service.id} className={`service-item-card ${isAdded ? "item-selected" : ""}`}>
+                          <div className="service-item-main">
+                            <div className="service-item-top">
+                              <h3 className="service-name">{service.name}</h3>
+                              {service.badge && <span className="service-badge-pill">{service.badge}</span>}
+                            </div>
+                            <p className="service-description">{service.description}</p>
+                            <div className="service-specs-row">
+                              <span className="spec-item">
+                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {service.duration}
+                              </span>
+                              <span className="spec-dot">•</span>
+                              <span className="service-category-tag">{service.category}</span>
+                            </div>
+                          </div>
 
-                      <div className="service-item-action-col">
-                        <div className="service-price-block">
-                          <span className="currency-symbol">₹</span>
-                          <span className="price-number">{service.price.toLocaleString("en-IN")}</span>
-                        </div>
+                          <div className="service-item-action-col">
+                            <div className="service-price-block">
+                              <span className="currency-symbol">₹</span>
+                              <span className="price-number">{service.price.toLocaleString("en-IN")}</span>
+                            </div>
 
-                        <button
-                          type="button"
-                          className={`service-add-btn ${isAdded ? "added-state" : ""}`}
-                          onClick={() => handleToggleService(service)}
-                        >
-                          {isAdded ? (
-                            <>
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                              </svg>
-                              Added
-                            </>
-                          ) : (
-                            <>
-                              <span>+</span> Add
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                            <button
+                              type="button"
+                              className={`service-add-btn ${isAdded ? "added-state" : ""}`}
+                              onClick={() => handleToggleService(service)}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                                  </svg>
+                                  Added
+                                </>
+                              ) : (
+                                <>
+                                  <span>+</span> Add
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 2. Stylists & Specialists Section */}
             <section id="stylists-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("stylists")}
+              >
                 <div>
-                  <h2 className="section-title">Master Stylists & Specialists</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Master Stylists & Specialists</h2>
+                    <span className="section-badge-pill">{salon.stylists.length} Specialists</span>
+                  </div>
                   <p className="section-subtitle">
                     Opt for your preferred artist or let us assign the top specialist on duty.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.stylists ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("stylists");
+                  }}
+                  aria-expanded={openSections.stylists}
+                  title={openSections.stylists ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.stylists ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              <div className="stylists-grid">
-                {salon.stylists.map((stylist) => {
-                  const isSelected = selectedStylist?.id === stylist.id;
-                  const currentIsoDate = dateSlots[selectedDateIdx]?.isoDate;
-                  const matchedEligible = eligibleWorkers.find((ew) => String(ew.id) === String(stylist.id));
-                  const doesSelectedService = Boolean(!selectedServices[0] || matchedEligible);
-                  const advanceBookingsCount = matchedEligible?.advance_bookings_count || 0;
-                  const hasAdvanceBookings = Boolean(matchedEligible?.has_advance_bookings);
-                  const isFullyBooked = Boolean(matchedEligible?.is_fully_booked);
+              {openSections.stylists && (
+                <div className="section-collapsible-body">
+                  <div className="stylists-grid">
+                    {salon.stylists.map((stylist) => {
+                      const isSelected = selectedStylist?.id === stylist.id;
+                      const currentIsoDate = dateSlots[selectedDateIdx]?.isoDate;
+                      const matchedEligible = eligibleWorkers.find((ew) => String(ew.id) === String(stylist.id));
+                      const doesSelectedService = Boolean(!selectedServices[0] || matchedEligible);
+                      const advanceBookingsCount = matchedEligible?.advance_bookings_count || 0;
+                      const hasAdvanceBookings = Boolean(matchedEligible?.has_advance_bookings);
+                      const isFullyBooked = Boolean(matchedEligible?.is_fully_booked);
 
-                  const isStylistOnLeave =
-                    matchedEligible?.is_on_leave ||
-                    (Array.isArray(stylist.approvedLeaves) &&
-                      currentIsoDate &&
-                      stylist.approvedLeaves.includes(currentIsoDate));
+                      const isStylistOnLeave =
+                        matchedEligible?.is_on_leave ||
+                        (Array.isArray(stylist.approvedLeaves) &&
+                          currentIsoDate &&
+                          stylist.approvedLeaves.includes(currentIsoDate));
 
-                  return (
-                    <div key={stylist.id} className={`stylist-card ${isSelected ? "stylist-selected" : ""} ${isStylistOnLeave ? "stylist-on-leave" : ""}`}>
-                      <div className="stylist-avatar-wrap">
-                        <img src={stylist.image} alt={stylist.name} />
-                        <div className="stylist-rating-badge">★ {stylist.rating}</div>
-                      </div>
+                      return (
+                        <div key={stylist.id} className={`stylist-card ${isSelected ? "stylist-selected" : ""} ${isStylistOnLeave ? "stylist-on-leave" : ""}`}>
+                          <div className="stylist-avatar-wrap">
+                            <img src={stylist.image} alt={stylist.name} />
+                            <div className="stylist-rating-badge">★ {stylist.rating}</div>
+                          </div>
 
-                      <div className="stylist-info">
-                        <h4 className="stylist-name">{stylist.name}</h4>
-                        <p className="stylist-role">{stylist.role}</p>
-                        <p className="stylist-exp">{stylist.experience} • {stylist.reviewsCount} reviews</p>
-                        <p className="stylist-specialty">{stylist.specialty}</p>
+                          <div className="stylist-info">
+                            <h4 className="stylist-name">{stylist.name}</h4>
+                            <p className="stylist-role">{stylist.role}</p>
+                            <p className="stylist-exp">{stylist.experience} • {stylist.reviewsCount} reviews</p>
+                            <p className="stylist-specialty">{stylist.specialty}</p>
 
-                        {/* Service Capability & Advance Booking Status */}
-                        <div style={{ marginTop: "6px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                          {!doesSelectedService ? (
-                            <span style={{ fontSize: "0.72rem", color: "#b45309", background: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                              ✕ Does not perform {selectedServices[0]?.name}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                              ✓ Performs {selectedServices[0]?.name}
-                            </span>
-                          )}
+                            {/* Service Capability & Advance Booking Status */}
+                            <div style={{ marginTop: "6px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                              {!doesSelectedService ? (
+                                <span style={{ fontSize: "0.72rem", color: "#b45309", background: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  ✕ Does not perform {selectedServices[0]?.name}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  ✓ Performs {selectedServices[0]?.name}
+                                </span>
+                              )}
 
-                          {doesSelectedService && (
-                            hasAdvanceBookings ? (
-                              <span style={{ fontSize: "0.72rem", color: "#0369a1", background: "#e0f2fe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                                📌 {advanceBookingsCount} advance booking{advanceBookingsCount > 1 ? "s" : ""} on {dateSlots[selectedDateIdx]?.dayName}
-                              </span>
+                              {doesSelectedService && (
+                                hasAdvanceBookings ? (
+                                  <span style={{ fontSize: "0.72rem", color: "#0369a1", background: "#e0f2fe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                    📌 {advanceBookingsCount} advance booking{advanceBookingsCount > 1 ? "s" : ""} on {dateSlots[selectedDateIdx]?.dayName}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: "0.72rem", color: "#15803d", background: "#f0fdf4", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                    ✓ No advance bookings on this date
+                                  </span>
+                                )
+                              )}
+                            </div>
+
+                            {isStylistOnLeave ? (
+                              <div style={{
+                                background: "#fef2f2",
+                                color: "#dc2626",
+                                border: "1px solid #fecaca",
+                                borderRadius: "6px",
+                                padding: "6px 10px",
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                                textAlign: "center",
+                                marginTop: "8px"
+                              }}>
+                                🔒 On Leave on Selected Date
+                              </div>
+                            ) : isFullyBooked ? (
+                              <div style={{
+                                background: "#fffbeb",
+                                color: "#b45309",
+                                border: "1px solid #fde68a",
+                                borderRadius: "6px",
+                                padding: "6px 10px",
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                                textAlign: "center",
+                                marginTop: "8px"
+                              }}>
+                                ⚠️ Fully Booked on Selected Date
+                              </div>
+                            ) : !doesSelectedService ? (
+                              <button
+                                type="button"
+                                disabled
+                                style={{
+                                  width: "100%",
+                                  padding: "8px",
+                                  borderRadius: "6px",
+                                  border: "1px solid #e2e8f0",
+                                  background: "#f1f5f9",
+                                  color: "#94a3b8",
+                                  fontSize: "0.82rem",
+                                  cursor: "not-allowed"
+                                }}
+                              >
+                                Service Not Provided
+                              </button>
                             ) : (
-                              <span style={{ fontSize: "0.72rem", color: "#15803d", background: "#f0fdf4", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                                ✓ No advance bookings on this date
-                              </span>
-                            )
-                          )}
+                              <button
+                                type="button"
+                                className={`stylist-select-btn ${isSelected ? "selected-btn" : ""}`}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedStylist(null);
+                                    showToast("Deselected stylist. Please select a specialist or Auto-Assign.");
+                                  } else {
+                                    setSelectedStylist(matchedEligible || stylist);
+                                    showToast(`Selected stylist: ${stylist.name}!`);
+                                  }
+                                }}
+                              >
+                                {isSelected ? "✓ Stylist Selected" : "Select Stylist"}
+                              </button>
+                            )}
+                          </div>
                         </div>
-
-                        {isStylistOnLeave ? (
-                          <div style={{
-                            background: "#fef2f2",
-                            color: "#dc2626",
-                            border: "1px solid #fecaca",
-                            borderRadius: "6px",
-                            padding: "6px 10px",
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                            textAlign: "center",
-                            marginTop: "8px"
-                          }}>
-                            🔒 On Leave on Selected Date
-                          </div>
-                        ) : isFullyBooked ? (
-                          <div style={{
-                            background: "#fffbeb",
-                            color: "#b45309",
-                            border: "1px solid #fde68a",
-                            borderRadius: "6px",
-                            padding: "6px 10px",
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                            textAlign: "center",
-                            marginTop: "8px"
-                          }}>
-                            ⚠️ Fully Booked on Selected Date
-                          </div>
-                        ) : !doesSelectedService ? (
-                          <button
-                            type="button"
-                            disabled
-                            style={{
-                              width: "100%",
-                              padding: "8px",
-                              borderRadius: "6px",
-                              border: "1px solid #e2e8f0",
-                              background: "#f1f5f9",
-                              color: "#94a3b8",
-                              fontSize: "0.82rem",
-                              cursor: "not-allowed"
-                            }}
-                          >
-                            Service Not Provided
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className={`stylist-select-btn ${isSelected ? "selected-btn" : ""}`}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedStylist(null);
-                                showToast("Deselected stylist. Please select a specialist or Auto-Assign.");
-                              } else {
-                                setSelectedStylist(matchedEligible || stylist);
-                                showToast(`Selected stylist: ${stylist.name}!`);
-                              }
-                            }}
-                          >
-                            {isSelected ? "✓ Stylist Selected" : "Select Stylist"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 3. Amenities & Facilities Section */}
             <section id="amenities-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("amenities")}
+              >
                 <div>
-                  <h2 className="section-title">Facilities & Guest Amenities</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Facilities & Guest Amenities</h2>
+                    <span className="section-badge-pill">{salon.amenities.length} Amenities</span>
+                  </div>
                   <p className="section-subtitle">
                     Designed for your comfort, wellness, and utmost peace of mind.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.amenities ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("amenities");
+                  }}
+                  aria-expanded={openSections.amenities}
+                  title={openSections.amenities ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.amenities ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              <div className="amenities-grid">
-                {salon.amenities.map((item, idx) => (
-                  <div key={idx} className="amenity-item-card">
-                    <span className="amenity-icon">{item.icon}</span>
-                    <div className="amenity-texts">
-                      <h4 className="amenity-title">{item.title}</h4>
-                      <p className="amenity-desc">{item.desc}</p>
-                    </div>
+              {openSections.amenities && (
+                <div className="section-collapsible-body">
+                  <div className="amenities-grid">
+                    {salon.amenities.map((item, idx) => (
+                      <div key={idx} className="amenity-item-card">
+                        <span className="amenity-icon">{item.icon}</span>
+                        <div className="amenity-texts">
+                          <h4 className="amenity-title">{item.title}</h4>
+                          <p className="amenity-desc">{item.desc}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </section>
 
             {/* 4. Exclusive Offers Section */}
             <section id="offers-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("offers")}
+              >
                 <div>
-                  <h2 className="section-title">Exclusive Salon Offers & Coupons</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Exclusive Salon Offers & Coupons</h2>
+                    <span className="section-badge-pill">{salon.offers.length} Offers</span>
+                  </div>
                   <p className="section-subtitle">
                     Apply promo codes directly to receive instant checkout savings.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.offers ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("offers");
+                  }}
+                  aria-expanded={openSections.offers}
+                  title={openSections.offers ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.offers ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              <div className="offers-cards-grid">
-                {salon.offers.map((offer) => {
-                  const isCurrentApplied = appliedCoupon?.code === offer.code;
-                  return (
-                    <div key={offer.code} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
-                      <div className="coupon-left">
-                        <div className="coupon-badge">CODE: {offer.code}</div>
-                        <h4 className="coupon-title">{offer.title}</h4>
-                        <p className="coupon-desc">{offer.desc}</p>
-                      </div>
-                      <div className="coupon-right">
-                        <button
-                          type="button"
-                          className="coupon-apply-btn"
-                          disabled={isCurrentApplied}
-                          onClick={() => handleApplyCoupon(offer)}
-                        >
-                          {isCurrentApplied ? "✓ Applied" : "Apply Code"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {openSections.offers && (
+                <div className="section-collapsible-body">
+                  <div className="offers-cards-grid">
+                    {salon.offers.map((offer) => {
+                      const isCurrentApplied = appliedCoupon?.code === offer.code;
+                      return (
+                        <div key={offer.code} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
+                          <div className="coupon-left">
+                            <div className="coupon-badge">CODE: {offer.code}</div>
+                            <h4 className="coupon-title">{offer.title}</h4>
+                            <p className="coupon-desc">{offer.desc}</p>
+                          </div>
+                          <div className="coupon-right">
+                            <button
+                              type="button"
+                              className="coupon-apply-btn"
+                              disabled={isCurrentApplied}
+                              onClick={() => handleApplyCoupon(offer)}
+                            >
+                              {isCurrentApplied ? "✓ Applied" : "Apply Code"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 5. Client Reviews & Ratings */}
             <section id="reviews-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("reviews")}
+              >
                 <div>
-                  <h2 className="section-title">Client Reviews & Experiences</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Client Reviews & Experiences</h2>
+                    <span className="section-badge-pill">{salon.reviewsCount} Reviews ({salon.rating}★)</span>
+                  </div>
                   <p className="section-subtitle">
                     Real, verified feedback from customers who visited this location.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.reviews ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("reviews");
+                  }}
+                  aria-expanded={openSections.reviews}
+                  title={openSections.reviews ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.reviews ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              {/* Overall Ratings Summary Card */}
-              <div className="rating-overview-card">
-                <div className="overview-score-box">
-                  <span className="big-score">{salon.rating}</span>
-                  <div className="stars-gold">★★★★★</div>
-                  <span className="total-reviews-label">Based on {salon.reviewsCount} verified visits</span>
-                </div>
+              {openSections.reviews && (
+                <div className="section-collapsible-body">
+                  {/* Overall Ratings Summary Card */}
+                  <div className="rating-overview-card">
+                    <div className="overview-score-box">
+                      <span className="big-score">{salon.rating}</span>
+                      <div className="stars-gold">★★★★★</div>
+                      <span className="total-reviews-label">Based on {salon.reviewsCount} verified visits</span>
+                    </div>
 
-                <div className="overview-bars-box">
-                  <div className="rating-bar-row">
-                    <span>5 Stars</span>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: "88%" }}></div></div>
-                    <span>88%</span>
-                  </div>
-                  <div className="rating-bar-row">
-                    <span>4 Stars</span>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: "9%" }}></div></div>
-                    <span>9%</span>
-                  </div>
-                  <div className="rating-bar-row">
-                    <span>3 Stars</span>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: "2%" }}></div></div>
-                    <span>2%</span>
-                  </div>
-                  <div className="rating-bar-row">
-                    <span>2 Stars</span>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: "1%" }}></div></div>
-                    <span>1%</span>
-                  </div>
-                  <div className="rating-bar-row">
-                    <span>1 Star</span>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: "0%" }}></div></div>
-                    <span>0%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reviews List */}
-              <div className="reviews-list">
-                {salon.reviews.map((rev) => (
-                  <div key={rev.id} className="review-card">
-                    <div className="review-header">
-                      <div className="reviewer-info">
-                        <div className="reviewer-avatar">{rev.initial}</div>
-                        <div>
-                          <h4 className="reviewer-name">{rev.author}</h4>
-                          <span className="review-treatment-tag">Treatment: {rev.treatment}</span>
-                        </div>
+                    <div className="overview-bars-box">
+                      <div className="rating-bar-row">
+                        <span>5 Stars</span>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: "88%" }}></div></div>
+                        <span>88%</span>
                       </div>
-                      <div className="review-meta">
-                        <div className="review-stars">{"★".repeat(rev.rating)}</div>
-                        <span className="review-date">{rev.date}</span>
+                      <div className="rating-bar-row">
+                        <span>4 Stars</span>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: "9%" }}></div></div>
+                        <span>9%</span>
+                      </div>
+                      <div className="rating-bar-row">
+                        <span>3 Stars</span>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: "2%" }}></div></div>
+                        <span>2%</span>
+                      </div>
+                      <div className="rating-bar-row">
+                        <span>2 Stars</span>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: "1%" }}></div></div>
+                        <span>1%</span>
+                      </div>
+                      <div className="rating-bar-row">
+                        <span>1 Star</span>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: "0%" }}></div></div>
+                        <span>0%</span>
                       </div>
                     </div>
-                    <p className="review-comment">“{rev.comment}”</p>
                   </div>
-                ))}
-              </div>
+
+                  {/* Reviews List */}
+                  <div className="reviews-list">
+                    {salon.reviews.map((rev) => (
+                      <div key={rev.id} className="review-card">
+                        <div className="review-header">
+                          <div className="reviewer-info">
+                            <div className="reviewer-avatar">{rev.initial}</div>
+                            <div>
+                              <h4 className="reviewer-name">{rev.author}</h4>
+                              <span className="review-treatment-tag">Treatment: {rev.treatment}</span>
+                            </div>
+                          </div>
+                          <div className="review-meta">
+                            <div className="review-stars">{"★".repeat(rev.rating)}</div>
+                            <span className="review-date">{rev.date}</span>
+                          </div>
+                        </div>
+                        <p className="review-comment">“{rev.comment}”</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 6. Location & Working Hours */}
             <section id="location-section" className="content-card-section">
-              <div className="section-header-row">
+              <div
+                className="section-header-row collapsible-header"
+                onClick={() => toggleSection("location")}
+              >
                 <div>
-                  <h2 className="section-title">Location & Operating Hours</h2>
+                  <div className="section-title-wrap">
+                    <h2 className="section-title">Location & Operating Hours</h2>
+                    <span className="section-badge-pill">Kowdiar, Trivandrum</span>
+                  </div>
                   <p className="section-subtitle">
                     Easily accessible with valet parking in the heart of Kowdiar.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  className={`section-toggle-btn ${openSections.location ? "is-expanded" : "is-collapsed"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("location");
+                  }}
+                  aria-expanded={openSections.location}
+                  title={openSections.location ? "Collapse section" : "Expand section"}
+                >
+                  <span className="toggle-btn-text">{openSections.location ? "Collapse" : "Open"}</span>
+                  <span className="toggle-arrow-circle">
+                    <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
               </div>
 
-              <div className="location-details-grid">
-                <div className="hours-card">
-                  <h4 className="card-subheading">Operating Hours</h4>
-                  <ul className="hours-list">
-                    {salon.openingHours.map((slot) => (
-                      <li key={slot.day} className={`hours-item ${slot.isToday ? "today-highlight" : ""}`}>
-                        <span className="day-name">{slot.day} {slot.isToday && <span className="today-pill">Today</span>}</span>
-                        <span className="hours-val" style={slot.isOpen === false || slot.hours?.includes("Holiday") ? { color: "#dc2626", fontWeight: "600" } : {}}>{slot.hours}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="address-contact-card">
-                  <h4 className="card-subheading">Contact & Address</h4>
-                  <div className="address-block">
-                    <p className="salon-full-address">
-                      <strong>{salon.name}</strong><br />
-                      {salon.landmark && <>{salon.landmark}<br /></>}
-                      {salon.address}, {salon.city}, {salon.state} – {salon.pincode}
-                    </p>
-                    <div className="contact-methods">
-                      <p>📞 Phone: <a href={`tel:${salon.phone}`}>{salon.phone}</a></p>
-                      <p>✉️ Email: <a href={`mailto:${salon.email}`}>{salon.email}</a></p>
+              {openSections.location && (
+                <div className="section-collapsible-body">
+                  <div className="location-details-grid">
+                    <div className="hours-card">
+                      <h4 className="card-subheading">Operating Hours</h4>
+                      <ul className="hours-list">
+                        {salon.openingHours.map((slot) => (
+                          <li key={slot.day} className={`hours-item ${slot.isToday ? "today-highlight" : ""}`}>
+                            <span className="day-name">{slot.day} {slot.isToday && <span className="today-pill">Today</span>}</span>
+                            <span className="hours-val" style={slot.isOpen === false || slot.hours?.includes("Holiday") ? { color: "#dc2626", fontWeight: "600" } : {}}>{slot.hours}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent(`${salon.name} ${salon.address} ${salon.city}`)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="open-maps-btn"
-                    >
-                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Open in Google Maps
-                    </a>
+                    <div className="address-contact-card">
+                      <h4 className="card-subheading">Contact & Address</h4>
+                      <div className="address-block">
+                        <p className="salon-full-address">
+                          <strong>{salon.name}</strong><br />
+                          {salon.landmark && <>{salon.landmark}<br /></>}
+                          {salon.address}, {salon.city}, {salon.state} – {salon.pincode}
+                        </p>
+                        <div className="contact-methods">
+                          <p>📞 Phone: <a href={`tel:${salon.phone}`}>{salon.phone}</a></p>
+                          <p>✉️ Email: <a href={`mailto:${salon.email}`}>{salon.email}</a></p>
+                        </div>
+
+                        <a
+                          href={`https://maps.google.com/?q=${encodeURIComponent(`${salon.name} ${salon.address} ${salon.city}`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="open-maps-btn"
+                        >
+                          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Open in Google Maps
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </section>
 
           </div>
@@ -1323,47 +1622,102 @@ export default function SalonDetail() {
           {/* RIGHT STICKY COLUMN: Appointment Booking Drawer */}
           <aside className="detail-sidebar-col">
             <div className="sticky-booking-card">
-              <div className="booking-card-header">
+              <div
+                className="booking-card-header collapsible-header"
+                onClick={() => toggleSection("booking")}
+              >
                 <div>
                   <h3 className="booking-card-title">Book Appointment</h3>
-                  <small style={{ color: "#6ee7b7", fontSize: "0.78rem" }}>{salon.name}</small>
+                  <div className="booking-card-sub">
+                    <span style={{ color: "#f59e0b", fontWeight: 700 }}>★ {salon.rating || 4.8}</span>
+                    <span>•</span>
+                    <span>{salon.name}</span>
+                  </div>
                 </div>
-                <span className="booking-instant-badge">Instant Confirmation</span>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="booking-instant-badge">⚡ Instant</span>
+                  <button
+                    type="button"
+                    className={`section-toggle-btn booking-toggle-arrow ${openSections.booking ? "is-expanded" : "is-collapsed"}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSection("booking");
+                    }}
+                    aria-expanded={openSections.booking}
+                    title={openSections.booking ? "Collapse Book Appointment" : "Expand Book Appointment"}
+                  >
+                    <span className="toggle-arrow-circle">
+                      <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {/* STEP 1: Select Service */}
-              <div className="booking-step-block step-block-active">
-                <div className="step-accordion-header" style={{ cursor: "default" }}>
-                  <div className="step-header-left">
-                    <span className="step-num-badge badge-done">1</span>
-                    <span className="step-title-text">Treatment / Service</span>
+              {!openSections.booking ? (
+                <div className="booking-card-collapsed-summary" onClick={() => toggleSection("booking")}>
+                  <div className="collapsed-summary-content">
+                    <span className="collapsed-summary-service">
+                      {selectedServices[0]?.name || "Select Service & Slot"}
+                    </span>
+                    <span className="collapsed-summary-meta">
+                      {dateSlots[selectedDateIdx]?.dayName} {dateSlots[selectedDateIdx]?.dateNum} • {selectedTimeSlot || "No Time"}
+                    </span>
+                    <span className="collapsed-summary-price">
+                      ₹{billSummary.total.toLocaleString("en-IN")}
+                    </span>
                   </div>
-                  <div className="step-header-right">
-                    {selectedServices[0] && (
-                      <span className="step-summary-pill" title={selectedServices[0].name}>
-                        {selectedServices[0].name}
-                      </span>
-                    )}
-                  </div>
+                  <span className="collapsed-summary-action">Tap to Open & Book ↗</span>
                 </div>
+              ) : (
+                <div className="booking-card-body-content">
+                  {/* STEP 1: Select Service */}
+                  <div className="booking-step-block step-block-active">
+                    <div
+                      className="step-accordion-header"
+                      onClick={() => toggleBookingStep("service")}
+                    >
+                      <div className="step-header-left">
+                        <span className="step-num-badge badge-done">1</span>
+                        <span className="step-title-text">Treatment / Service</span>
+                      </div>
+                      <div className="step-header-right">
+                        {selectedServices[0] && (
+                          <span className="step-summary-pill" title={selectedServices[0].name}>
+                            {selectedServices[0].name}
+                          </span>
+                        )}
+                        <span className={`step-accordion-chevron ${openBookingSteps.service ? "is-expanded" : "is-collapsed"}`}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="step-accordion-body" style={{ display: "block" }}>
+                    {openBookingSteps.service && (
+                      <div className="step-accordion-body">
                   {selectedServices.length === 0 ? (
-                    <div className="empty-services-prompt" style={{ padding: "12px", border: "1px dashed #d1d5db", borderRadius: "8px" }}>
-                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#b45309" }}>No service selected yet.</p>
-                      <small style={{ fontSize: "0.75rem", color: "#6b7280" }}>Please choose a service from the menu on the left.</small>
+                    <div className="empty-services-prompt">
+                      <p>No service selected yet.</p>
+                      <small>Please choose a service from the menu on the left.</small>
                     </div>
                   ) : (
                     <div>
-                      <div className="selected-service-row" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px 12px", borderRadius: "8px" }}>
+                      <div className="selected-service-row">
                         <div className="selected-service-info">
-                          <strong className="selected-srv-name" style={{ color: "#166534" }}>{selectedServices[0].name}</strong>
-                          <span className="selected-srv-dur" style={{ color: "#15803d", fontWeight: 600 }}>⏱ {selectedServices[0].duration}</span>
+                          <strong className="selected-srv-name">{selectedServices[0].name}</strong>
+                          <span className="selected-srv-dur">⏱ {selectedServices[0].duration}</span>
                         </div>
                         <div className="selected-service-price-wrap">
-                          <span className="selected-srv-price" style={{ color: "#166534", fontWeight: 700 }}>₹{selectedServices[0].price.toLocaleString("en-IN")}</span>
+                          <span className="selected-srv-price">
+                            ₹{selectedServices[0].price.toLocaleString("en-IN")}
+                          </span>
                         </div>
                       </div>
+
                       {salon.services.length > 1 && (
                         <div style={{ marginTop: "8px" }}>
                           <label style={{ display: "block", fontSize: "0.72rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>
@@ -1373,12 +1727,14 @@ export default function SalonDetail() {
                             className="service-switcher-select"
                             style={{
                               width: "100%",
-                              padding: "6px 10px",
+                              padding: "7px 10px",
                               fontSize: "0.82rem",
-                              borderRadius: "6px",
-                              border: "1px solid #cbd5e1",
+                              borderRadius: "8px",
+                              border: "1.5px solid #e2e8f0",
                               background: "#ffffff",
-                              color: "#334155"
+                              color: "#1e293b",
+                              outline: "none",
+                              cursor: "pointer"
                             }}
                             value={selectedServices[0]?.id || ""}
                             onChange={(e) => {
@@ -1400,25 +1756,35 @@ export default function SalonDetail() {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* STEP 2: Select Date */}
+            <div className="booking-step-block step-block-active">
+              <div
+                className="step-accordion-header"
+                onClick={() => toggleBookingStep("date")}
+              >
+                <div className="step-header-left">
+                  <span className="step-num-badge badge-done">2</span>
+                  <span className="step-title-text">Select Date</span>
+                </div>
+                <div className="step-header-right">
+                  {dateSlots[selectedDateIdx] && (
+                    <span className="step-summary-pill">
+                      {dateSlots[selectedDateIdx].dayName} {dateSlots[selectedDateIdx].dateNum} {dateSlots[selectedDateIdx].monthStr}
+                    </span>
+                  )}
+                  <span className={`step-accordion-chevron ${openBookingSteps.date ? "is-expanded" : "is-collapsed"}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </div>
               </div>
 
-              {/* STEP 2: Select Date */}
-              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
-                <div className="step-accordion-header" style={{ cursor: "default" }}>
-                  <div className="step-header-left">
-                    <span className="step-num-badge badge-done">2</span>
-                    <span className="step-title-text">Select Date</span>
-                  </div>
-                  <div className="step-header-right">
-                    {dateSlots[selectedDateIdx] && (
-                      <span className="step-summary-pill">
-                        {dateSlots[selectedDateIdx].dayName} {dateSlots[selectedDateIdx].dateNum} {dateSlots[selectedDateIdx].monthStr}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="step-accordion-body" style={{ display: "block" }}>
+              {openBookingSteps.date && (
+                <div className="step-accordion-body">
                   <div className="date-pills-scroller">
                     {dateSlots.map((d) => (
                       <button
@@ -1442,12 +1808,11 @@ export default function SalonDetail() {
                   </div>
                   {dateSlots[selectedDateIdx]?.isOffDay && (
                     <div style={{
-                      marginTop: "8px",
                       background: "#fef2f2",
                       border: "1px solid #fecaca",
-                      borderRadius: "6px",
+                      borderRadius: "8px",
                       padding: "8px 12px",
-                      fontSize: "0.82rem",
+                      fontSize: "0.8rem",
                       color: "#991b1b",
                       fontWeight: 600,
                     }}>
@@ -1455,11 +1820,15 @@ export default function SalonDetail() {
                     </div>
                   )}
                 </div>
-              </div>
+              )}
+            </div>
 
               {/* STEP 3: Select Stylist */}
-              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
-                <div className="step-accordion-header" style={{ cursor: "default" }}>
+              <div className="booking-step-block step-block-active">
+                <div
+                  className="step-accordion-header"
+                  onClick={() => toggleBookingStep("stylist")}
+                >
                   <div className="step-header-left">
                     <span className={`step-num-badge ${selectedStylist ? "badge-done" : "badge-active"}`}>
                       {selectedStylist ? "✓" : "3"}
@@ -1474,12 +1843,18 @@ export default function SalonDetail() {
                         ? selectedStylist.name
                         : "Select a Stylist"}
                     </span>
+                    <span className={`step-accordion-chevron ${openBookingSteps.stylist ? "is-expanded" : "is-collapsed"}`}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
                   </div>
                 </div>
 
-                <div className="step-accordion-body" style={{ display: "block" }}>
-                  {/* Selected Stylist Banner / Active Info */}
-                  <div className="selected-stylist-banner" style={{ marginBottom: "8px" }}>
+                {openBookingSteps.stylist && (
+                  <div className="step-accordion-body">
+                  {/* Selected Stylist Banner */}
+                  <div className="selected-stylist-banner">
                     {selectedStylist && typeof selectedStylist === "object" ? (
                       <div className="stylist-assigned-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1515,7 +1890,7 @@ export default function SalonDetail() {
                         }}>
                           {selectedStylist.has_advance_bookings ? (
                             <>
-                              <strong>📌 {selectedStylist.advance_bookings_count} Advance Booking{selectedStylist.advance_bookings_count > 1 ? "s" : ""} on date:</strong>
+                              <strong>📌 {selectedStylist.advance_bookings_count} Advance Booking{selectedStylist.advance_bookings_count > 1 ? "s" : ""}:</strong>
                               <span>Booked slots are automatically hidden below</span>
                             </>
                           ) : (
@@ -1561,23 +1936,10 @@ export default function SalonDetail() {
                       Loading available stylists for this date…
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       {/* Auto-Assign Option */}
-                      <button
-                        type="button"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 10px",
-                          borderRadius: "8px",
-                          border: selectedStylist === "auto" ? "2px solid #059669" : "1px solid #cbd5e1",
-                          background: selectedStylist === "auto" ? "#ecfdf5" : "#ffffff",
-                          fontSize: "0.78rem",
-                          cursor: "pointer",
-                          textAlign: "left",
-                          transition: "all 0.15s ease"
-                        }}
+                      <div
+                        className={`side-stylist-card ${selectedStylist === "auto" ? "side-stylist-card--selected" : ""}`}
                         onClick={() => {
                           setSelectedStylist("auto");
                           setSelectedTimeSlot("");
@@ -1585,21 +1947,21 @@ export default function SalonDetail() {
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontWeight: 700, color: selectedStylist === "auto" ? "#059669" : "#334155" }}>
+                          <span style={{ fontWeight: 700, color: selectedStylist === "auto" ? "#059669" : "#334155", fontSize: "0.8rem" }}>
                             ✦ Auto-Assign (Any Available Specialist)
                           </span>
                         </div>
                         <span style={{
-                          fontSize: "0.7rem",
+                          fontSize: "0.68rem",
                           color: selectedStylist === "auto" ? "#059669" : "#64748b",
-                          fontWeight: 600,
+                          fontWeight: 700,
                           background: selectedStylist === "auto" ? "#d1fae5" : "#f1f5f9",
-                          padding: "2px 6px",
+                          padding: "2px 8px",
                           borderRadius: "4px"
                         }}>
                           {selectedStylist === "auto" ? "✓ Selected" : "Auto-Assign"}
                         </span>
-                      </button>
+                      </div>
 
                       {/* Workers List */}
                       {eligibleWorkers.map((st) => {
@@ -1609,18 +1971,7 @@ export default function SalonDetail() {
                         return (
                           <div
                             key={st.id}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "7px 10px",
-                              borderRadius: "8px",
-                              border: isChosen ? "2px solid #059669" : "1px solid #cbd5e1",
-                              background: isChosen ? "#ecfdf5" : isUnavailable ? "#f8fafc" : "#ffffff",
-                              cursor: isUnavailable ? "not-allowed" : "pointer",
-                              opacity: isUnavailable ? 0.6 : 1,
-                              transition: "all 0.15s ease"
-                            }}
+                            className={`side-stylist-card ${isChosen ? "side-stylist-card--selected" : ""} ${isUnavailable ? "side-stylist-card--disabled" : ""}`}
                             onClick={() => {
                               if (!isUnavailable) {
                                 setSelectedStylist(st);
@@ -1629,37 +1980,37 @@ export default function SalonDetail() {
                               }
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <img src={st.image} alt={st.name} style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }} />
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                              <img src={st.image} alt={st.name} style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
                               <div>
-                                <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b" }}>{st.name}</div>
+                                <div style={{ fontWeight: 700, fontSize: "0.82rem", color: "#1e293b" }}>{st.name}</div>
                                 <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{st.role}</div>
                               </div>
                             </div>
 
                             <div style={{ textAlign: "right" }}>
                               {isChosen ? (
-                                <span style={{ background: "#059669", color: "#ffffff", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span style={{ background: "#059669", color: "#ffffff", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
                                   ✓ Selected
                                 </span>
                               ) : st.is_on_leave ? (
-                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
                                   On Leave
                                 </span>
                               ) : st.is_weekly_off ? (
-                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
                                   Weekly Off
                                 </span>
                               ) : st.is_fully_booked ? (
-                                <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
                                   Fully Booked
                                 </span>
                               ) : st.has_advance_bookings ? (
-                                <span style={{ background: "#e0f2fe", color: "#0369a1", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span style={{ background: "#e0f2fe", color: "#0369a1", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
                                   📌 {st.advance_bookings_count} Booked
                                 </span>
                               ) : (
-                                <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
                                   ✓ Available ({st.available_slots_count} slots)
                                 </span>
                               )}
@@ -1670,38 +2021,48 @@ export default function SalonDetail() {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* STEP 4: Available Time Slots */}
+            <div className="booking-step-block step-block-active">
+              <div
+                className="step-accordion-header"
+                onClick={() => toggleBookingStep("slots")}
+              >
+                <div className="step-header-left">
+                  <span className={`step-num-badge ${selectedTimeSlot ? "badge-done" : "badge-active"}`}>
+                    {selectedTimeSlot ? "✓" : "4"}
+                  </span>
+                  <span className="step-title-text">Available Time Slots</span>
+                </div>
+                <div className="step-header-right">
+                  {selectedTimeSlot && (
+                    <span className="step-summary-pill">
+                      🕒 {selectedTimeSlot}
+                    </span>
+                  )}
+                  <span className={`step-accordion-chevron ${openBookingSteps.slots ? "is-expanded" : "is-collapsed"}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </div>
               </div>
 
-              {/* STEP 4: Available Time Slots */}
-              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
-                <div className="step-accordion-header" style={{ cursor: "default" }}>
-                  <div className="step-header-left">
-                    <span className={`step-num-badge ${selectedTimeSlot ? "badge-done" : "badge-active"}`}>
-                      {selectedTimeSlot ? "✓" : "4"}
-                    </span>
-                    <span className="step-title-text">Available Time Slots</span>
-                  </div>
-                  <div className="step-header-right">
-                    {selectedTimeSlot && (
-                      <span className="step-summary-pill" style={{ background: "#d1fae5", color: "#065f46", fontWeight: 700 }}>
-                        🕒 {selectedTimeSlot}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="step-accordion-body" style={{ display: "block" }}>
+              {openBookingSteps.slots && (
+                <div className="step-accordion-body">
                   {!selectedStylist ? (
                     <div style={{
                       background: "#f8fafc",
-                      border: "1px dashed #cbd5e1",
-                      borderRadius: "8px",
+                      border: "1.5px dashed #cbd5e1",
+                      borderRadius: "12px",
                       padding: "16px",
                       textAlign: "center",
                       color: "#64748b"
                     }}>
-                      <div style={{ fontSize: "1.3rem", marginBottom: "4px" }}>✂️</div>
-                      <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", marginBottom: "4px" }}>
+                      <div style={{ fontSize: "1.4rem", marginBottom: "4px" }}>✂️</div>
+                      <div style={{ fontWeight: 700, fontSize: "0.86rem", color: "#1e293b", marginBottom: "4px" }}>
                         Select a Stylist to View Available Slots
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
@@ -1710,23 +2071,23 @@ export default function SalonDetail() {
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize: "0.74rem", color: "#64748b", marginBottom: "8px" }}>
-                        Showing slots for: <strong style={{ color: "#047857" }}>{selectedStylist === "auto" ? "Any Available Specialist (Auto-Assign)" : selectedStylist.name}</strong>
+                      <div style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                        Showing slots for: <strong style={{ color: "#059669" }}>{selectedStylist === "auto" ? "Any Available Specialist (Auto-Assign)" : selectedStylist.name}</strong>
                       </div>
 
                       {dateSlots[selectedDateIdx]?.isOffDay ? (
                         <div style={{
                           background: "#fef2f2",
                           border: "1px solid #fecaca",
-                          borderRadius: "8px",
-                          padding: "14px",
+                          borderRadius: "10px",
+                          padding: "12px",
                           textAlign: "center",
                           color: "#991b1b"
                         }}>
-                          <div style={{ fontWeight: "700", marginBottom: "4px", fontSize: "0.9rem" }}>
+                          <div style={{ fontWeight: "700", marginBottom: "2px", fontSize: "0.88rem" }}>
                             🔒 Salon Closed on this Date
                           </div>
-                          <div style={{ fontSize: "0.82rem", color: "#b91c1c" }}>
+                          <div style={{ fontSize: "0.8rem", color: "#b91c1c" }}>
                             {dateSlots[selectedDateIdx]?.offDayReason || "Salon is closed on this date"}. Please select another date.
                           </div>
                         </div>
@@ -1734,11 +2095,11 @@ export default function SalonDetail() {
                         <div style={{
                           background: "#fef2f2",
                           border: "1px solid #fecaca",
-                          borderRadius: "8px",
-                          padding: "14px",
+                          borderRadius: "10px",
+                          padding: "12px",
                           textAlign: "center",
                           color: "#991b1b",
-                          fontSize: "0.85rem",
+                          fontSize: "0.84rem",
                           fontWeight: 600,
                         }}>
                           🔒 Salon Closed: {slotClosedReason}
@@ -1747,13 +2108,13 @@ export default function SalonDetail() {
                         <div style={{
                           background: "#fffbeb",
                           border: "1px solid #fde68a",
-                          borderRadius: "8px",
-                          padding: "14px",
+                          borderRadius: "10px",
+                          padding: "12px",
                           textAlign: "center",
                           color: "#92400e",
-                          fontSize: "0.85rem"
+                          fontSize: "0.84rem"
                         }}>
-                          <div style={{ fontWeight: 600, marginBottom: "4px" }}>⚠️ Specialist Unavailable</div>
+                          <div style={{ fontWeight: 700, marginBottom: "4px" }}>⚠️ Specialist Unavailable</div>
                           <div>{slotWorkerUnavailableReason}</div>
                           <button
                             type="button"
@@ -1762,11 +2123,11 @@ export default function SalonDetail() {
                               background: "#d97706",
                               color: "#ffffff",
                               border: "none",
-                              borderRadius: "4px",
-                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              padding: "4px 12px",
                               fontSize: "0.75rem",
                               cursor: "pointer",
-                              fontWeight: 600
+                              fontWeight: 700
                             }}
                             onClick={() => setSelectedStylist("auto")}
                           >
@@ -1774,18 +2135,18 @@ export default function SalonDetail() {
                           </button>
                         </div>
                       ) : slotsLoading ? (
-                        <div style={{ padding: "16px", textAlign: "center", color: "#6b7280", fontSize: "0.85rem" }}>
+                        <div style={{ padding: "16px", textAlign: "center", color: "#6b7280", fontSize: "0.84rem" }}>
                           Loading available slots…
                         </div>
                       ) : dynamicSlots.length === 0 ? (
                         <div style={{
                           background: "#fffbeb",
                           border: "1px solid #fde68a",
-                          borderRadius: "8px",
-                          padding: "14px",
+                          borderRadius: "10px",
+                          padding: "12px",
                           textAlign: "center",
                           color: "#92400e",
-                          fontSize: "0.85rem"
+                          fontSize: "0.84rem"
                         }}>
                           No time slots available for this stylist on this date.
                           {selectedStylist !== "auto" && (
@@ -1796,11 +2157,11 @@ export default function SalonDetail() {
                                   background: "#059669",
                                   color: "#ffffff",
                                   border: "none",
-                                  borderRadius: "4px",
-                                  padding: "4px 10px",
+                                  borderRadius: "6px",
+                                  padding: "4px 12px",
                                   fontSize: "0.75rem",
                                   cursor: "pointer",
-                                  fontWeight: 600
+                                  fontWeight: 700
                                 }}
                                 onClick={() => setSelectedStylist("auto")}
                               >
@@ -1819,8 +2180,7 @@ export default function SalonDetail() {
                                 type="button"
                                 disabled={!s.available}
                                 title={!s.available ? (s.reason ? `Unavailable (${s.reason})` : "Slot unavailable") : `${s.time_display} - ${s.end_time_display}`}
-                                className={`time-slot-btn ${isSelected ? "time-active" : ""} ${!s.available ? "time-slot-disabled" : ""}`}
-                                style={!s.available ? { opacity: 0.55, cursor: "not-allowed" } : {}}
+                                className={`time-slot-btn ${isSelected ? "time-active" : ""}`}
                                 onClick={() => {
                                   if (s.available) {
                                     setSelectedSlotObj(s);
@@ -1830,8 +2190,8 @@ export default function SalonDetail() {
                               >
                                 <span>{s.time_display}</span>
                                 {!s.available && (
-                                  <span style={{ fontSize: "0.68rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
-                                    - Unavailable{s.reason === "Break" ? " (Break)" : ""}
+                                  <span style={{ fontSize: "0.66rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
+                                    - {s.reason === "Break" ? "Break" : "Booked"}
                                   </span>
                                 )}
                               </button>
@@ -1842,81 +2202,108 @@ export default function SalonDetail() {
                     </>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* STEP 5: Pricing Breakdown */}
+            <div className="bill-breakdown-card">
+              <div className="bill-row">
+                <span>Item Subtotal</span>
+                <span>₹{billSummary.subtotal.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="bill-row">
+                <span>GST & Hygiene Safety (5%)</span>
+                <span>₹{billSummary.taxes.toLocaleString("en-IN")}</span>
               </div>
 
-              {/* STEP 5: Pricing Breakdown */}
-              <div className="bill-breakdown-card" style={{ marginTop: "12px" }}>
-                <div className="bill-row">
-                  <span>Item Subtotal</span>
-                  <span>₹{billSummary.subtotal.toLocaleString("en-IN")}</span>
+              {appliedCoupon && (
+                <div className="bill-row discount-row">
+                  <span>Discount ({appliedCoupon.code})</span>
+                  <span>-₹{billSummary.discount.toLocaleString("en-IN")}</span>
                 </div>
-                <div className="bill-row">
-                  <span>GST & Hygiene Safety (5%)</span>
-                  <span>₹{billSummary.taxes.toLocaleString("en-IN")}</span>
-                </div>
+              )}
 
-                {appliedCoupon && (
-                  <div className="bill-row discount-row">
-                    <span>Discount ({appliedCoupon.code})</span>
-                    <span>-₹{billSummary.discount.toLocaleString("en-IN")}</span>
-                  </div>
-                )}
+              <div className="bill-divider"></div>
 
-                <div className="bill-divider"></div>
-
-                <div className="bill-row total-row">
-                  <span>Total Amount</span>
-                  <span className="total-price-tag">₹{billSummary.total.toLocaleString("en-IN")}</span>
-                </div>
-              </div>
-
-              {/* STEP 6: Primary Action CTA */}
-              <button
-                type="button"
-                className="proceed-booking-cta"
-                disabled={
-                  loading ||
-                  selectedServices.length === 0 ||
-                  dateSlots[selectedDateIdx]?.isOffDay ||
-                  Boolean(slotClosedReason) ||
-                  Boolean(slotWorkerUnavailableReason) ||
-                  !selectedStylist ||
-                  slotsLoading ||
-                  !selectedTimeSlot
-                }
-                onClick={() => {
-                  setBookingError("");
-                  setShowBookingModal(true);
-                }}
-              >
-                <span>
-                  {dateSlots[selectedDateIdx]?.isOffDay
-                    ? "Salon Closed on Selected Date"
-                    : slotClosedReason
-                    ? "Salon Closed"
-                    : slotWorkerUnavailableReason
-                    ? "Specialist Unavailable"
-                    : !selectedStylist
-                    ? "Select a Stylist"
-                    : slotsLoading
-                    ? "Loading Slots…"
-                    : !selectedTimeSlot
-                    ? "Select a Time Slot"
-                    : "Confirm Booking"}
-                </span>
-                {!dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
-                  <span className="cta-arrow">→</span>
-                )}
-              </button>
-
-              <div className="cancellation-policy-box">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span>Free cancellation up to 2 hours before appointment time</span>
+              <div className="bill-row total-row">
+                <span>Total Amount</span>
+                <span className="total-price-tag">₹{billSummary.total.toLocaleString("en-IN")}</span>
               </div>
             </div>
-          </aside>
+
+            {/* STEP 6: Primary Action CTA */}
+            <button
+              type="button"
+              className="proceed-booking-cta"
+              disabled={
+                loading ||
+                selectedServices.length === 0 ||
+                dateSlots[selectedDateIdx]?.isOffDay ||
+                Boolean(slotClosedReason) ||
+                Boolean(slotWorkerUnavailableReason) ||
+                !selectedStylist ||
+                slotsLoading ||
+                !selectedTimeSlot
+              }
+              onClick={() => {
+                setBookingError("");
+                const svc = selectedServices[0];
+                const dateObj = dateSlots[selectedDateIdx];
+                const params = new URLSearchParams();
+                if (svc?.id) params.set("service_id", svc.id);
+                if (dateObj?.isoDate) params.set("date", dateObj.isoDate);
+                else if (dateObj?.fullDateStr) params.set("date", dateObj.fullDateStr);
+
+                const workerId =
+                  selectedStylist && typeof selectedStylist === "object"
+                    ? selectedStylist.id
+                    : selectedStylist;
+                if (workerId) params.set("worker_id", workerId);
+
+                const slotTime =
+                  selectedSlotObj?.time ||
+                  dynamicSlots.find((s) => s.time_display === selectedTimeSlot)?.time ||
+                  selectedTimeSlot;
+                if (slotTime) params.set("time", slotTime);
+
+                if (appliedCoupon?.code) params.set("coupon", appliedCoupon.code);
+
+                const basePath = window.location.pathname.startsWith("/customer/")
+                  ? `/customer/salons/${salon.id}/book`
+                  : `/salons/${salon.id}/book`;
+                navigate(`${basePath}?${params.toString()}`);
+              }}
+            >
+              <span>
+                {dateSlots[selectedDateIdx]?.isOffDay
+                  ? "Salon Closed on Selected Date"
+                  : slotClosedReason
+                  ? "Salon Closed"
+                  : slotWorkerUnavailableReason
+                  ? "Specialist Unavailable"
+                  : !selectedStylist
+                  ? "Select a Stylist"
+                  : slotsLoading
+                  ? "Loading Slots…"
+                  : !selectedTimeSlot
+                  ? "Select a Time Slot"
+                  : "Review & Confirm Booking"}
+              </span>
+              {!dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
+                <span className="cta-arrow">→</span>
+              )}
+            </button>
+
+            <div className="cancellation-policy-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <span>Free cancellation up to 2 hours before appointment</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
 
         </div>
       </main>
@@ -1961,219 +2348,7 @@ export default function SalonDetail() {
         </div>
       )}
 
-      {/* MODAL 2: Appointment Confirmation Modal (Direct DB Booking) */}
-      {showBookingModal && (
-        <div className="booking-modal-backdrop" onClick={() => !bookingSuccess && !isSubmittingBooking && setShowBookingModal(false)}>
-          <div className="booking-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            {!bookingSuccess ? (
-              <>
-                <div className="booking-modal-header">
-                  <div className="modal-title-wrap">
-                    <h3>Confirm Your Appointment</h3>
-                    <p>{salon.name} • {salon.city}</p>
-                  </div>
-                  <button className="modal-close-btn" disabled={isSubmittingBooking} onClick={() => setShowBookingModal(false)}>✕</button>
-                </div>
 
-                <div className="booking-modal-body" style={{ maxHeight: "75vh", overflowY: "auto" }}>
-                  {/* Recap */}
-                  <div className="booking-summary-recap">
-                    <div className="recap-item">
-                      <span className="recap-label">📅 Date & Time</span>
-                      <strong className="recap-val">
-                        {dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}
-                        {selectedSlotObj?.end_time_display ? ` → ${selectedSlotObj.end_time_display}` : ""}
-                      </strong>
-                    </div>
-
-                    <div className="recap-item">
-                      <span className="recap-label">👤 Stylist</span>
-                      <strong className="recap-val">{selectedStylist ? selectedStylist.name : "Any Available Worker"}</strong>
-                    </div>
-
-                    <div className="recap-item">
-                      <span className="recap-label">✂ Selected Service</span>
-                      <div className="recap-services-list">
-                        {selectedServices.map((s) => (
-                          <div key={s.id} className="recap-srv-row">
-                            <span>{s.name} ({s.duration})</span>
-                            <span>₹{s.price.toLocaleString("en-IN")}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="recap-bill-box">
-                      <div className="recap-bill-row">
-                        <span>Total Payable</span>
-                        <strong className="recap-total">₹{billSummary.total.toLocaleString("en-IN")}</strong>
-                      </div>
-                      <small>Payment can be made online or directly at the salon counter.</small>
-                    </div>
-                  </div>
-
-                  {/* Customer Input Fields */}
-                  <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <h4 style={{ margin: "0 0 4px 0", fontSize: "0.95rem", color: "#1e293b", fontWeight: 700 }}>
-                      Your Contact Details
-                    </h4>
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                        Full Name <span style={{ color: "#dc2626" }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Rahul Sharma"
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: "1px solid #cbd5e1",
-                          fontSize: "0.85rem"
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          placeholder="+91 98765 43210"
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "8px 12px",
-                            borderRadius: "6px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "0.85rem"
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          placeholder="you@example.com"
-                          value={clientEmail}
-                          onChange={(e) => setClientEmail(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "8px 12px",
-                            borderRadius: "6px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "0.85rem"
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                        Special Notes / Requests (optional)
-                      </label>
-                      <textarea
-                        rows={2}
-                        placeholder="Any preferences or allergy details…"
-                        value={bookingNotes}
-                        onChange={(e) => setBookingNotes(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: "1px solid #cbd5e1",
-                          fontSize: "0.85rem",
-                          resize: "vertical"
-                        }}
-                      />
-                    </div>
-
-                    {bookingError && (
-                      <div style={{
-                        background: "#fef2f2",
-                        border: "1px solid #fecaca",
-                        color: "#991b1b",
-                        padding: "8px 12px",
-                        borderRadius: "6px",
-                        fontSize: "0.82rem",
-                        fontWeight: 600
-                      }}>
-                        ⚠️ {bookingError}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="booking-modal-footer">
-                  <button
-                    type="button"
-                    className="modal-cancel-btn"
-                    disabled={isSubmittingBooking}
-                    onClick={() => setShowBookingModal(false)}
-                  >
-                    Back to Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="modal-confirm-btn"
-                    disabled={isSubmittingBooking}
-                    onClick={handleConfirmBookingSubmit}
-                  >
-                    {isSubmittingBooking ? "Reserving Slot…" : "Confirm & Reserve Slot"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="booking-success-box">
-                <div className="success-checkmark-circle">✓</div>
-                <h3>Appointment Confirmed!</h3>
-                <p>
-                  Your reservation at <strong>{salon.name}</strong> for{" "}
-                  <strong>{dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}</strong> has been successfully booked in our system.
-                </p>
-                <div className="success-booking-ref">
-                  Booking Reference: <strong>BMS-{confirmedBookingData?.id || Math.floor(100000 + Math.random() * 900000)}</strong>
-                </div>
-                {confirmedBookingData?.worker_name && (
-                  <div style={{ fontSize: "0.85rem", color: "#047857", fontWeight: 600 }}>
-                    Assigned Specialist: {confirmedBookingData.worker_name}
-                  </div>
-                )}
-                <div className="success-modal-actions" style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                  <button
-                    type="button"
-                    className="success-home-btn"
-                    onClick={() => {
-                      setShowBookingModal(false);
-                      setBookingSuccess(false);
-                      navigate("/customer/my-bookings");
-                    }}
-                  >
-                    View My Bookings
-                  </button>
-                  <button
-                    type="button"
-                    className="success-salons-btn"
-                    onClick={() => {
-                      setShowBookingModal(false);
-                      setBookingSuccess(false);
-                    }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <CustomerFooter />
     </div>

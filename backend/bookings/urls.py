@@ -8,6 +8,8 @@ from .views import (
     BookingReserveView,
     BookingConfirmPaymentView,
     BookingReleaseView,
+    BookingCreateRazorpayOrderView,
+    BookingVerifyRazorpayView,
     MyBookingsView,
     BookingCancelView,
 )
@@ -19,6 +21,8 @@ urlpatterns = [
     path('slots/', AvailableSlotsView.as_view(), name='booking-slots'),
     path('create/', BookingCreateView.as_view(), name='booking-create'),
     path('reserve/', BookingReserveView.as_view(), name='booking-reserve'),
+    path('create-razorpay-order/', BookingCreateRazorpayOrderView.as_view(), name='booking-create-razorpay-order'),
+    path('<int:pk>/verify-razorpay/', BookingVerifyRazorpayView.as_view(), name='booking-verify-razorpay'),
     path('<int:pk>/confirm-payment/', BookingConfirmPaymentView.as_view(), name='booking-confirm-payment'),
     path('<int:pk>/release/', BookingReleaseView.as_view(), name='booking-release'),
     path('my/', MyBookingsView.as_view(), name='booking-my'),
