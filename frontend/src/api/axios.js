@@ -124,7 +124,9 @@ api.interceptors.response.use(
       localStorage.removeItem("user");
       if (
         window.location.pathname.startsWith("/admin") ||
-        window.location.pathname.startsWith("/owner")
+        window.location.pathname.startsWith("/owner") ||
+        window.location.pathname.startsWith("/worker")||
+        window.location.pathname.startsWith("/customer")
       ) {
         window.location.href = "/login?error=Session+expired.+Please+log+in+again.";
       }

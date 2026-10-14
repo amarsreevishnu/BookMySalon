@@ -162,7 +162,6 @@ export default function SalonsExplore() {
   const [servicesCatalog, setServicesCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  console.log(salonsList);
   
 
   useEffect(() => {

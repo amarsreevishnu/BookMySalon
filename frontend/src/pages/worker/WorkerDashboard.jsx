@@ -10,7 +10,7 @@ import "../../styles/workerDashboard.css";
 export default function WorkerDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-
+  
   const [activeNavTab, setActiveNavTab] = useState("appointments");
 
   const [activeDateTab, setActiveDateTab] = useState("today"); 

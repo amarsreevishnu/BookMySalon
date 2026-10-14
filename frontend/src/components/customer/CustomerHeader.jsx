@@ -145,13 +145,13 @@ function CustomerHeader() {
                     </Link>
 
                     <Link
-                      to="/customer/profile?tab=bookings"
+                      to="/customer/my-bookings"
                       className="dropdown-menu-item"
                       onClick={() => setUserDropdownOpen(false)}
                       style={{ textDecoration: "none" }}
                     >
                       <span className="dropdown-item-icon">📅</span>
-                      <span>My Appointments</span>
+                      <span>My Bookings</span>
                     </Link>
 
                     <Link

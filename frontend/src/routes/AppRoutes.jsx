@@ -11,6 +11,8 @@ import CustomerHome from "../pages/customer/CustomerHome";
 import SalonsExplore from "../pages/customer/SalonsExplore";
 import SalonDetail from "../pages/customer/SalonDetail";
 import CustomerProfile from "../pages/customer/CustomerProfile";
+import BookingPage from "../pages/customer/BookingPage";
+import MyBookings from "../pages/customer/MyBookings";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
@@ -54,7 +56,12 @@ function AppRoutes() {
         <Route path="/customer/salons/:id" element={<SalonDetail />} />
         <Route path="/customer/profile" element={<CustomerProfile />} />
         <Route path="/profile" element={<CustomerProfile />} />
+        <Route path="/customer/salons/:id/book" element={<BookingPage />} />
+        <Route path="/customer/my-bookings" element={<MyBookings />} />
       </Route>
+
+      {/* Public booking route — redirects to login if not authenticated via API */}
+      <Route path="/salons/:id/book" element={<BookingPage />} />
 
       <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

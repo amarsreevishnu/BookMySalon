@@ -189,20 +189,36 @@ export default function SalonDetail() {
   const [selectedServiceCategory, setSelectedServiceCategory] = useState("All");
 
   // Booking & Cart State
-  const [selectedServices, setSelectedServices] = useState([
-    
-    DEFAULT_SALON_DATA.services[0],
-  ]);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [selectedStylist, setSelectedStylist] = useState(null); 
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("11:30 AM");
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [selectedSlotObj, setSelectedSlotObj] = useState(null);
+  const [slotWorkerUnavailableReason, setSlotWorkerUnavailableReason] = useState(null);
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [confirmedBookingData, setConfirmedBookingData] = useState(null);
 
-  
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      if (stored.first_name || stored.last_name) {
+        setClientName(`${stored.first_name || ""} ${stored.last_name || ""}`.trim());
+      }
+      if (stored.email) setClientEmail(stored.email);
+      if (stored.phone_number || stored.phone) setClientPhone(stored.phone_number || stored.phone || "");
+    } catch {}
+  }, []);
+
   const dateSlots = useMemo(() => {
     const list = [];
     const today = new Date();
@@ -233,17 +249,219 @@ export default function SalonDetail() {
     return list;
   }, [salon?.offDays]);
 
-  const timeSlots = [
-    "09:30 AM",
-    "11:00 AM",
-    "11:30 AM",
-    "01:00 PM",
-    "02:30 PM",
-    "04:00 PM",
-    "05:30 PM",
-    "07:00 PM",
-    "08:00 PM",
-  ];
+  const [dynamicSlots, setDynamicSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotClosedReason, setSlotClosedReason] = useState(null);
+
+  // Eligible workers who perform the selected service + their advance bookings
+  const [eligibleWorkers, setEligibleWorkers] = useState([]);
+  const [eligibleWorkersLoading, setEligibleWorkersLoading] = useState(false);
+
+  const activeService = selectedServices[0] || null;
+  const activeDateObj = dateSlots[selectedDateIdx] || null;
+
+  // 1. Fetch workers that perform the selected service & check their schedule / availability on the chosen date
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!salon?.id || !activeService?.id || !activeDateObj || loading) {
+      setEligibleWorkers([]);
+      return;
+    }
+
+    async function loadEligibleWorkers() {
+      setEligibleWorkersLoading(true);
+      try {
+        const params = {
+          service_id: activeService.id,
+          date: activeDateObj.isoDate,
+        };
+
+        const res = await api.get(`/bookings/salons/${salon.id}/workers/`, { params });
+        if (isMounted) {
+          const rawWorkers = res.data?.workers || [];
+          const formatted = rawWorkers.map((w, index) => ({
+            id: w.id,
+            name: w.name,
+            role: w.specialization || "Master Stylist",
+            experience: w.experience || "3+ yrs exp",
+            rating: 4.9,
+            reviewsCount: 30 + index * 5,
+            image: w.profile_photo ? resolveImageUrl(w.profile_photo) : (DEFAULT_SALON_DATA.stylists[index % DEFAULT_SALON_DATA.stylists.length]?.image || ""),
+            specialty: w.station ? `Station: ${w.station}` : "Certified Specialist",
+            has_advance_bookings: w.has_advance_bookings,
+            advance_bookings_count: w.advance_bookings_count,
+            advance_bookings: w.advance_bookings || [],
+            is_on_leave: w.is_on_leave,
+            is_weekly_off: w.is_weekly_off,
+            is_fully_booked: w.is_fully_booked,
+            available_slots_count: w.available_slots_count,
+            is_available: w.is_available,
+          }));
+          setEligibleWorkers(formatted);
+
+          // If current stylist is a specific worker, verify they are still available on this date & service
+          setSelectedStylist((current) => {
+            if (!current || current === "auto") return current;
+            const match = formatted.find((w) => String(w.id) === String(current.id));
+            if (!match || match.is_available === false) {
+              return null;
+            }
+            return match;
+          });
+        }
+      } catch (err) {
+        if (isMounted) {
+          setEligibleWorkers([]);
+        }
+      } finally {
+        if (isMounted) {
+          setEligibleWorkersLoading(false);
+        }
+      }
+    }
+
+    loadEligibleWorkers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [salon?.id, activeService?.id, activeDateObj?.isoDate, loading]);
+
+  // 2. Fetch available slots based on Selected Worker (or Auto-assign) and Service Duration
+  useEffect(() => {
+    let isMounted = true;
+
+    // Do NOT fetch or show slots until a stylist (or Auto-Assign) is chosen
+    if (!activeService?.id || !activeDateObj || !salon?.id || loading || !selectedStylist) {
+      setDynamicSlots([]);
+      setSelectedSlotObj(null);
+      setSelectedTimeSlot("");
+      return;
+    }
+
+    if (activeDateObj.isOffDay) {
+      setDynamicSlots([]);
+      setSelectedSlotObj(null);
+      setSelectedTimeSlot("");
+      setSlotClosedReason(activeDateObj.offDayReason || "Salon is closed on this date");
+      setSlotWorkerUnavailableReason(null);
+      return;
+    }
+
+    async function loadAvailableSlots() {
+      setSlotsLoading(true);
+      setSlotClosedReason(null);
+      setSlotWorkerUnavailableReason(null);
+      try {
+        const params = {
+          salon_id: salon.id,
+          service_id: activeService.id,
+          date: activeDateObj.isoDate,
+        };
+        if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
+          params.worker_id = selectedStylist.id;
+        }
+
+        const res = await api.get("/bookings/slots/", { params });
+        if (isMounted) {
+          if (res.data?.closed) {
+            setSlotClosedReason(res.data.reason || "Salon is closed on this date");
+            setDynamicSlots([]);
+            setSelectedSlotObj(null);
+            setSelectedTimeSlot("");
+          } else if (res.data?.worker_unavailable) {
+            setSlotWorkerUnavailableReason(res.data.reason || "Specialist is unavailable on this date");
+            setDynamicSlots([]);
+            setSelectedSlotObj(null);
+            setSelectedTimeSlot("");
+          } else {
+            const fetchedSlots = res.data?.slots || [];
+            setDynamicSlots(fetchedSlots);
+            
+            // If the user already selected an available slot, preserve it
+            setSelectedSlotObj((prevSlot) => {
+              const stillValid = fetchedSlots.find(
+                (s) => s.available && (s.time === prevSlot?.time || s.time_display === selectedTimeSlot)
+              );
+              if (stillValid) {
+                setSelectedTimeSlot(stillValid.time_display || stillValid.time);
+                return stillValid;
+              }
+              setSelectedTimeSlot("");
+              return null;
+            });
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setDynamicSlots([]);
+          setSelectedSlotObj(null);
+          setSelectedTimeSlot("");
+        }
+      } finally {
+        if (isMounted) {
+          setSlotsLoading(false);
+        }
+      }
+    }
+
+    loadAvailableSlots();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [salon?.id, activeService?.id, activeDateObj?.isoDate, activeDateObj?.isOffDay, selectedStylist, loading]);
+
+  const handleConfirmBookingSubmit = async () => {
+    const activeService = selectedServices[0];
+    const activeDateObj = dateSlots[selectedDateIdx];
+    if (!activeService) {
+      setBookingError("Please select a service.");
+      return;
+    }
+    if (!selectedStylist) {
+      setBookingError("Please select a stylist (or choose Auto-Assign).");
+      return;
+    }
+    if (!clientName.trim()) {
+      setBookingError("Please enter your name.");
+      return;
+    }
+    const slotTime = selectedSlotObj?.time || (
+      dynamicSlots.find(s => s.time_display === selectedTimeSlot)?.time
+    );
+    if (!slotTime) {
+      setBookingError("Please select an available time slot.");
+      return;
+    }
+    setBookingError("");
+    setIsSubmittingBooking(true);
+    try {
+      const payload = {
+        salon_id: Number(salon.id),
+        service_id: activeService.id,
+        booking_date: activeDateObj.isoDate,
+        start_time: slotTime,
+        client_name: clientName.trim(),
+        client_phone: clientPhone.trim(),
+        client_email: clientEmail.trim(),
+        notes: bookingNotes.trim(),
+      };
+      if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
+        payload.worker_id = Number(selectedStylist.id);
+      }
+      const response = await api.post("/bookings/create/", payload);
+      setConfirmedBookingData(response.data.booking);
+      setBookingSuccess(true);
+      showToast("Appointment booked successfully! 🎉");
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.response?.data?.detail || "Booking failed. Please try another slot.";
+      setBookingError(errMsg);
+    } finally {
+      setIsSubmittingBooking(false);
+    }
+  };
 
   // Fetch Salon Data from backend 
   useEffect(() => {
@@ -422,16 +640,8 @@ export default function SalonDetail() {
 
   
   const handleToggleService = (service) => {
-    setSelectedServices((prev) => {
-      const exists = prev.some((s) => s.id === service.id);
-      if (exists) {
-        showToast(`Removed "${service.name}" from booking.`);
-        return prev.filter((s) => s.id !== service.id);
-      } else {
-        showToast(`Added "${service.name}" to booking!`);
-        return [...prev, service];
-      }
-    });
+    setSelectedServices([service]);
+    showToast(`Selected "${service.name}" (${service.duration})!`);
   };
 
  
@@ -803,10 +1013,17 @@ export default function SalonDetail() {
                 {salon.stylists.map((stylist) => {
                   const isSelected = selectedStylist?.id === stylist.id;
                   const currentIsoDate = dateSlots[selectedDateIdx]?.isoDate;
+                  const matchedEligible = eligibleWorkers.find((ew) => String(ew.id) === String(stylist.id));
+                  const doesSelectedService = Boolean(!selectedServices[0] || matchedEligible);
+                  const advanceBookingsCount = matchedEligible?.advance_bookings_count || 0;
+                  const hasAdvanceBookings = Boolean(matchedEligible?.has_advance_bookings);
+                  const isFullyBooked = Boolean(matchedEligible?.is_fully_booked);
+
                   const isStylistOnLeave =
-                    Array.isArray(stylist.approvedLeaves) &&
-                    currentIsoDate &&
-                    stylist.approvedLeaves.includes(currentIsoDate);
+                    matchedEligible?.is_on_leave ||
+                    (Array.isArray(stylist.approvedLeaves) &&
+                      currentIsoDate &&
+                      stylist.approvedLeaves.includes(currentIsoDate));
 
                   return (
                     <div key={stylist.id} className={`stylist-card ${isSelected ? "stylist-selected" : ""} ${isStylistOnLeave ? "stylist-on-leave" : ""}`}>
@@ -820,6 +1037,31 @@ export default function SalonDetail() {
                         <p className="stylist-role">{stylist.role}</p>
                         <p className="stylist-exp">{stylist.experience} • {stylist.reviewsCount} reviews</p>
                         <p className="stylist-specialty">{stylist.specialty}</p>
+
+                        {/* Service Capability & Advance Booking Status */}
+                        <div style={{ marginTop: "6px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                          {!doesSelectedService ? (
+                            <span style={{ fontSize: "0.72rem", color: "#b45309", background: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              ✕ Does not perform {selectedServices[0]?.name}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              ✓ Performs {selectedServices[0]?.name}
+                            </span>
+                          )}
+
+                          {doesSelectedService && (
+                            hasAdvanceBookings ? (
+                              <span style={{ fontSize: "0.72rem", color: "#0369a1", background: "#e0f2fe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                📌 {advanceBookingsCount} advance booking{advanceBookingsCount > 1 ? "s" : ""} on {dateSlots[selectedDateIdx]?.dayName}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "0.72rem", color: "#15803d", background: "#f0fdf4", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                ✓ No advance bookings on this date
+                              </span>
+                            )
+                          )}
+                        </div>
 
                         {isStylistOnLeave ? (
                           <div style={{
@@ -835,6 +1077,37 @@ export default function SalonDetail() {
                           }}>
                             🔒 On Leave on Selected Date
                           </div>
+                        ) : isFullyBooked ? (
+                          <div style={{
+                            background: "#fffbeb",
+                            color: "#b45309",
+                            border: "1px solid #fde68a",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            textAlign: "center",
+                            marginTop: "8px"
+                          }}>
+                            ⚠️ Fully Booked on Selected Date
+                          </div>
+                        ) : !doesSelectedService ? (
+                          <button
+                            type="button"
+                            disabled
+                            style={{
+                              width: "100%",
+                              padding: "8px",
+                              borderRadius: "6px",
+                              border: "1px solid #e2e8f0",
+                              background: "#f1f5f9",
+                              color: "#94a3b8",
+                              fontSize: "0.82rem",
+                              cursor: "not-allowed"
+                            }}
+                          >
+                            Service Not Provided
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -842,9 +1115,9 @@ export default function SalonDetail() {
                             onClick={() => {
                               if (isSelected) {
                                 setSelectedStylist(null);
-                                showToast("Set stylist to: Any Available Specialist.");
+                                showToast("Deselected stylist. Please select a specialist or Auto-Assign.");
                               } else {
-                                setSelectedStylist(stylist);
+                                setSelectedStylist(matchedEligible || stylist);
                                 showToast(`Selected stylist: ${stylist.name}!`);
                               }
                             }}
@@ -1051,150 +1324,528 @@ export default function SalonDetail() {
           <aside className="detail-sidebar-col">
             <div className="sticky-booking-card">
               <div className="booking-card-header">
-                <h3 className="booking-card-title">Book Your Appointment</h3>
+                <div>
+                  <h3 className="booking-card-title">Book Appointment</h3>
+                  <small style={{ color: "#6ee7b7", fontSize: "0.78rem" }}>{salon.name}</small>
+                </div>
                 <span className="booking-instant-badge">Instant Confirmation</span>
               </div>
 
-              {/* 1. Date Selector */}
-              <div className="booking-step-block">
-                <label className="step-label">Select Date</label>
-                <div className="date-pills-scroller">
-                  {dateSlots.map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      className={`date-pill ${selectedDateIdx === d.id ? "date-active" : ""} ${d.isOffDay ? "date-offday" : ""}`}
-                      onClick={() => setSelectedDateIdx(d.id)}
-                    >
-                      <span className="date-dayname">{d.dayName}</span>
-                      <span className="date-number">{d.dateNum}</span>
-                      <span className="date-month">{d.monthStr}</span>
-                      {d.isOffDay && (
-                        <span style={{ fontSize: "9px", background: "#fef2f2", color: "#dc2626", borderRadius: "4px", padding: "1px 4px", marginTop: "2px", fontWeight: "700" }}>
-                          CLOSED
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2. Time Slot Picker */}
-              <div className="booking-step-block">
-                <div className="step-label-row">
-                  <label className="step-label">Available Time Slots</label>
-                  <span className="time-tz-note">IST (Local Time)</span>
-                </div>
-                {dateSlots[selectedDateIdx]?.isOffDay ? (
-                  <div style={{
-                    background: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    borderRadius: "8px",
-                    padding: "16px",
-                    textAlign: "center",
-                    color: "#991b1b"
-                  }}>
-                    <div style={{ fontWeight: "700", marginBottom: "4px", fontSize: "0.95rem" }}>
-                      🔒 Salon Closed on this Date
-                    </div>
-                    <div style={{ fontSize: "0.85rem", color: "#b91c1c" }}>
-                      {dateSlots[selectedDateIdx]?.offDayReason || "Scheduled Salon Off-Day"}. Please select another date to view available time slots.
-                    </div>
+              {/* STEP 1: Select Service */}
+              <div className="booking-step-block step-block-active">
+                <div className="step-accordion-header" style={{ cursor: "default" }}>
+                  <div className="step-header-left">
+                    <span className="step-num-badge badge-done">1</span>
+                    <span className="step-title-text">Treatment / Service</span>
                   </div>
-                ) : (
-                  <div className="time-slots-grid">
-                    {timeSlots.map((time) => (
-                      <button
-                        key={time}
-                        type="button"
-                        className={`time-slot-btn ${selectedTimeSlot === time ? "time-active" : ""}`}
-                        onClick={() => setSelectedTimeSlot(time)}
-                      >
-                        {time}
-                      </button>
-                    ))}
+                  <div className="step-header-right">
+                    {selectedServices[0] && (
+                      <span className="step-summary-pill" title={selectedServices[0].name}>
+                        {selectedServices[0].name}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
 
-              {/* 3. Stylist Info */}
-              <div className="booking-step-block">
-                <label className="step-label">Assigned Specialist</label>
-                <div className="selected-stylist-banner">
-                  {selectedStylist ? (
-                    <div className="stylist-assigned-row">
-                      <img src={selectedStylist.image} alt={selectedStylist.name} className="assigned-avatar" />
-                      <div className="assigned-text">
-                        <span className="assigned-name">{selectedStylist.name}</span>
-                        <span className="assigned-role">{selectedStylist.role}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="change-stylist-link"
-                        onClick={() => setSelectedStylist(null)}
-                      >
-                        Change
-                      </button>
+                <div className="step-accordion-body" style={{ display: "block" }}>
+                  {selectedServices.length === 0 ? (
+                    <div className="empty-services-prompt" style={{ padding: "12px", border: "1px dashed #d1d5db", borderRadius: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#b45309" }}>No service selected yet.</p>
+                      <small style={{ fontSize: "0.75rem", color: "#6b7280" }}>Please choose a service from the menu on the left.</small>
                     </div>
                   ) : (
-                    <div className="stylist-assigned-row">
-                      <div className="assigned-avatar-placeholder">✂</div>
-                      <div className="assigned-text">
-                        <span className="assigned-name">Any Available Professional</span>
-                        <span className="assigned-role">First available master stylist</span>
+                    <div>
+                      <div className="selected-service-row" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px 12px", borderRadius: "8px" }}>
+                        <div className="selected-service-info">
+                          <strong className="selected-srv-name" style={{ color: "#166534" }}>{selectedServices[0].name}</strong>
+                          <span className="selected-srv-dur" style={{ color: "#15803d", fontWeight: 600 }}>⏱ {selectedServices[0].duration}</span>
+                        </div>
+                        <div className="selected-service-price-wrap">
+                          <span className="selected-srv-price" style={{ color: "#166534", fontWeight: 700 }}>₹{selectedServices[0].price.toLocaleString("en-IN")}</span>
+                        </div>
                       </div>
+                      {salon.services.length > 1 && (
+                        <div style={{ marginTop: "8px" }}>
+                          <label style={{ display: "block", fontSize: "0.72rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>
+                            Switch Service:
+                          </label>
+                          <select
+                            className="service-switcher-select"
+                            style={{
+                              width: "100%",
+                              padding: "6px 10px",
+                              fontSize: "0.82rem",
+                              borderRadius: "6px",
+                              border: "1px solid #cbd5e1",
+                              background: "#ffffff",
+                              color: "#334155"
+                            }}
+                            value={selectedServices[0]?.id || ""}
+                            onChange={(e) => {
+                              const found = salon.services.find((s) => String(s.id) === String(e.target.value));
+                              if (found) {
+                                setSelectedServices([found]);
+                                showToast(`Selected "${found.name}" (${found.duration})`);
+                              }
+                            }}
+                          >
+                            {salon.services.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({s.duration}) — ₹{s.price}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 4. Selected Treatments */}
-              <div className="booking-step-block">
-                <div className="step-label-row">
-                  <label className="step-label">Selected Treatments ({selectedServices.length})</label>
-                  {selectedServices.length > 0 && (
-                    <button
-                      type="button"
-                      className="clear-all-link"
-                      onClick={() => setSelectedServices([])}
-                    >
-                      Clear
-                    </button>
-                  )}
+              {/* STEP 2: Select Date */}
+              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
+                <div className="step-accordion-header" style={{ cursor: "default" }}>
+                  <div className="step-header-left">
+                    <span className="step-num-badge badge-done">2</span>
+                    <span className="step-title-text">Select Date</span>
+                  </div>
+                  <div className="step-header-right">
+                    {dateSlots[selectedDateIdx] && (
+                      <span className="step-summary-pill">
+                        {dateSlots[selectedDateIdx].dayName} {dateSlots[selectedDateIdx].dateNum} {dateSlots[selectedDateIdx].monthStr}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {selectedServices.length === 0 ? (
-                  <div className="empty-services-prompt">
-                    <p>No services selected yet.</p>
-                    <small>Pick treatments from the menu on the left to schedule.</small>
-                  </div>
-                ) : (
-                  <div className="selected-services-list">
-                    {selectedServices.map((item) => (
-                      <div key={item.id} className="selected-service-row">
-                        <div className="selected-service-info">
-                          <span className="selected-srv-name">{item.name}</span>
-                          <span className="selected-srv-dur">{item.duration}</span>
-                        </div>
-                        <div className="selected-service-price-wrap">
-                          <span className="selected-srv-price">₹{item.price.toLocaleString("en-IN")}</span>
-                          <button
-                            type="button"
-                            className="remove-srv-btn"
-                            title="Remove"
-                            onClick={() => handleToggleService(item)}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
+                <div className="step-accordion-body" style={{ display: "block" }}>
+                  <div className="date-pills-scroller">
+                    {dateSlots.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`date-pill ${selectedDateIdx === d.id ? "date-active" : ""} ${d.isOffDay ? "date-offday" : ""}`}
+                        onClick={() => {
+                          setSelectedDateIdx(d.id);
+                        }}
+                      >
+                        <span className="date-dayname">{d.dayName}</span>
+                        <span className="date-number">{d.dateNum}</span>
+                        <span className="date-month">{d.monthStr}</span>
+                        {d.isOffDay && (
+                          <span style={{ fontSize: "9px", background: "#fef2f2", color: "#dc2626", borderRadius: "4px", padding: "1px 4px", marginTop: "2px", fontWeight: "700" }}>
+                            CLOSED
+                          </span>
+                        )}
+                      </button>
                     ))}
                   </div>
-                )}
+                  {dateSlots[selectedDateIdx]?.isOffDay && (
+                    <div style={{
+                      marginTop: "8px",
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: "6px",
+                      padding: "8px 12px",
+                      fontSize: "0.82rem",
+                      color: "#991b1b",
+                      fontWeight: 600,
+                    }}>
+                      🔒 Salon is closed on this date ({dateSlots[selectedDateIdx]?.offDayReason || "Scheduled Closure"}). Please select another date.
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 5. Pricing Breakdown */}
-              <div className="bill-breakdown-card">
+              {/* STEP 3: Select Stylist */}
+              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
+                <div className="step-accordion-header" style={{ cursor: "default" }}>
+                  <div className="step-header-left">
+                    <span className={`step-num-badge ${selectedStylist ? "badge-done" : "badge-active"}`}>
+                      {selectedStylist ? "✓" : "3"}
+                    </span>
+                    <span className="step-title-text">Select Stylist</span>
+                  </div>
+                  <div className="step-header-right">
+                    <span className="step-summary-pill" style={!selectedStylist ? { background: "#fef3c7", color: "#92400e", fontWeight: 700 } : {}}>
+                      {selectedStylist === "auto"
+                        ? "Auto-Assign"
+                        : selectedStylist && typeof selectedStylist === "object"
+                        ? selectedStylist.name
+                        : "Select a Stylist"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="step-accordion-body" style={{ display: "block" }}>
+                  {/* Selected Stylist Banner / Active Info */}
+                  <div className="selected-stylist-banner" style={{ marginBottom: "8px" }}>
+                    {selectedStylist && typeof selectedStylist === "object" ? (
+                      <div className="stylist-assigned-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <img src={selectedStylist.image} alt={selectedStylist.name} className="assigned-avatar" />
+                          <div className="assigned-text" style={{ flex: 1 }}>
+                            <span className="assigned-name">{selectedStylist.name}</span>
+                            <span className="assigned-role">{selectedStylist.role}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="change-stylist-link"
+                            onClick={() => {
+                              setSelectedStylist(null);
+                              setSelectedTimeSlot("");
+                              setSelectedSlotObj(null);
+                            }}
+                          >
+                            Change
+                          </button>
+                        </div>
+
+                        <div style={{
+                          padding: "6px 10px",
+                          borderRadius: "6px",
+                          fontSize: "0.76rem",
+                          background: selectedStylist.has_advance_bookings ? "#eff6ff" : "#f0fdf4",
+                          border: selectedStylist.has_advance_bookings ? "1px solid #bfdbfe" : "1px solid #bbf7d0",
+                          color: selectedStylist.has_advance_bookings ? "#1e40af" : "#15803d",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          flexWrap: "wrap"
+                        }}>
+                          {selectedStylist.has_advance_bookings ? (
+                            <>
+                              <strong>📌 {selectedStylist.advance_bookings_count} Advance Booking{selectedStylist.advance_bookings_count > 1 ? "s" : ""} on date:</strong>
+                              <span>Booked slots are automatically hidden below</span>
+                            </>
+                          ) : (
+                            <span>✓ Fully available on this date — all slots open!</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : selectedStylist === "auto" ? (
+                      <div className="stylist-assigned-row" style={{ justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div className="assigned-avatar-placeholder">✦</div>
+                          <div className="assigned-text">
+                            <span className="assigned-name">Auto-Assign Active</span>
+                            <span className="assigned-role">Showing all slots where at least one stylist is free</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="change-stylist-link"
+                          onClick={() => {
+                            setSelectedStylist(null);
+                            setSelectedTimeSlot("");
+                            setSelectedSlotObj(null);
+                          }}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="stylist-assigned-row">
+                        <div className="assigned-avatar-placeholder" style={{ background: "#fef3c7", color: "#b45309" }}>!</div>
+                        <div className="assigned-text">
+                          <span className="assigned-name" style={{ color: "#92400e" }}>No Stylist Selected</span>
+                          <span className="assigned-role">Please choose a specialist below or select Auto-Assign</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Eligible Stylists Quick List */}
+                  {eligibleWorkersLoading ? (
+                    <div style={{ fontSize: "0.78rem", color: "#64748b", padding: "8px 0" }}>
+                      Loading available stylists for this date…
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                      {/* Auto-Assign Option */}
+                      <button
+                        type="button"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          border: selectedStylist === "auto" ? "2px solid #059669" : "1px solid #cbd5e1",
+                          background: selectedStylist === "auto" ? "#ecfdf5" : "#ffffff",
+                          fontSize: "0.78rem",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          transition: "all 0.15s ease"
+                        }}
+                        onClick={() => {
+                          setSelectedStylist("auto");
+                          setSelectedTimeSlot("");
+                          setSelectedSlotObj(null);
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: 700, color: selectedStylist === "auto" ? "#059669" : "#334155" }}>
+                            ✦ Auto-Assign (Any Available Specialist)
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: "0.7rem",
+                          color: selectedStylist === "auto" ? "#059669" : "#64748b",
+                          fontWeight: 600,
+                          background: selectedStylist === "auto" ? "#d1fae5" : "#f1f5f9",
+                          padding: "2px 6px",
+                          borderRadius: "4px"
+                        }}>
+                          {selectedStylist === "auto" ? "✓ Selected" : "Auto-Assign"}
+                        </span>
+                      </button>
+
+                      {/* Workers List */}
+                      {eligibleWorkers.map((st) => {
+                        const isChosen = typeof selectedStylist === "object" && selectedStylist?.id === st.id;
+                        const isUnavailable = st.is_on_leave || st.is_weekly_off || st.is_fully_booked || st.is_available === false;
+
+                        return (
+                          <div
+                            key={st.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "7px 10px",
+                              borderRadius: "8px",
+                              border: isChosen ? "2px solid #059669" : "1px solid #cbd5e1",
+                              background: isChosen ? "#ecfdf5" : isUnavailable ? "#f8fafc" : "#ffffff",
+                              cursor: isUnavailable ? "not-allowed" : "pointer",
+                              opacity: isUnavailable ? 0.6 : 1,
+                              transition: "all 0.15s ease"
+                            }}
+                            onClick={() => {
+                              if (!isUnavailable) {
+                                setSelectedStylist(st);
+                                setSelectedTimeSlot("");
+                                setSelectedSlotObj(null);
+                              }
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <img src={st.image} alt={st.name} style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }} />
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b" }}>{st.name}</div>
+                                <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{st.role}</div>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: "right" }}>
+                              {isChosen ? (
+                                <span style={{ background: "#059669", color: "#ffffff", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  ✓ Selected
+                                </span>
+                              ) : st.is_on_leave ? (
+                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  On Leave
+                                </span>
+                              ) : st.is_weekly_off ? (
+                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  Weekly Off
+                                </span>
+                              ) : st.is_fully_booked ? (
+                                <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  Fully Booked
+                                </span>
+                              ) : st.has_advance_bookings ? (
+                                <span style={{ background: "#e0f2fe", color: "#0369a1", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  📌 {st.advance_bookings_count} Booked
+                                </span>
+                              ) : (
+                                <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "0.68rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  ✓ Available ({st.available_slots_count} slots)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* STEP 4: Available Time Slots */}
+              <div className="booking-step-block step-block-active" style={{ marginTop: "12px" }}>
+                <div className="step-accordion-header" style={{ cursor: "default" }}>
+                  <div className="step-header-left">
+                    <span className={`step-num-badge ${selectedTimeSlot ? "badge-done" : "badge-active"}`}>
+                      {selectedTimeSlot ? "✓" : "4"}
+                    </span>
+                    <span className="step-title-text">Available Time Slots</span>
+                  </div>
+                  <div className="step-header-right">
+                    {selectedTimeSlot && (
+                      <span className="step-summary-pill" style={{ background: "#d1fae5", color: "#065f46", fontWeight: 700 }}>
+                        🕒 {selectedTimeSlot}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="step-accordion-body" style={{ display: "block" }}>
+                  {!selectedStylist ? (
+                    <div style={{
+                      background: "#f8fafc",
+                      border: "1px dashed #cbd5e1",
+                      borderRadius: "8px",
+                      padding: "16px",
+                      textAlign: "center",
+                      color: "#64748b"
+                    }}>
+                      <div style={{ fontSize: "1.3rem", marginBottom: "4px" }}>✂️</div>
+                      <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", marginBottom: "4px" }}>
+                        Select a Stylist to View Available Slots
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                        Choose a specialist from the list above or select Auto-Assign to view real-time available time slots.
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "0.74rem", color: "#64748b", marginBottom: "8px" }}>
+                        Showing slots for: <strong style={{ color: "#047857" }}>{selectedStylist === "auto" ? "Any Available Specialist (Auto-Assign)" : selectedStylist.name}</strong>
+                      </div>
+
+                      {dateSlots[selectedDateIdx]?.isOffDay ? (
+                        <div style={{
+                          background: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: "8px",
+                          padding: "14px",
+                          textAlign: "center",
+                          color: "#991b1b"
+                        }}>
+                          <div style={{ fontWeight: "700", marginBottom: "4px", fontSize: "0.9rem" }}>
+                            🔒 Salon Closed on this Date
+                          </div>
+                          <div style={{ fontSize: "0.82rem", color: "#b91c1c" }}>
+                            {dateSlots[selectedDateIdx]?.offDayReason || "Salon is closed on this date"}. Please select another date.
+                          </div>
+                        </div>
+                      ) : slotClosedReason ? (
+                        <div style={{
+                          background: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: "8px",
+                          padding: "14px",
+                          textAlign: "center",
+                          color: "#991b1b",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                        }}>
+                          🔒 Salon Closed: {slotClosedReason}
+                        </div>
+                      ) : slotWorkerUnavailableReason ? (
+                        <div style={{
+                          background: "#fffbeb",
+                          border: "1px solid #fde68a",
+                          borderRadius: "8px",
+                          padding: "14px",
+                          textAlign: "center",
+                          color: "#92400e",
+                          fontSize: "0.85rem"
+                        }}>
+                          <div style={{ fontWeight: 600, marginBottom: "4px" }}>⚠️ Specialist Unavailable</div>
+                          <div>{slotWorkerUnavailableReason}</div>
+                          <button
+                            type="button"
+                            style={{
+                              marginTop: "8px",
+                              background: "#d97706",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "4px",
+                              padding: "4px 10px",
+                              fontSize: "0.75rem",
+                              cursor: "pointer",
+                              fontWeight: 600
+                            }}
+                            onClick={() => setSelectedStylist("auto")}
+                          >
+                            Switch to Auto-Assign
+                          </button>
+                        </div>
+                      ) : slotsLoading ? (
+                        <div style={{ padding: "16px", textAlign: "center", color: "#6b7280", fontSize: "0.85rem" }}>
+                          Loading available slots…
+                        </div>
+                      ) : dynamicSlots.length === 0 ? (
+                        <div style={{
+                          background: "#fffbeb",
+                          border: "1px solid #fde68a",
+                          borderRadius: "8px",
+                          padding: "14px",
+                          textAlign: "center",
+                          color: "#92400e",
+                          fontSize: "0.85rem"
+                        }}>
+                          No time slots available for this stylist on this date.
+                          {selectedStylist !== "auto" && (
+                            <div style={{ marginTop: "8px" }}>
+                              <button
+                                type="button"
+                                style={{
+                                  background: "#059669",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "4px 10px",
+                                  fontSize: "0.75rem",
+                                  cursor: "pointer",
+                                  fontWeight: 600
+                                }}
+                                onClick={() => setSelectedStylist("auto")}
+                              >
+                                Try Auto-Assign
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="time-slots-grid">
+                          {dynamicSlots.map((s) => {
+                            const isSelected = selectedSlotObj?.time === s.time || selectedTimeSlot === s.time_display;
+                            return (
+                              <button
+                                key={s.time}
+                                type="button"
+                                disabled={!s.available}
+                                title={!s.available ? (s.reason ? `Unavailable (${s.reason})` : "Slot unavailable") : `${s.time_display} - ${s.end_time_display}`}
+                                className={`time-slot-btn ${isSelected ? "time-active" : ""} ${!s.available ? "time-slot-disabled" : ""}`}
+                                style={!s.available ? { opacity: 0.55, cursor: "not-allowed" } : {}}
+                                onClick={() => {
+                                  if (s.available) {
+                                    setSelectedSlotObj(s);
+                                    setSelectedTimeSlot(s.time_display || s.time);
+                                  }
+                                }}
+                              >
+                                <span>{s.time_display}</span>
+                                {!s.available && (
+                                  <span style={{ fontSize: "0.68rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
+                                    - Unavailable{s.reason === "Break" ? " (Break)" : ""}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* STEP 5: Pricing Breakdown */}
+              <div className="bill-breakdown-card" style={{ marginTop: "12px" }}>
                 <div className="bill-row">
                   <span>Item Subtotal</span>
                   <span>₹{billSummary.subtotal.toLocaleString("en-IN")}</span>
@@ -1219,19 +1870,43 @@ export default function SalonDetail() {
                 </div>
               </div>
 
-              {/* 6. Primary Action CTA */}
+              {/* STEP 6: Primary Action CTA */}
               <button
                 type="button"
                 className="proceed-booking-cta"
-                disabled={selectedServices.length === 0 || dateSlots[selectedDateIdx]?.isOffDay}
-                onClick={() => setShowBookingModal(false)}
+                disabled={
+                  loading ||
+                  selectedServices.length === 0 ||
+                  dateSlots[selectedDateIdx]?.isOffDay ||
+                  Boolean(slotClosedReason) ||
+                  Boolean(slotWorkerUnavailableReason) ||
+                  !selectedStylist ||
+                  slotsLoading ||
+                  !selectedTimeSlot
+                }
+                onClick={() => {
+                  setBookingError("");
+                  setShowBookingModal(true);
+                }}
               >
                 <span>
                   {dateSlots[selectedDateIdx]?.isOffDay
                     ? "Salon Closed on Selected Date"
-                    : "Proceed to Booking"}
+                    : slotClosedReason
+                    ? "Salon Closed"
+                    : slotWorkerUnavailableReason
+                    ? "Specialist Unavailable"
+                    : !selectedStylist
+                    ? "Select a Stylist"
+                    : slotsLoading
+                    ? "Loading Slots…"
+                    : !selectedTimeSlot
+                    ? "Select a Time Slot"
+                    : "Confirm Booking"}
                 </span>
-                {!dateSlots[selectedDateIdx]?.isOffDay && <span className="cta-arrow">→</span>}
+                {!dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
+                  <span className="cta-arrow">→</span>
+                )}
               </button>
 
               <div className="cancellation-policy-box">
@@ -1286,9 +1961,9 @@ export default function SalonDetail() {
         </div>
       )}
 
-      {/* MODAL 2: Appointment Confirmation Modal */}
+      {/* MODAL 2: Appointment Confirmation Modal (Direct DB Booking) */}
       {showBookingModal && (
-        <div className="booking-modal-backdrop" onClick={() => !bookingSuccess && setShowBookingModal(false)}>
+        <div className="booking-modal-backdrop" onClick={() => !bookingSuccess && !isSubmittingBooking && setShowBookingModal(false)}>
           <div className="booking-modal-dialog" onClick={(e) => e.stopPropagation()}>
             {!bookingSuccess ? (
               <>
@@ -1297,23 +1972,27 @@ export default function SalonDetail() {
                     <h3>Confirm Your Appointment</h3>
                     <p>{salon.name} • {salon.city}</p>
                   </div>
-                  <button className="modal-close-btn" onClick={() => setShowBookingModal(false)}>✕</button>
+                  <button className="modal-close-btn" disabled={isSubmittingBooking} onClick={() => setShowBookingModal(false)}>✕</button>
                 </div>
 
-                <div className="booking-modal-body">
+                <div className="booking-modal-body" style={{ maxHeight: "75vh", overflowY: "auto" }}>
+                  {/* Recap */}
                   <div className="booking-summary-recap">
                     <div className="recap-item">
                       <span className="recap-label">📅 Date & Time</span>
-                      <strong className="recap-val">{dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}</strong>
+                      <strong className="recap-val">
+                        {dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}
+                        {selectedSlotObj?.end_time_display ? ` → ${selectedSlotObj.end_time_display}` : ""}
+                      </strong>
                     </div>
 
                     <div className="recap-item">
-                      <span className="recap-label">👤 Assigned Stylist</span>
-                      <strong className="recap-val">{selectedStylist ? selectedStylist.name : "Any Available Specialist"}</strong>
+                      <span className="recap-label">👤 Stylist</span>
+                      <strong className="recap-val">{selectedStylist ? selectedStylist.name : "Any Available Worker"}</strong>
                     </div>
 
                     <div className="recap-item">
-                      <span className="recap-label">✂ Selected Services</span>
+                      <span className="recap-label">✂ Selected Service</span>
                       <div className="recap-services-list">
                         {selectedServices.map((s) => (
                           <div key={s.id} className="recap-srv-row">
@@ -1332,12 +2011,111 @@ export default function SalonDetail() {
                       <small>Payment can be made online or directly at the salon counter.</small>
                     </div>
                   </div>
+
+                  {/* Customer Input Fields */}
+                  <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <h4 style={{ margin: "0 0 4px 0", fontSize: "0.95rem", color: "#1e293b", fontWeight: 700 }}>
+                      Your Contact Details
+                    </h4>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                        Full Name <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Rahul Sharma"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid #cbd5e1",
+                          fontSize: "0.85rem"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="+91 98765 43210"
+                          value={clientPhone}
+                          onChange={(e) => setClientPhone(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 12px",
+                            borderRadius: "6px",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "0.85rem"
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="you@example.com"
+                          value={clientEmail}
+                          onChange={(e) => setClientEmail(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 12px",
+                            borderRadius: "6px",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "0.85rem"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                        Special Notes / Requests (optional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Any preferences or allergy details…"
+                        value={bookingNotes}
+                        onChange={(e) => setBookingNotes(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid #cbd5e1",
+                          fontSize: "0.85rem",
+                          resize: "vertical"
+                        }}
+                      />
+                    </div>
+
+                    {bookingError && (
+                      <div style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        color: "#991b1b",
+                        padding: "8px 12px",
+                        borderRadius: "6px",
+                        fontSize: "0.82rem",
+                        fontWeight: 600
+                      }}>
+                        ⚠️ {bookingError}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="booking-modal-footer">
                   <button
                     type="button"
                     className="modal-cancel-btn"
+                    disabled={isSubmittingBooking}
                     onClick={() => setShowBookingModal(false)}
                   >
                     Back to Edit
@@ -1345,11 +2123,10 @@ export default function SalonDetail() {
                   <button
                     type="button"
                     className="modal-confirm-btn"
-                    onClick={() => {
-                      setBookingSuccess(true);
-                    }}
+                    disabled={isSubmittingBooking}
+                    onClick={handleConfirmBookingSubmit}
                   >
-                    Confirm & Reserve Slot
+                    {isSubmittingBooking ? "Reserving Slot…" : "Confirm & Reserve Slot"}
                   </button>
                 </div>
               </>
@@ -1359,22 +2136,27 @@ export default function SalonDetail() {
                 <h3>Appointment Confirmed!</h3>
                 <p>
                   Your reservation at <strong>{salon.name}</strong> for{" "}
-                  <strong>{dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}</strong> has been successfully booked.
+                  <strong>{dateSlots[selectedDateIdx]?.fullDateStr} at {selectedTimeSlot}</strong> has been successfully booked in our system.
                 </p>
                 <div className="success-booking-ref">
-                  Booking Reference: <strong>BMS-{Math.floor(100000 + Math.random() * 900000)}</strong>
+                  Booking Reference: <strong>BMS-{confirmedBookingData?.id || Math.floor(100000 + Math.random() * 900000)}</strong>
                 </div>
-                <div className="success-modal-actions">
+                {confirmedBookingData?.worker_name && (
+                  <div style={{ fontSize: "0.85rem", color: "#047857", fontWeight: 600 }}>
+                    Assigned Specialist: {confirmedBookingData.worker_name}
+                  </div>
+                )}
+                <div className="success-modal-actions" style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
                   <button
                     type="button"
                     className="success-home-btn"
                     onClick={() => {
                       setShowBookingModal(false);
                       setBookingSuccess(false);
-                      navigate("/customer-home");
+                      navigate("/customer/my-bookings");
                     }}
                   >
-                    Go to Home
+                    View My Bookings
                   </button>
                   <button
                     type="button"

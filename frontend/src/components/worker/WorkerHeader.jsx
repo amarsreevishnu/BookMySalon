@@ -16,6 +16,7 @@ export default function WorkerHeader({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+
   const profileMenuRef = useRef(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -45,6 +46,7 @@ export default function WorkerHeader({
         .then((res) => {
           if (!isMounted || !res.data) return;
           const { salon, worker } = res.data;
+          
           if (salon && !salonInfo) {
             setFetchedSalon({
               name: salon.name || "Affiliated Salon Outlet",
@@ -57,7 +59,7 @@ export default function WorkerHeader({
             setFetchedWorker({
               name: worker.full_name || user?.full_name || "Specialist",
               avatar:
-                worker.avatar ||
+                worker.profile_photo ||
                 "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?auto=format&fit=crop&w=160&q=80",
               chair: worker.chair ? `Chair #${worker.chair}` : "Chair #01",
               shift: worker.shift || "09:30 AM - 06:30 PM",

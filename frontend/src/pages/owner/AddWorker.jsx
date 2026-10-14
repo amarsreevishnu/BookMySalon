@@ -156,7 +156,7 @@ export default function AddWorker() {
             }));
           }
         } catch {
-          // If offerings not loaded, fallback to salon.services or public catalog
+          
         }
 
         // If no custom offerings, check salon.services from salon object

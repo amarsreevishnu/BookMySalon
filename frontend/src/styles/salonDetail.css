@@ -1200,7 +1200,120 @@
 .booking-step-block {
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--salon-border);
+  border-radius: var(--salon-radius-md);
+  background: #ffffff;
+  overflow: hidden;
+  transition: all 0.22s ease-in-out;
+}
+
+.booking-step-block.step-block-active {
+  border-color: var(--salon-emerald-600);
+  box-shadow: 0 4px 12px rgba(64, 145, 108, 0.08);
+}
+
+.booking-step-block.step-block-collapsed {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.step-accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  cursor: pointer;
+  background: inherit;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.step-accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.step-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step-num-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.step-num-badge.badge-active {
+  background: var(--salon-emerald-700);
+  color: #ffffff;
+}
+
+.step-num-badge.badge-done {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.step-title-text {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--salon-emerald-900);
+}
+
+.step-header-right {
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.step-summary-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--salon-emerald-800);
+  background: var(--salon-emerald-100);
+  padding: 2px 8px;
+  border-radius: 12px;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-chevron {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.step-chevron.chevron-open {
+  transform: rotate(180deg);
+}
+
+.step-accordion-body {
+  padding: 0 14px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: accordionOpen 0.2s ease-out;
+}
+
+@keyframes accordionOpen {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .step-label-row {

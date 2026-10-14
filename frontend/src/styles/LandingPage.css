@@ -1,6 +1,6 @@
-/* ==========================================================================
-   BOOKMYSALON - LUXURY ORGANIC WELLNESS LANDING PAGE STYLES
-   ========================================================================== */
+
+   /* BOOKMYSALON - LUXURY ORGANIC WELLNESS LANDING PAGE STYLES */
+  
 
 :root {
   --landing-bg: #faf8f5;
@@ -751,7 +751,7 @@
   color: var(--landing-muted);
   margin: 0 0 16px;
   line-height: 1.4;
-  height: 34px;
+  height: 30px;
   overflow: hidden;
 }
 
@@ -759,7 +759,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--landing-border-light);
   margin-top: auto;
 }
