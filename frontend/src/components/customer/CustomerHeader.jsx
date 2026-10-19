@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { useAuth } from "../../hooks/useAuth";
+import { selectUserAvatar } from "../../features/auth/authSlice";
 import { resolveImageUrl } from "../../utils/imageUtils";
+import NotificationBell from "../common/NotificationBell";
 import "../../styles/salonsExplore.css";
 
 function CustomerHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-    
+  const reduxAvatar = useSelector(selectUserAvatar);
+  const userAvatar = reduxAvatar || user?.avatar || "";
+  
+  
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -52,7 +58,7 @@ function CustomerHeader() {
     <>
       <header className="explore-header">
         <div className="explore-header-inner">
-          <Link to="/customer-home" className="explore-brand-group">
+          <Link to="/customer/home" className="explore-brand-group">
             <div className="explore-brand-icon">✂</div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
@@ -61,8 +67,8 @@ function CustomerHeader() {
           </Link>
 
           <nav className="explore-nav-links">
-            <Link to="/customer-home" className="explore-nav-link">Home</Link>
-            <Link to="/salons" className="explore-nav-link">Find Salons</Link>
+            <Link to="/customer/home" className="explore-nav-link">Home</Link>
+            <Link to="/customer/salons" className="explore-nav-link">Find Salons</Link>
             <a
               href="#bookings"
               className="explore-nav-link"
@@ -86,15 +92,7 @@ function CustomerHeader() {
           </nav>
 
           <div className="explore-header-right">
-            <button
-              type="button"
-              className="explore-notif-btn"
-              title="Notifications"
-              onClick={() => showToast("You have no unread notifications.")}
-            >
-              🔔
-              <span className="explore-notif-dot" />
-            </button>
+            <NotificationBell />
 
             {/* Customer Avatar & Profile Dropdown */}
             <div className="explore-user-menu-wrapper" ref={userMenuRef}>
@@ -109,13 +107,15 @@ function CustomerHeader() {
                   <span className="explore-user-name">{userName}</span>
                   <span className="explore-user-badge">Wellness Member</span>
                 </div>
-                {user.avatar ?
-                <div className="explore-user-avatar">
-                  <img className="explore-user-avatar" src={resolveImageUrl(user.avatar)} alt={user.full_name} />
-                </div>:<div className="explore-user-avatar">
-                  {userInitial}
-                </div>
-                }
+                {userAvatar ? (
+                  <div className="explore-user-avatar">
+                    <img className="explore-user-avatar" src={resolveImageUrl(userAvatar)} alt={userFullName} />
+                  </div>
+                ) : (
+                  <div className="explore-user-avatar">
+                    {userInitial}
+                  </div>
+                )}
                 
                 <span className="explore-user-caret">▾</span>
               </button>
@@ -124,7 +124,15 @@ function CustomerHeader() {
                 <div className="customer-avatar-dropdown">
                   <div className="dropdown-profile-header">
                     <div className="dropdown-avatar-circle">
-                      {userInitial}
+                      {userAvatar ? (
+                        <img
+                          src={resolveImageUrl(userAvatar)}
+                          alt={userFullName}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                        />
+                      ) : (
+                        userInitial
+                      )}
                     </div>
                     <div className="dropdown-profile-details">
                       <span className="dropdown-user-fullname">{userFullName}</span>
@@ -199,14 +207,14 @@ function CustomerHeader() {
         {mobileMenuOpen && (
           <div className="explore-mobile-drawer">
             <Link
-              to="/customer-home"
+              to="/customer/home"
               className="explore-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
               <span>🏠</span> Home
             </Link>
             <Link
-              to="/salons"
+              to="/customer/salons"
               className="explore-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -281,7 +289,15 @@ function CustomerHeader() {
           >
             <div className="profile-modal-header">
               <div className="profile-modal-avatar">
-                {userInitial}
+                {userAvatar ? (
+                  <img
+                    src={resolveImageUrl(userAvatar)}
+                    alt={userFullName}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                  />
+                ) : (
+                  userInitial
+                )}
               </div>
               <div className="profile-modal-titles">
                 <h3>{userFullName}</h3>
@@ -367,7 +383,15 @@ function CustomerHeader() {
             </button>
 
             <div className="logout-modal-avatar">
-              {userInitial}
+              {userAvatar ? (
+                <img
+                  src={resolveImageUrl(userAvatar)}
+                  alt={userFullName}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                />
+              ) : (
+                userInitial
+              )}
             </div>
 
             <h3 className="logout-modal-title">Sign Out of BookMySalon</h3>

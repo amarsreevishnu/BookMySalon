@@ -58,15 +58,15 @@ function Footer() {
           <a href="#services">Services</a>
           <a href="#salons">Top Salons</a>
           <a href="#how-it-works">How It Works</a>
-          <Link to="/salons">Browse All Salons</Link>
+          <Link to="/customer/salons">Browse All Salons</Link>
         </div>
 
         <div className="footer-column">
           <h4>Experience</h4>
-          <Link to="/salons?category=Hair">Hair & Styling</Link>
-          <Link to="/salons?category=Spa">Ayurvedic Spa</Link>
-          <Link to="/salons?category=Facial">Botanical Facial</Link>
-          <Link to="/salons?category=Nails">Nail Studio</Link>
+          <Link to="/customer/salons?category=Hair">Hair & Styling</Link>
+          <Link to="/customer/salons?category=Spa">Ayurvedic Spa</Link>
+          <Link to="/customer/salons?category=Facial">Botanical Facial</Link>
+          <Link to="/customer/salons?category=Nails">Nail Studio</Link>
         </div>
 
         <div className="footer-column">

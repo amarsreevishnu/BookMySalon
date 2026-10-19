@@ -464,7 +464,8 @@ export default function OwnerWorkerLeaves() {
                 No scheduled worker leaves recorded for this period. Click <strong>+ Add Leave</strong> to schedule a week-off.
               </div>
             ) : (
-              <table className="owl-table">
+              <div className="owl-table-wrapper">
+                <table className="owl-table">
                 <thead>
                   <tr>
                     <th style={{ width: "26%" }}>Worker</th>
@@ -537,6 +538,7 @@ export default function OwnerWorkerLeaves() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </section>

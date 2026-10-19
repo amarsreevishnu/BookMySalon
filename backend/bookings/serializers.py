@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from rest_framework import serializers
-from .models import Booking
+from .models import Booking, SalonReview, WorkerReview
 from salons.models import WorkerProfile, SalonOffDay, WorkerLeave
 from services.models import SalonService
 
@@ -61,6 +61,11 @@ class BookingReadSerializer(serializers.ModelSerializer):
     salon_name = serializers.ReadOnlyField(source='salon.name')
     service_display_name = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
+    has_salon_review = serializers.SerializerMethodField()
+    salon_review = serializers.SerializerMethodField()
+    has_worker_review = serializers.SerializerMethodField()
+    worker_review = serializers.SerializerMethodField()
+    can_review = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -76,6 +81,9 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'station', 'status', 'notes',
             'payment_method', 'payment_status', 'razorpay_order_id',
             'expires_at',
+            'has_salon_review', 'salon_review',
+            'has_worker_review', 'worker_review',
+            'can_review',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
@@ -100,10 +108,59 @@ class BookingReadSerializer(serializers.ModelSerializer):
     def get_duration_minutes(self, obj):
         if obj.service:
             return obj.service.duration
-        # Parse from duration string like '45 mins'
         import re
         if obj.duration:
             m = re.search(r'\d+', obj.duration)
             if m:
                 return int(m.group())
         return None
+
+    def get_has_salon_review(self, obj):
+        try:
+            return hasattr(obj, 'salon_review') and obj.salon_review is not None
+        except Exception:
+            return False
+
+    def get_salon_review(self, obj):
+        try:
+            if hasattr(obj, 'salon_review') and obj.salon_review is not None:
+                return {
+                    'id': obj.salon_review.id,
+                    'rating': obj.salon_review.rating,
+                    'comment': obj.salon_review.comment,
+                    'created_at': obj.salon_review.created_at.isoformat(),
+                }
+        except Exception:
+            pass
+        return None
+
+    def get_has_worker_review(self, obj):
+        try:
+            return hasattr(obj, 'worker_review') and obj.worker_review is not None
+        except Exception:
+            return False
+
+    def get_worker_review(self, obj):
+        try:
+            if hasattr(obj, 'worker_review') and obj.worker_review is not None:
+                return {
+                    'id': obj.worker_review.id,
+                    'rating': obj.worker_review.rating,
+                    'comment': obj.worker_review.comment,
+                    'created_at': obj.worker_review.created_at.isoformat(),
+                }
+        except Exception:
+            pass
+        return None
+
+    def get_can_review(self, obj):
+        return obj.status == Booking.Status.COMPLETED
+
+
+# Re-export review serializers for backward compatibility
+from reviews.serializers import (
+    SalonReviewSerializer,
+    WorkerReviewSerializer,
+    ReviewSubmissionSerializer,
+)
+

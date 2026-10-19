@@ -369,6 +369,20 @@
   border-radius: 50%;
   background-color: var(--salon-emerald-600);
   display: inline-block;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: pulseEmerald 2s infinite;
+}
+
+@keyframes pulseEmerald {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 .status-pill {
@@ -614,6 +628,65 @@
 /* --------------------------------------------------------------------------
    1. Services Section
    -------------------------------------------------------------------------- */
+.services-toolbar-row {
+  margin-bottom: 16px;
+}
+
+.service-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.service-search-box .search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--salon-text-light);
+  pointer-events: none;
+}
+
+.service-search-input {
+  width: 100%;
+  padding: 11px 40px 11px 42px;
+  background: #f8fafc;
+  border: 1.5px solid var(--salon-border);
+  border-radius: var(--salon-radius-md);
+  font-size: 0.9rem;
+  color: var(--salon-text-main);
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.service-search-input:focus {
+  background: #ffffff;
+  border-color: var(--salon-emerald-600);
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.12);
+}
+
+.service-search-clear-btn {
+  position: absolute;
+  right: 12px;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.service-search-clear-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
 .service-category-pills {
   display: flex;
   gap: 8px;
@@ -627,13 +700,25 @@
   background: var(--salon-cream-bg);
   border: 1px solid var(--salon-border);
   color: var(--salon-text-muted);
-  padding: 7px 18px;
+  padding: 7px 16px;
   border-radius: 20px;
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-count-badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+  color: inherit;
+  font-weight: 700;
 }
 
 .category-pill-btn:hover {
@@ -645,6 +730,59 @@
   background: var(--salon-emerald-800);
   color: #ffffff;
   border-color: var(--salon-emerald-800);
+}
+
+.category-pill-btn.active .cat-count-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Empty search state */
+.empty-search-state {
+  text-align: center;
+  padding: 40px 20px;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: var(--salon-radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-search-icon {
+  font-size: 2rem;
+  margin-bottom: 2px;
+}
+
+.empty-search-state h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--salon-emerald-900);
+  margin: 0;
+}
+
+.empty-search-state p {
+  font-size: 0.85rem;
+  color: var(--salon-text-muted);
+  max-width: 440px;
+  margin: 0 0 12px;
+}
+
+.reset-search-btn {
+  background: var(--salon-emerald-800);
+  color: #ffffff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.reset-search-btn:hover {
+  background: var(--salon-emerald-900);
 }
 
 .services-card-list {
@@ -1069,11 +1207,83 @@
 
 .rating-bar-row {
   display: grid;
-  grid-template-columns: 55px 1fr 35px;
+  grid-template-columns: 62px 1fr 38px;
   align-items: center;
   gap: 12px;
   font-size: 0.8rem;
   color: var(--salon-text-muted);
+  padding: 5px 8px;
+  border-radius: 8px;
+  transition: all 0.16s ease;
+  user-select: none;
+}
+
+.rating-bar-row:hover {
+  background: rgba(45, 106, 79, 0.08);
+  color: var(--salon-emerald-900);
+}
+
+.rating-bar-row.rating-bar-selected {
+  background: var(--salon-emerald-100);
+  color: var(--salon-emerald-900);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--salon-emerald-600);
+}
+
+.star-bar-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.star-bar-pct {
+  font-weight: 600;
+  text-align: right;
+}
+
+.reset-star-filter-link {
+  display: inline-block;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: var(--salon-emerald-700);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.reset-star-filter-link:hover {
+  color: var(--salon-emerald-900);
+}
+
+.review-filter-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--salon-emerald-50);
+  border: 1px solid var(--salon-emerald-100);
+  padding: 10px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--salon-emerald-900);
+}
+
+.btn-clear-review-filter {
+  background: transparent;
+  border: none;
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.btn-clear-review-filter:hover {
+  background: #fee2e2;
 }
 
 .progress-track {
@@ -1087,6 +1297,7 @@
   height: 100%;
   background: var(--salon-amber);
   border-radius: 4px;
+  transition: width 0.4s ease;
 }
 
 .reviews-list {
@@ -1323,6 +1534,47 @@
 
 .booking-toggle-arrow {
   padding: 4px 8px;
+}
+
+/* Interactive Booking Progress Step Indicator */
+.booking-progress-container {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.booking-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.progress-step-text {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.progress-pct-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--salon-emerald-700);
+}
+
+.booking-progress-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.booking-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1b4332, #2d6a4f, #10b981);
+  border-radius: 99px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .booking-card-collapsed-summary {
@@ -1589,6 +1841,82 @@
   opacity: 0.75;
 }
 
+/* Time of day segmented tabs */
+.slot-tod-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.slot-tod-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 6px 4px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.slot-tod-tab:hover {
+  color: #1e293b;
+}
+
+.slot-tod-tab.active {
+  background: #ffffff;
+  color: var(--salon-emerald-900);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tod-icon {
+  font-size: 0.75rem;
+}
+
+.tod-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.slot-tod-tab.active .tod-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.empty-tod-slots {
+  text-align: center;
+  padding: 16px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.empty-tod-slots p {
+  margin: 0 0 6px;
+}
+
+.show-all-slots-link {
+  background: none;
+  border: none;
+  color: var(--salon-emerald-700);
+  font-weight: 700;
+  font-size: 0.76rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 /* Time Slots Grid */
 .time-slots-grid {
   display: grid;
@@ -1611,6 +1939,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 48px;
+}
+
+.slot-time-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.slot-end-time {
+  font-size: 0.64rem;
+  opacity: 0.8;
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 .time-slot-btn:hover:not(:disabled) {
@@ -2244,3 +2586,102 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile Floating Booking Bottom Bar
+   -------------------------------------------------------------------------- */
+.mobile-bottom-booking-bar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobile-bottom-booking-bar {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--salon-border);
+    padding: 10px 18px;
+    z-index: 998;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .mobile-bottom-bar-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .mobile-bar-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .mobile-bar-service-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--salon-emerald-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-bar-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+  }
+
+  .mobile-bar-total {
+    font-weight: 800;
+    color: var(--salon-emerald-700);
+    font-size: 0.95rem;
+  }
+
+  .mobile-bar-sep {
+    color: var(--salon-text-light);
+  }
+
+  .mobile-bar-slot {
+    color: var(--salon-text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-bar-action-btn {
+    background: var(--salon-emerald-800);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--salon-radius-md);
+    padding: 10px 18px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .mobile-bar-action-btn:hover {
+    background: var(--salon-emerald-900);
+    transform: translateY(-1px);
+  }
+
+  .salon-detail-page {
+    padding-bottom: 70px;
+  }
+}
+

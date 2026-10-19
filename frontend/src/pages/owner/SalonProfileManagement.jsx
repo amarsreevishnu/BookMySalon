@@ -537,7 +537,7 @@ export default function SalonProfileManagement() {
                 <span>{isDirty ? "Unsaved edits" : lastSavedTime}</span>
               </div>
 
-              <Link to="/salons" className="sp-btn-secondary" title="View live catalog">
+              <Link to="/customer/salons" className="sp-btn-secondary" title="View live catalog">
                 <span>Live on Explore</span>
                 <span>↗</span>
               </Link>

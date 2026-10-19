@@ -954,7 +954,7 @@ export default function SalonsExplore() {
                       <div className="salon-card-btn-group">
                        
                         <Link
-                          to={`/salons/${salon.id}`}
+                          to={`/customer/salons/${salon.id}`}
                           className="btn-view-salon"
                         >
                           View Salon

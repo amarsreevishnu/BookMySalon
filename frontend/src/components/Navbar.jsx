@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getRoleDashboardPath } from "../utils/roleUtils";
+import NotificationBell from "./common/NotificationBell";
 
 function Navbar() {
   const { token, user } = useAuth();
@@ -23,20 +24,23 @@ function Navbar() {
           <a href="#services" onClick={() => setMobileMenuOpen(false)}>Services</a>
           <a href="#salons" onClick={() => setMobileMenuOpen(false)}>Salons</a>
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
-          <Link to="/salons" className="nav-explore-link" onClick={() => setMobileMenuOpen(false)}>
+          <Link to="/customer/salons" className="nav-explore-link" onClick={() => setMobileMenuOpen(false)}>
             Explore Salons
           </Link>
         </nav>
 
         <div className="nav-actions">
           {token ? (
-            <Link to={dashboardPath} className="nav-button">
-              {user?.role === "ADMIN" || user?.is_superuser
-                ? "Admin Dashboard →"
-                : user?.role === "OWNER"
-                ? "Owner Dashboard →"
-                : "My Dashboard →"}
-            </Link>
+            <>
+              <NotificationBell />
+              <Link to={dashboardPath} className="nav-button">
+                {user?.role === "ADMIN" || user?.is_superuser
+                  ? "Admin Dashboard →"
+                  : user?.role === "OWNER"
+                  ? "Owner Dashboard →"
+                  : "My Dashboard →"}
+              </Link>
+            </>
           ) : (
             <>
               <Link to="/login" className="login-link">

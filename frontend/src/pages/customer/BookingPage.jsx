@@ -407,18 +407,23 @@ export default function BookingPage() {
         handler: async function (response) {
           try {
             setSubmitting(true);
-            const verifyRes = await api.post(`/bookings/${orderData.booking_id}/verify-razorpay/`, {
+            const verifyPayload = {
+              ...payload,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-            });
+            };
+            const endpoint = (orderData.booking_id && orderData.booking_id !== 0)
+              ? `/bookings/${orderData.booking_id}/verify-razorpay/`
+              : `/bookings/verify-razorpay/`;
+            const verifyRes = await api.post(endpoint, verifyPayload);
             setBookingResult(verifyRes.data.booking);
             setShowPaymentModal(false);
             setStep(5); // confirmed receipt screen
           } catch (verErr) {
             setError(
               verErr?.response?.data?.error ||
-                "Payment verification failed. Please contact support with payment ID " +
+                "Payment was successful, but booking confirmation failed. Please contact support with payment ID " +
                   response.razorpay_payment_id
             );
           } finally {
@@ -428,7 +433,7 @@ export default function BookingPage() {
         modal: {
           ondismiss: function () {
             setSubmitting(false);
-            setError("Online payment was cancelled. You can click Try Again or choose Pay at Salon.");
+            setError("Online payment was cancelled or closed. You can retry with Razorpay or select Pay at Salon.");
           },
         },
       };
@@ -437,7 +442,7 @@ export default function BookingPage() {
       rzp.on("payment.failed", function (response) {
         setSubmitting(false);
         setError(
-          `Payment failed: ${response.error?.description || "Transaction was declined."}. Please click Try Again or select Pay at Salon.`
+          `Payment failed: ${response.error?.description || "Transaction was declined."}. You can retry with Razorpay or select Pay at Salon.`
         );
       });
       rzp.open();
@@ -518,7 +523,7 @@ export default function BookingPage() {
               <button className="bk-btn-primary" onClick={() => navigate("/customer/my-bookings")}>
                 View My Bookings
               </button>
-              <button className="bk-btn-outline" onClick={() => navigate(`/salons/${salonId}`)}>
+              <button className="bk-btn-outline" onClick={() => navigate(`/customer/salons/${salonId}`)}>
                 Back to Salon Page
               </button>
             </div>
@@ -1144,8 +1149,41 @@ export default function BookingPage() {
                     </div>
 
                     {error && (
-                      <div style={{ color: "#dc2626", fontSize: "0.82rem", fontWeight: 600 }}>
-                        ⚠️ {error}
+                      <div
+                        style={{
+                          background: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: "10px",
+                          padding: "12px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ color: "#b91c1c", fontSize: "0.82rem", fontWeight: 600, flex: 1 }}>
+                          ⚠️ {error}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError("");
+                            setShowPaymentModal(true);
+                          }}
+                          style={{
+                            background: "#dc2626",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "6px 12px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Retry Payment
+                        </button>
                       </div>
                     )}
 

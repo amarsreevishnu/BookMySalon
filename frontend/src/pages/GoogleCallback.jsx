@@ -32,7 +32,7 @@ function GoogleCallback() {
         } else if (user.role === "ADMIN") {
           navigate("/admin/dashboard", { replace: true });
         } else {
-          navigate("/customer-home", { replace: true });
+          navigate("/customer/home", { replace: true });
         }
       } catch (err) {
         console.error("Failed to parse Google user payload:", err);

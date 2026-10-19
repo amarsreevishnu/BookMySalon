@@ -50,7 +50,7 @@ function OfferBanner() {
           </div>
 
           <div className="offer-actions-row">
-            <Link to="/salons" className="dark-button offer-cta-btn">
+            <Link to="/customer/salons" className="dark-button offer-cta-btn">
               <span>Explore Eligible Salons</span>
               <span>→</span>
             </Link>

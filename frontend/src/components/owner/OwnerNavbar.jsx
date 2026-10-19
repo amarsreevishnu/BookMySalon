@@ -84,10 +84,8 @@ export default function OwnerNavbar({
                   onClick={() => handleTabClick(tab)}
                 >
                   {tab}
-                  {tab === "Workers" && typeof workersCount === "number" && workersCount > 0 && (
-                    <span className="studio-nav-tab-badge">
-                      {workersCount}
-                    </span>
+                  {tab === "Workers" && (
+                    ''
                   )}
                 </button>
               );

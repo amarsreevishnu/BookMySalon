@@ -7,6 +7,7 @@ from .views import (
     ApprovedSalonListView,
     CustomerSalonExploreView,
     CustomerSalonDetailView,
+    OwnerBookingsView,
     OwnerDashboardView,
     OwnerQuickWalkInView,
     OwnerSalonOffDayDetailView,
@@ -131,6 +132,16 @@ urlpatterns = [
         "owner/dashboard/",
         OwnerDashboardView.as_view(),
         name="owner-dashboard",
+    ),
+    path(
+        "owner/bookings/",
+        OwnerBookingsView.as_view(),
+        name="owner-bookings",
+    ),
+    path(
+        "owner/bookings/<int:pk>/status/",
+        WorkerBookingStatusUpdateView.as_view(),
+        name="owner-booking-status-update",
     ),
     path(
         "owner/profile/",

@@ -52,7 +52,7 @@ function ServiceCategories() {
   const navigate = useNavigate();
 
   const handleCategoryClick = (catName) => {
-    navigate(`/salons?category=${encodeURIComponent(catName)}`);
+    navigate(`/customer/salons?category=${encodeURIComponent(catName)}`);
   };
 
   return (
@@ -66,7 +66,7 @@ function ServiceCategories() {
         <button
           type="button"
           className="text-button"
-          onClick={() => navigate("/salons")}
+          onClick={() => navigate("/customer/salons")}
         >
           View all categories →
         </button>

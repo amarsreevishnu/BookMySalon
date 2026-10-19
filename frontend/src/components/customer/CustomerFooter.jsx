@@ -4,7 +4,7 @@ function CustomerFooter() {
   return (
     <footer className="customer-footer">
       <div className="customer-footer-brand">
-        <Link to="/customer-home" className="explore-brand-group">
+        <Link to="/customer/home" className="explore-brand-group">
             <div className="explore-brand-icon">✂</div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
@@ -20,16 +20,16 @@ function CustomerFooter() {
 
       <div className="footer-links-column">
         <h4>Explore</h4>
-        <Link to="/salons">Find Salons</Link>
+        <Link to="/customer/salons">Find Salons</Link>
         <Link to="/services">Explore Treatments</Link>
         <Link to="/offers">Today's Offers</Link>
       </div>
 
       <div className="footer-links-column">
         <h4>Account</h4>
-        <Link to="/bookings">My Appointments</Link>
+        <Link to="/customer/my-bookings">My Appointments</Link>
         <Link to="/saved-salons">Saved Salons</Link>
-        <Link to="/profile">Preferences</Link>
+        <Link to="/customer/profile">Preferences</Link>
       </div>
 
       <div className="footer-links-column">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import NotificationBell from "../common/NotificationBell";
 import "../../styles/ownerNavbar.css";
 
 export default function OwnerNavbarHeader({
@@ -38,7 +39,7 @@ export default function OwnerNavbarHeader({
       <header className="studio-header">
         <div className="studio-header-inner">
           {/* Logo & Studio Brand */}
-          <Link to="/customer-home" className="explore-brand-group">
+          <Link to="/owner/dashboard" className="explore-brand-group">
             <div className="explore-brand-icon">✂</div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
@@ -64,7 +65,7 @@ export default function OwnerNavbarHeader({
                 }}
               >
                 <span>+</span>
-                <span>Quick Walk-In</span>
+                <span className="btn-walkin-text">Quick Walk-In</span>
               </button>
             )}
 
@@ -98,33 +99,7 @@ export default function OwnerNavbarHeader({
               </button>
             )}
 
-            <button
-              type="button"
-              className="studio-icon-btn"
-              title="Notifications"
-              onClick={() => {
-                if (onNotificationsClick) {
-                  onNotificationsClick();
-                } else {
-                  alert("Notifications: All systems and appointments up to date.");
-                }
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span className="studio-icon-badge" />
-            </button>
+            <NotificationBell theme="dark" />
 
             <button
               type="button"

@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -90,3 +91,8 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"Booking #{self.id} - {self.client_name} - {self.service_name} ({self.status})"
+
+
+# Re-export for backward compatibility
+from reviews.models import SalonReview, WorkerReview
+

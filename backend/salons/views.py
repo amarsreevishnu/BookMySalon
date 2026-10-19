@@ -3,7 +3,7 @@ import re
 import secrets
 import string
 from django.contrib.auth import get_user_model
-from django.db.models import Q,Count
+from django.db.models import Q, Count, Sum, Avg
 from django.http import JsonResponse
 from django.utils import timezone
 from django.shortcuts import render
@@ -21,6 +21,7 @@ from services.models import SalonService
 
 from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave, SalonEmailOTP
 from bookings.models import Booking
+from reviews.models import SalonReview, WorkerReview
 from .serializers import (
     SalonSerializer,
     WorkerProfileSerializer,
@@ -357,6 +358,12 @@ class SalonCreateView(generics.CreateAPIView):
 
         # Synchronize services into SalonService model
         sync_salon_services(salon, salon.services)
+
+        try:
+            from notifications.services import notify_salon_created
+            notify_salon_created(salon)
+        except Exception:
+            pass
 
         headers = self.get_success_headers(serializer.data)
         return Response(
@@ -733,11 +740,14 @@ class OwnerDashboardView(APIView):
     def get(self, request):
         user = request.user
         salon = None
-       
-        if user and user.is_authenticated:
+        salon_id = request.query_params.get("salon_id")
+        if salon_id:
+            salon = Salon.objects.filter(pk=salon_id).first()
+        elif user and user.is_authenticated:
             salon = get_owner_salon(user)
+            if not salon and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+                salon = Salon.objects.filter(approval_status=Salon.ApprovalStatus.APPROVED).first() or Salon.objects.first()
 
-        
         salon_name = salon.name if salon else ""
         salon_city = salon.city if salon else ""
         salon_category = salon.category if salon else ""
@@ -751,16 +761,21 @@ class OwnerDashboardView(APIView):
                 .select_related("user")
                 .annotate(booked_count=Count("assigned_bookings"))
             )
+            from reviews.models import WorkerReview
             staff_on_duty = []
             for idx, w in enumerate(real_workers, start=1):
                 full_name = f"{w.user.first_name} {w.user.last_name}".strip() or w.user.email.split("@")[0].title()
+                w_agg = WorkerReview.objects.filter(worker=w).aggregate(avg=Avg('rating'), count=Count('id'))
+                w_rating = round(float(w_agg['avg']), 1) if w_agg['avg'] is not None else 5.0
+                w_reviews_count = w_agg['count'] or 0
                 staff_on_duty.append({
                     "id": w.id,
                     "worker_id": w.id,
                     "name": full_name,
-                    "station": f"Station {idx:02d}",
+                    "station": w.station or f"Station {idx:02d}",
                     "role": w.specialization or "Stylist",
-                    "rating": 4.9,
+                    "rating": w_rating,
+                    "reviews_count": w_reviews_count,
                     "booked_count": w.booked_count,
                     "avatar": build_full_media_url(request, w.profile_photo) if w.profile_photo else "",
                     "is_active": w.is_active,
@@ -802,6 +817,222 @@ class OwnerDashboardView(APIView):
                 },
             ]
 
+        today = timezone.localdate()
+        today_schedule = []
+        all_bookings = []
+
+        total_bookings_count = 0
+        today_bookings_count = 0
+        total_revenue = 0
+        completed_count = 0
+        cancelled_count = 0
+        upcoming_count = 0
+
+        if salon:
+            salon_bookings = (
+                Booking.objects
+                .filter(salon=salon)
+                .select_related("worker", "worker__user", "service")
+                .order_by("-booking_date", "-start_time", "-booking_time")
+            )
+            total_bookings_count = salon_bookings.count()
+            completed_count = salon_bookings.filter(status=Booking.Status.COMPLETED).count()
+            cancelled_count = salon_bookings.filter(status=Booking.Status.CANCELLED).count()
+            upcoming_count = salon_bookings.filter(
+                status__in=[Booking.Status.CONFIRMED, Booking.Status.PENDING, Booking.Status.IN_PROGRESS]
+            ).count()
+
+            revenue_agg = salon_bookings.filter(
+                Q(status=Booking.Status.COMPLETED) | Q(payment_status="PAID")
+            ).aggregate(total=Sum("service_price"))
+            total_revenue = revenue_agg["total"] or 0
+
+            today_qs = (
+                salon_bookings
+                .filter(booking_date=today)
+                .order_by("start_time", "booking_time")
+            )
+            today_bookings_count = today_qs.count()
+
+            for b in today_qs:
+                worker_name = "Any Available"
+                if b.worker and b.worker.user:
+                    worker_name = b.worker.user.get_full_name() or b.worker.user.email.split("@")[0].title()
+
+                time_val = b.booking_time
+                period_val = "AM"
+                if b.start_time:
+                    time_val = b.start_time.strftime("%I:%M").lstrip("0")
+                    period_val = b.start_time.strftime("%p")
+                elif b.booking_time:
+                    parts = b.booking_time.split(" ")
+                    time_val = parts[0]
+                    if len(parts) > 1:
+                        period_val = parts[1]
+
+                status_type = b.status.lower().replace("_", "-")
+                if b.status == Booking.Status.CONFIRMED:
+                    action_label = "Seat Client"
+                elif b.status == Booking.Status.IN_PROGRESS:
+                    action_label = "Complete Session"
+                elif b.status == Booking.Status.PENDING:
+                    action_label = "Confirm"
+                elif b.status == Booking.Status.COMPLETED:
+                    action_label = "Completed"
+                else:
+                    action_label = b.get_status_display()
+
+                today_schedule.append({
+                    "id": b.id,
+                    "time": time_val,
+                    "period": period_val,
+                    "booking_time": b.booking_time,
+                    "start_time": str(b.start_time) if b.start_time else "",
+                    "end_time": str(b.end_time) if b.end_time else "",
+                    "client_name": b.client_name,
+                    "client_phone": b.client_phone,
+                    "client_email": b.client_email,
+                    "station": b.station or (b.worker.station if b.worker else "Station 01"),
+                    "stylist": worker_name,
+                    "worker_id": b.worker_id,
+                    "service": b.service_name,
+                    "duration": b.duration or "45 mins",
+                    "price": f"₹{int(b.service_price)}",
+                    "status": b.get_status_display(),
+                    "raw_status": b.status,
+                    "status_type": status_type,
+                    "action_label": action_label,
+                    "payment_method": b.payment_method,
+                    "payment_status": b.payment_status,
+                    "notes": b.notes,
+                })
+
+            for b in salon_bookings:
+                worker_name = "Any Available"
+                worker_photo = ""
+                if b.worker and b.worker.user:
+                    worker_name = b.worker.user.get_full_name() or b.worker.user.email.split("@")[0].title()
+                    if b.worker.profile_photo:
+                        worker_photo = build_full_media_url(request, b.worker.profile_photo)
+
+                time_val = b.booking_time
+                period_val = "AM"
+                if b.start_time:
+                    time_val = b.start_time.strftime("%I:%M").lstrip("0")
+                    period_val = b.start_time.strftime("%p")
+                elif b.booking_time:
+                    parts = b.booking_time.split(" ")
+                    time_val = parts[0]
+                    if len(parts) > 1:
+                        period_val = parts[1]
+
+                status_type = b.status.lower().replace("_", "-")
+                if b.status == Booking.Status.CONFIRMED:
+                    action_label = "Seat Client"
+                elif b.status == Booking.Status.IN_PROGRESS:
+                    action_label = "Complete Session"
+                elif b.status == Booking.Status.PENDING:
+                    action_label = "Confirm"
+                elif b.status == Booking.Status.COMPLETED:
+                    action_label = "Completed"
+                else:
+                    action_label = b.get_status_display()
+
+                all_bookings.append({
+                    "id": b.id,
+                    "time": time_val,
+                    "period": period_val,
+                    "client_name": b.client_name,
+                    "client_phone": b.client_phone,
+                    "client_email": b.client_email,
+                    "stylist": worker_name,
+                    "worker_name": worker_name,
+                    "worker_id": b.worker_id,
+                    "worker_photo": worker_photo,
+                    "service": b.service_name,
+                    "service_name": b.service_name,
+                    "service_price": float(b.service_price),
+                    "price": f"₹{int(b.service_price)}",
+                    "booking_date": str(b.booking_date),
+                    "booking_time": b.booking_time,
+                    "start_time": str(b.start_time) if b.start_time else "",
+                    "end_time": str(b.end_time) if b.end_time else "",
+                    "duration": b.duration,
+                    "station": b.station or (b.worker.station if b.worker else "Station 01"),
+                    "status": b.get_status_display(),
+                    "raw_status": b.status,
+                    "status_type": status_type,
+                    "action_label": action_label,
+                    "status_display": b.get_status_display(),
+                    "payment_method": b.payment_method,
+                    "payment_status": b.payment_status,
+                    "notes": b.notes,
+                    "created_at": b.created_at.isoformat() if b.created_at else None,
+                })
+
+            # Dynamic Reviews & Ratings for Salon Owner
+            reviews_data = []
+            worker_reviews_data = []
+            salon_rating = 5.0
+            salon_reviews_count = 0
+            rating_breakdown = {5: {"count": 0, "percentage": 0}, 4: {"count": 0, "percentage": 0}, 3: {"count": 0, "percentage": 0}, 2: {"count": 0, "percentage": 0}, 1: {"count": 0, "percentage": 0}}
+
+            if salon:
+                salon_reviews_qs = SalonReview.objects.filter(salon=salon).select_related('customer', 'booking').order_by('-created_at')
+                salon_agg = salon_reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
+                salon_reviews_count = salon_agg['count'] or 0
+                if salon_reviews_count > 0 and salon_agg['avg'] is not None:
+                    salon_rating = round(float(salon_agg['avg']), 2)
+
+                breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+                for r in salon_reviews_qs:
+                    if r.rating in breakdown:
+                        breakdown[r.rating] += 1
+
+                for star in range(1, 6):
+                    cnt = breakdown[star]
+                    pct = round((cnt / salon_reviews_count * 100)) if salon_reviews_count > 0 else 0
+                    rating_breakdown[star] = {"count": cnt, "percentage": pct}
+
+                for r in salon_reviews_qs:
+                    author_name = r.customer.get_full_name() or r.customer.email.split("@")[0].title()
+                    initial = (r.customer.get_full_name() or r.customer.email or "C")[0].upper()
+                    photo_url = build_full_media_url(request, getattr(r.customer, 'profile_photo', None)) if getattr(r.customer, 'profile_photo', None) else ""
+                    treatment = r.booking.service_name if r.booking else "Salon Service"
+                    reviews_data.append({
+                        "id": r.id,
+                        "author": author_name,
+                        "customer_name": author_name,
+                        "customer_email": r.customer.email,
+                        "initial": initial,
+                        "avatar": photo_url,
+                        "rating": r.rating,
+                        "comment": r.comment,
+                        "treatment": treatment,
+                        "booking_id": r.booking_id,
+                        "date": r.created_at.strftime("%b %d, %Y"),
+                        "created_at": r.created_at.isoformat(),
+                    })
+
+                worker_reviews_qs = WorkerReview.objects.filter(salon=salon).select_related('customer', 'worker', 'worker__user', 'booking').order_by('-created_at')
+                for wr in worker_reviews_qs:
+                    c_name = wr.customer.get_full_name() or wr.customer.email.split("@")[0].title()
+                    w_name = wr.worker.user.get_full_name() or wr.worker.user.email.split("@")[0].title() if wr.worker and wr.worker.user else "Specialist"
+                    treatment = wr.booking.service_name if wr.booking else "Specialist Service"
+                    worker_reviews_data.append({
+                        "id": wr.id,
+                        "worker_id": wr.worker_id,
+                        "worker_name": w_name,
+                        "author": c_name,
+                        "customer_name": c_name,
+                        "rating": wr.rating,
+                        "comment": wr.comment,
+                        "treatment": treatment,
+                        "booking_id": wr.booking_id,
+                        "date": wr.created_at.strftime("%b %d, %Y"),
+                        "created_at": wr.created_at.isoformat(),
+                    })
+
         data = {
             "salon_info": {
                 "id": salon.id if salon else 1,
@@ -813,51 +1044,24 @@ class OwnerDashboardView(APIView):
                 "approval_status": salon.approval_status if salon else "APPROVED",
             },
             "kpi_stats": {
-                "bookings": {"value": 24, "trend": "+12% vs yesterday", "trend_type": "positive"},
-                "revenue": {"value": 8450, "formatted": "₹8,450", "trend": "+18% target pacing", "trend_type": "positive"},
-                "completed": {"value": 15, "trend": "+9% turnaround", "trend_type": "positive"},
-                "cancelled": {"value": 2, "trend": "-1% low attrition", "trend_type": "warning"},
-                "upcoming": {"value": 7, "trend": "+8% booked slots", "trend_type": "positive"},
+                "bookings": {"value": total_bookings_count, "trend": f"{today_bookings_count} today", "trend_type": "positive"},
+                "revenue": {"value": int(total_revenue), "formatted": f"₹{int(total_revenue):,}", "trend": "Accrued Revenue", "trend_type": "positive"},
+                "completed": {"value": completed_count, "trend": f"{completed_count} completed", "trend_type": "positive"},
+                "cancelled": {"value": cancelled_count, "trend": f"{cancelled_count} cancelled", "trend_type": "warning" if cancelled_count > 0 else "positive"},
+                "upcoming": {"value": upcoming_count, "trend": f"{upcoming_count} active slots", "trend_type": "positive"},
+                "rating": {"value": f"{salon_rating}★", "numeric": salon_rating, "trend": f"{salon_reviews_count} reviews", "trend_type": "positive"},
             },
-            "today_schedule": [
-                {
-                    "id": 101,
-                    "time": "10:00 AM",
-                    "client_name": "Vishnu Prasad",
-                    "station": "Station 01",
-                    "stylist": "Rahul",
-                    "service": "Haircut & Styling",
-                    "duration": "45 mins",
-                    "status": "In Progress",
-                    "action_label": "Check In",
-                },
-                {
-                    "id": 102,
-                    "time": "10:30 AM",
-                    "client_name": "Meera Nair",
-                    "station": "Station 02",
-                    "stylist": "Anjali",
-                    "service": "Hydra Facial",
-                    "duration": "60 mins",
-                    "status": "Arrived",
-                    "action_label": "Seat Client",
-                },
-                {
-                    "id": 103,
-                    "time": "11:00 AM",
-                    "client_name": "Vikram Singhania",
-                    "station": "Station 03",
-                    "stylist": "Rahul",
-                    "service": "Royal Beard Sculpt",
-                    "duration": "30 mins",
-                    "status": "Confirmed",
-                    "action_label": "Send Reminder",
-                },
-            ],
+            "rating": salon_rating,
+            "reviews_count": salon_reviews_count,
+            "rating_breakdown": rating_breakdown,
+            "reviews": reviews_data,
+            "worker_reviews": worker_reviews_data,
+            "today_schedule": today_schedule,
+            "all_bookings": all_bookings,
             "staff_on_duty": staff_on_duty,
             "revenue_progression": {
                 "peak_window": "11 AM - 1 PM",
-                "daily_accrued": "₹8,450",
+                "daily_accrued": f"₹{int(total_revenue):,}",
                 "target": "₹12,000",
                 "hours": [
                     {"time": "9 AM", "amount": 650, "height_pct": 35, "is_peak": False, "pos_amount": 450, "online_amount": 200},
@@ -871,6 +1075,69 @@ class OwnerDashboardView(APIView):
             "popular_services": popular_services,
         }
         return Response(data)
+
+
+class OwnerBookingsView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        salon = get_owner_salon(user)
+        if not salon:
+            return Response({"error": "No salon found for this owner."}, status=status.HTTP_404_NOT_FOUND)
+
+        bookings_qs = (
+            Booking.objects
+            .filter(salon=salon)
+            .select_related("worker", "worker__user", "service", "customer")
+            .order_by("-booking_date", "-start_time", "-booking_time")
+        )
+
+        worker_id = request.query_params.get("worker_id")
+        if worker_id and worker_id != "all":
+            bookings_qs = bookings_qs.filter(worker_id=worker_id)
+
+        booking_status = request.query_params.get("status")
+        if booking_status and booking_status != "all":
+            bookings_qs = bookings_qs.filter(status=booking_status.upper())
+
+        date_filter = request.query_params.get("date")
+        if date_filter and date_filter != "all":
+            today = timezone.localdate()
+            if date_filter == "today":
+                bookings_qs = bookings_qs.filter(booking_date=today)
+            elif date_filter == "tomorrow":
+                bookings_qs = bookings_qs.filter(booking_date=today + timedelta(days=1))
+            elif date_filter == "week":
+                bookings_qs = bookings_qs.filter(
+                    booking_date__gte=today,
+                    booking_date__lte=today + timedelta(days=7),
+                )
+            else:
+                try:
+                    from datetime import datetime
+                    parsed_d = datetime.strptime(date_filter, "%Y-%m-%d").date()
+                    bookings_qs = bookings_qs.filter(booking_date=parsed_d)
+                except Exception:
+                    pass
+
+        search_q = request.query_params.get("search", "").strip()
+        if search_q:
+            bookings_qs = bookings_qs.filter(
+                Q(client_name__icontains=search_q)
+                | Q(client_phone__icontains=search_q)
+                | Q(client_email__icontains=search_q)
+                | Q(service_name__icontains=search_q)
+                | Q(worker__user__first_name__icontains=search_q)
+                | Q(worker__user__last_name__icontains=search_q)
+            )
+
+        serializer = BookingSerializer(bookings_qs, many=True)
+        return Response({
+            "count": bookings_qs.count(),
+            "bookings": serializer.data,
+        })
 
 
 class OwnerSalonProfileView(APIView):
@@ -1229,78 +1496,55 @@ class WorkerDashboardView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        bookings_qs = Booking.objects.filter(worker=worker).order_by("-booking_date", "-booking_time")
+        bookings_qs = (
+            Booking.objects
+            .filter(Q(worker=worker) | (Q(salon=worker.salon) & Q(worker__isnull=True)))
+            .select_related("salon", "service", "customer")
+            .order_by("booking_date", "start_time", "booking_time")
+        )
 
         today = timezone.localdate()
-        if not bookings_qs.exists():
-            try:
-                Booking.objects.create(
-                    salon=worker.salon,
-                    worker=worker,
-                    client_name="Pooja Sharma",
-                    client_phone="+91 98450 12345",
-                    client_email="pooja@example.com",
-                    service_name=worker.specialization or "Haircut & Styling",
-                    service_price=550.00,
-                    booking_date=today,
-                    booking_time="10:30 AM",
-                    duration="45 mins",
-                    station="Station 01",
-                    status=Booking.Status.CONFIRMED,
-                    notes="Client requested senior stylist",
-                )
-                Booking.objects.create(
-                    salon=worker.salon,
-                    worker=worker,
-                    client_name="Karthik Menon",
-                    client_phone="+91 97410 98765",
-                    client_email="karthik@example.com",
-                    service_name="Deep Scalp Therapy & Wash",
-                    service_price=850.00,
-                    booking_date=today,
-                    booking_time="02:00 PM",
-                    duration="60 mins",
-                    station="Station 02",
-                    status=Booking.Status.IN_PROGRESS,
-                    notes="Regular client",
-                )
-                Booking.objects.create(
-                    salon=worker.salon,
-                    worker=worker,
-                    client_name="Ananya Reddy",
-                    client_phone="+91 99001 54321",
-                    client_email="ananya@example.com",
-                    service_name="Express Glow Facial",
-                    service_price=1200.00,
-                    booking_date=today,
-                    booking_time="04:30 PM",
-                    duration="45 mins",
-                    station="Station 03",
-                    status=Booking.Status.PENDING,
-                    notes="Arriving by cab, might be 5 mins late",
-                )
-                bookings_qs = Booking.objects.filter(worker=worker).order_by("-booking_date", "-booking_time")
-            except Exception:
-                pass
-
         total_count = bookings_qs.count()
         today_count = bookings_qs.filter(booking_date=today).count()
         completed_count = bookings_qs.filter(status=Booking.Status.COMPLETED).count()
         in_progress_count = bookings_qs.filter(status=Booking.Status.IN_PROGRESS).count()
-        upcoming_count = bookings_qs.filter(status__in=[Booking.Status.CONFIRMED, Booking.Status.PENDING]).count()
+        upcoming_count = bookings_qs.filter(
+            status__in=[Booking.Status.CONFIRMED, Booking.Status.PENDING, Booking.Status.IN_PROGRESS]
+        ).count()
+
+        settled_rev_agg = bookings_qs.filter(
+            Q(status=Booking.Status.COMPLETED) | Q(payment_status="PAID")
+        ).aggregate(total=Sum("service_price"))
+        settled_earnings = settled_rev_agg["total"] or 0
 
         serializer = BookingSerializer(bookings_qs, many=True)
         worker_serializer = WorkerProfileSerializer(worker, context={"request": request})
 
+        from reviews.models import WorkerReview
+        w_agg = WorkerReview.objects.filter(worker=worker).aggregate(avg=Avg('rating'), count=Count('id'))
+        w_rating = round(float(w_agg['avg']), 1) if w_agg['avg'] is not None else 5.0
+        w_count = w_agg['count'] or 0
+
+        latest_review = WorkerReview.objects.filter(worker=worker).select_related('customer', 'booking').order_by('-created_at').first()
+        latest_review_data = None
+        if latest_review:
+            latest_review_data = {
+                "rating": latest_review.rating,
+                "comment": latest_review.comment,
+                "author": latest_review.customer.get_full_name() or latest_review.customer.email.split('@')[0].title(),
+                "service_name": latest_review.booking.service_name if latest_review.booking else "Specialist Service",
+                "date": latest_review.created_at.strftime("%b %d, %Y"),
+            }
+
         return Response({
             "worker": worker_serializer.data,
             "salon": {
-                "id": worker.salon.id,
-                "name": worker.salon.name,
-                "category": worker.salon.category,
-                "address": worker.salon.address,
-                "city": worker.salon.city,
-                "phone": worker.salon.phone,
+                "id": worker.salon.id if worker.salon else None,
+                "name": worker.salon.name if worker.salon else "Salon",
+                "category": worker.salon.category if worker.salon else "",
+                "address": worker.salon.address if worker.salon else "",
+                "city": worker.salon.city if worker.salon else "",
+                "phone": worker.salon.phone if worker.salon else "",
             },
             "kpi_stats": {
                 "total_bookings": total_count,
@@ -1308,7 +1552,11 @@ class WorkerDashboardView(APIView):
                 "completed_bookings": completed_count,
                 "in_progress_bookings": in_progress_count,
                 "upcoming_bookings": upcoming_count,
+                "settled_earnings": float(settled_earnings),
+                "rating": w_rating,
+                "reviews_count": w_count,
             },
+            "latest_review": latest_review_data,
             "assigned_bookings": serializer.data,
         })
 
@@ -1320,9 +1568,10 @@ class WorkerBookingStatusUpdateView(APIView):
     def patch(self, request, pk):
         user = request.user
         new_status = request.data.get("status", "").upper()
+        new_payment_status = request.data.get("payment_status", "").upper()
 
         valid_statuses = [choice[0] for choice in Booking.Status.choices]
-        if new_status not in valid_statuses:
+        if new_status and new_status not in valid_statuses:
             return Response(
                 {"error": f"Invalid status. Allowed values: {', '.join(valid_statuses)}"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1332,23 +1581,62 @@ class WorkerBookingStatusUpdateView(APIView):
         if not booking:
             return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        is_worker = hasattr(user, "worker_profile") and booking.worker == user.worker_profile
-        is_owner = getattr(user, "role", None) == "OWNER" and booking.salon.owner == user
+        worker_profile = getattr(user, "worker_profile", None)
+        is_worker = bool(
+            worker_profile
+            and (booking.worker == worker_profile or (booking.salon == worker_profile.salon and booking.worker is None))
+        )
+        is_owner = getattr(user, "role", None) == "OWNER" and (
+            booking.salon.owner == user or get_owner_salon(user) == booking.salon
+        )
         is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
 
         if not (is_worker or is_owner or is_admin):
             return Response(
-                {"error": "Access denied. You can only update bookings assigned to you."},
+                {"error": "Access denied. You do not have permission to update this booking."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        booking.status = new_status
-        booking.save(update_fields=["status", "updated_at"])
+        update_fields = ["updated_at"]
+        if new_status:
+            booking.status = new_status
+            update_fields.append("status")
+
+        if new_payment_status:
+            valid_pay_statuses = [choice[0] for choice in Booking.PaymentStatus.choices]
+            if new_payment_status in valid_pay_statuses:
+                booking.payment_status = new_payment_status
+                update_fields.append("payment_status")
+        elif new_status == Booking.Status.COMPLETED and booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON:
+            booking.payment_status = Booking.PaymentStatus.PAID
+            update_fields.append("payment_status")
+
+        if is_worker and worker_profile and booking.worker is None and booking.salon == worker_profile.salon:
+            booking.worker = worker_profile
+            if worker_profile.station:
+                booking.station = worker_profile.station
+                update_fields.append("station")
+            update_fields.append("worker")
+
+        old_status = booking.status
+        booking.save(update_fields=update_fields)
+
+        try:
+            from notifications.services import notify_booking_cancelled, notify_refund_completed
+            if new_status == Booking.Status.CANCELLED and old_status != Booking.Status.CANCELLED:
+                notify_booking_cancelled(booking, cancelled_by=request.user)
+            if new_status == "REFUNDED" or new_payment_status == Booking.PaymentStatus.REFUNDED:
+                notify_refund_completed(booking)
+        except Exception:
+            pass
 
         return Response({
-            "message": f"Booking status updated to {new_status}.",
+            "message": f"Booking status updated to {booking.status}.",
             "booking": BookingSerializer(booking).data,
         })
+
+    def post(self, request, pk):
+        return self.patch(request, pk)
 
 
 
@@ -1508,9 +1796,8 @@ class CustomerSalonExploreView(APIView):
                 ),
                 "tags": tags,
                 "gender_category": "unisex",
-                "rating": 4.9,
-                
-                "review_count": 0,
+                "rating": round(float(SalonReview.objects.filter(salon=s).aggregate(avg=Avg('rating'))['avg']), 2) if SalonReview.objects.filter(salon=s).exists() else 4.9,
+                "review_count": SalonReview.objects.filter(salon=s).count(),
                 "has_instant_slot": True,
                 "instant_slot_text": "Instant slot available today • Verified Partner",
                 
@@ -1602,6 +1889,7 @@ class CustomerSalonDetailView(APIView):
             data = serializer.data
 
             today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+            from reviews.models import SalonReview, WorkerReview
             workers = WorkerProfile.objects.filter(salon=salon, is_active=True).select_related("user")
             workers_data = []
             for w in workers:
@@ -1612,13 +1900,17 @@ class CustomerSalonDetailView(APIView):
                         date__gte=today,
                     ).values_list("date", flat=True)
                 )
+                w_agg = WorkerReview.objects.filter(worker=w).aggregate(avg=Avg('rating'), count=Count('id'))
+                w_reviews_count = w_agg['count'] or 0
+                w_rating = round(float(w_agg['avg']), 2) if (w_agg['avg'] is not None and w_reviews_count > 0) else 5.0
+
                 workers_data.append({
                     "id": w.id,
                     "name": w.user.get_full_name() or w.user.email,
                     "specialization": w.specialization or "Master Stylist",
                     "experience": w.experience or "3+ Years",
-                    "rating": "4.9",
-                    "reviews_count": 48,
+                    "rating": w_rating,
+                    "reviews_count": w_reviews_count,
                     "profile_photo": w.profile_photo,
                     "station": w.station,
                     "approved_leaves": [d.isoformat() for d in leaves_dates],
@@ -1682,6 +1974,46 @@ class CustomerSalonDetailView(APIView):
                 ]
             except Exception:
                 data["off_days"] = []
+
+            # Dynamic Salon Reviews and Rating Breakdown
+            salon_reviews_qs = SalonReview.objects.filter(salon=salon).select_related('customer', 'booking').order_by('-created_at')
+            salon_agg = salon_reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
+            salon_reviews_count = salon_agg['count'] or 0
+            salon_rating = round(float(salon_agg['avg']), 2) if (salon_agg['avg'] is not None and salon_reviews_count > 0) else 5.0
+
+            breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+            for r in salon_reviews_qs:
+                if r.rating in breakdown:
+                    breakdown[r.rating] += 1
+
+            breakdown_pct = {}
+            for star in range(1, 6):
+                cnt = breakdown[star]
+                pct = round((cnt / salon_reviews_count * 100)) if salon_reviews_count > 0 else 0
+                breakdown_pct[star] = {"count": cnt, "percentage": pct}
+
+            reviews_data = []
+            for r in salon_reviews_qs:
+                author_name = r.customer.get_full_name() or r.customer.email.split("@")[0].title()
+                initial = (r.customer.get_full_name() or r.customer.email or "C")[0].upper()
+                photo_url = build_full_media_url(request, getattr(r.customer, 'profile_photo', None)) if getattr(r.customer, 'profile_photo', None) else ""
+                treatment = r.booking.service_name if r.booking else "Salon Service"
+                reviews_data.append({
+                    "id": r.id,
+                    "author": author_name,
+                    "initial": initial,
+                    "avatar": photo_url,
+                    "rating": r.rating,
+                    "comment": r.comment,
+                    "treatment": treatment,
+                    "date": r.created_at.strftime("%b %d, %Y"),
+                    "created_at": r.created_at.isoformat(),
+                })
+
+            data["rating"] = salon_rating
+            data["reviews_count"] = salon_reviews_count
+            data["rating_breakdown"] = breakdown_pct
+            data["reviews"] = reviews_data
 
             return Response(data, status=status.HTTP_200_OK)
         except Salon.DoesNotExist:
@@ -1894,6 +2226,13 @@ class OwnerWorkerLeaveApproveView(APIView):
         leave.approved_by = request.user
         leave.approved_at = timezone.now()
         leave.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+
+        try:
+            from notifications.services import notify_leave_decision
+            notify_leave_decision(leave, approved=True)
+        except Exception:
+            pass
+
         return Response({
             "message": "Leave request approved successfully.",
             "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,
@@ -1918,6 +2257,13 @@ class OwnerWorkerLeaveRejectView(APIView):
         leave.approved_by = request.user
         leave.approved_at = timezone.now()
         leave.save(update_fields=["status", "rejection_reason", "approved_by", "approved_at", "updated_at"])
+
+        try:
+            from notifications.services import notify_leave_decision
+            notify_leave_decision(leave, approved=False, reason=leave.rejection_reason)
+        except Exception:
+            pass
+
         return Response({
             "message": "Leave request rejected.",
             "leave": WorkerLeaveSerializer(leave, context={"request": request}).data,

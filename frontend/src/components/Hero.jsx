@@ -12,12 +12,12 @@ function Hero() {
     if (treatment.trim()) params.append("search", treatment.trim());
     if (location.trim()) params.append("location", location.trim());
     const query = params.toString();
-    navigate(query ? `/salons?${query}` : "/salons");
+    navigate(query ? `/customer/salons?${query}` : "/customer/salons");
   };
 
   const handleQuickChipClick = (serviceName) => {
     setTreatment(serviceName);
-    navigate(`/salons?search=${encodeURIComponent(serviceName)}`);
+    navigate(`/customer/salons?search=${encodeURIComponent(serviceName)}`);
   };
 
   return (

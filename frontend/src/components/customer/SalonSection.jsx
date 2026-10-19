@@ -249,7 +249,7 @@ function SalonSection({
             </div>
           )}
           <span className="section-side-text">Showing verified salons</span>
-          <Link to="/salons" className="text-button">
+          <Link to="/customer/salons" className="text-button">
             View all salons →
           </Link>
         </div>

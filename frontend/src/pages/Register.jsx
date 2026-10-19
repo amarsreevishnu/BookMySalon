@@ -115,7 +115,7 @@ function Register() {
             const { access, refresh, user } = response.data;
             if (access && refresh && user) {
                 login(access, refresh, user);
-                navigate("/customer-home", { replace: true });
+                navigate("/customer/home", { replace: true });
             } else {
                 navigate("/login", {
                     replace: true,

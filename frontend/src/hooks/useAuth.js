@@ -6,6 +6,7 @@ import {
   selectCurrentUser,
   selectCurrentToken,
   selectIsAuthenticated,
+  selectUserAvatar,
 } from "../features/auth/authSlice";
 
 export function useAuth() {
@@ -13,6 +14,8 @@ export function useAuth() {
   const user = useSelector(selectCurrentUser);
   const token = useSelector(selectCurrentToken);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const avatar = useSelector(selectUserAvatar);
+
 
   const login = (accessToken, refreshToken, userData) => {
     dispatch(
@@ -36,6 +39,7 @@ export function useAuth() {
     user,
     token,
     isAuthenticated,
+    avatar,
     login,
     logout,
     updateUser,

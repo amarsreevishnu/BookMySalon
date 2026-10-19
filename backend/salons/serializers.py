@@ -15,6 +15,8 @@ User = get_user_model()
 class SalonSerializer(serializers.ModelSerializer):
     owner_email = serializers.ReadOnlyField(source="owner.email")
     approval_status = serializers.ReadOnlyField()
+    rating = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
     class Meta:
         model = Salon
         fields = [
@@ -49,10 +51,30 @@ class SalonSerializer(serializers.ModelSerializer):
             "images",
             "approval_status",
             "admin_notes",
+            "rating",
+            "reviews_count",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "owner", "approval_status", "created_at", "updated_at"]
+        read_only_fields = ["id", "owner", "approval_status", "rating", "reviews_count", "created_at", "updated_at"]
+
+    def get_rating(self, obj):
+        try:
+            from reviews.models import SalonReview
+            from django.db.models import Avg
+            agg = SalonReview.objects.filter(salon=obj).aggregate(avg=Avg('rating'))
+            if agg['avg'] is not None:
+                return round(float(agg['avg']), 2)
+        except Exception:
+            pass
+        return 5.0
+
+    def get_reviews_count(self, obj):
+        try:
+            from reviews.models import SalonReview
+            return SalonReview.objects.filter(salon=obj).count()
+        except Exception:
+            return 0
     
     
     def to_internal_value(self, data):
@@ -112,6 +134,8 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     salon_name = serializers.ReadOnlyField(source="salon.name")
     assigned_bookings_count = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkerProfile
@@ -140,10 +164,12 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             "salon",
             "salon_name",
             "assigned_bookings_count",
+            "rating",
+            "reviews_count",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user_id", "email", "salon", "salon_name", "created_at", "updated_at"]
+        read_only_fields = ["id", "user_id", "email", "salon", "salon_name", "rating", "reviews_count", "created_at", "updated_at"]
 
     def get_full_name(self, obj):
         name = f"{obj.user.first_name} {obj.user.last_name}".strip()
@@ -151,6 +177,24 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
 
     def get_assigned_bookings_count(self, obj):
         return obj.assigned_bookings.count()
+
+    def get_rating(self, obj):
+        try:
+            from reviews.models import WorkerReview
+            from django.db.models import Avg
+            agg = WorkerReview.objects.filter(worker=obj).aggregate(avg=Avg('rating'))
+            if agg['avg'] is not None:
+                return round(float(agg['avg']), 2)
+        except Exception:
+            pass
+        return 5.0
+
+    def get_reviews_count(self, obj):
+        try:
+            from reviews.models import WorkerReview
+            return WorkerReview.objects.filter(worker=obj).count()
+        except Exception:
+            return 0
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -310,9 +354,13 @@ class BookingSerializer(serializers.ModelSerializer):
             "service_price",
             "booking_date",
             "booking_time",
+            "start_time",
+            "end_time",
             "duration",
             "station",
             "status",
+            "payment_method",
+            "payment_status",
             "notes",
             "created_at",
             "updated_at",

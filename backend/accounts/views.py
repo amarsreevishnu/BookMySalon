@@ -122,7 +122,11 @@ class LoginView(generics.GenericAPIView):
 
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
-        
+        avatar = ""
+        try:
+            avatar = user.customer_profile.avatar
+        except CustomerProfile.DoesNotExist:
+            pass
         return Response(
             {
                 "message": "Login successful",
@@ -135,6 +139,7 @@ class LoginView(generics.GenericAPIView):
                     "is_superuser": user.is_superuser,
                     "is_staff": user.is_staff,
                     "must_change_password": getattr(user, "must_change_password", False),
+                    "avatar": avatar,
                 },
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
@@ -225,6 +230,12 @@ def google_success(request):
         user.role = User.Role.CUSTOMER
         user.save(update_fields=["role"])
 
+    avatar = ""
+    try:
+        avatar = user.customer_profile.avatar
+    except CustomerProfile.DoesNotExist:
+        pass
+    
     refresh = RefreshToken.for_user(user)
     access_token = str(refresh.access_token)
     refresh_token = str(refresh)
@@ -237,6 +248,7 @@ def google_success(request):
         "last_name": user.last_name,
         "is_superuser": user.is_superuser,
         "is_staff": user.is_staff,
+        "avatar":avatar,
     }
 
     params = urlencode(
@@ -565,6 +577,7 @@ class CustomerAvatarUploadView(APIView):
 
         profile.avatar = saved_path
         profile.save(update_fields=["avatar"])
+        user.customer_profile = profile
 
         full_url = (
             request.build_absolute_uri(saved_path)
@@ -585,6 +598,7 @@ class CustomerAvatarUploadView(APIView):
         profile, _ = CustomerProfile.objects.get_or_create(user=user)
         profile.avatar = ""
         profile.save(update_fields=["avatar"])
+        user.customer_profile = profile
 
         return Response(
             {

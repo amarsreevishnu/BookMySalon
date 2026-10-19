@@ -87,7 +87,7 @@ function Login() {
             } else if (user.role === "WORKER") {
                 navigate("/worker/dashboard");
             } else {
-                navigate("/customer-home");
+                navigate("/customer/home");
             }
         } catch (error) {
             const responseData = error.response?.data;

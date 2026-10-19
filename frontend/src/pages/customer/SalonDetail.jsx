@@ -138,13 +138,6 @@ const DEFAULT_SALON_DATA = {
       discountRate: 0.20,
       minSpend: 2000,
     },
-    {
-      code: "FIRSTSPA",
-      title: "₹200 Instant Welcome Discount",
-      desc: "Flat ₹200 off your first appointment at Aura Luxe",
-      discountFixed: 200,
-      minSpend: 1000,
-    },
   ],
   reviews: [
     {
@@ -201,6 +194,11 @@ export default function SalonDetail() {
   // Tab State
   const [activeTab, setActiveTab] = useState("services");
   const [selectedServiceCategory, setSelectedServiceCategory] = useState("All");
+
+  // Interactive UI Filters
+  const [serviceSearchQuery, setServiceSearchQuery] = useState("");
+  const [reviewFilterRating, setReviewFilterRating] = useState(0); // 0 = all
+  const [slotTimeFilter, setSlotTimeFilter] = useState("all"); // "all", "morning", "afternoon", "evening"
 
   // Booking & Cart State
   const [selectedServices, setSelectedServices] = useState([]);
@@ -266,6 +264,22 @@ export default function SalonDetail() {
       if (stored.phone_number || stored.phone) setClientPhone(stored.phone_number || stored.phone || "");
     } catch {}
   }, []);
+
+  // Keyboard navigation for photo lightbox gallery
+  useEffect(() => {
+    if (!isGalleryOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setIsGalleryOpen(false);
+      if (e.key === "ArrowLeft") {
+        setActivePhotoIdx((prev) => (prev > 0 ? prev - 1 : salon.images.length - 1));
+      }
+      if (e.key === "ArrowRight") {
+        setActivePhotoIdx((prev) => (prev < salon.images.length - 1 ? prev + 1 : 0));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isGalleryOpen, salon.images.length]);
 
   const dateSlots = useMemo(() => {
     const list = [];
@@ -544,11 +558,17 @@ export default function SalonDetail() {
         handler: async function (response) {
           try {
             setIsSubmittingBooking(true);
-            const verifyRes = await api.post(`/bookings/${orderData.booking_id}/verify-razorpay/`, {
+            const verifyPayload = {
+              ...payload,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-            });
+            };
+            const endpoint =
+              orderData.booking_id && orderData.booking_id !== 0
+                ? `/bookings/${orderData.booking_id}/verify-razorpay/`
+                : `/bookings/verify-razorpay/`;
+            const verifyRes = await api.post(endpoint, verifyPayload);
             setConfirmedBookingData(verifyRes.data.booking);
             setBookingSuccess(true);
             showToast("Online payment successful! Appointment booked. 🎉");
@@ -621,8 +641,8 @@ export default function SalonDetail() {
               name: w.name || "Specialist",
               role: w.specialization || "Master Stylist",
               experience: w.experience || "4+ yrs exp",
-              rating: parseFloat(w.rating) || 4.9,
-              reviewsCount: w.reviews_count || 50,
+              rating: typeof w.rating === "number" ? w.rating : (parseFloat(w.rating) || 5.0),
+              reviewsCount: typeof w.reviews_count === "number" ? w.reviews_count : (parseInt(w.reviews_count, 10) || 0),
               image: w.profile_photo ? resolveImageUrl(w.profile_photo) : DEFAULT_SALON_DATA.stylists[index % DEFAULT_SALON_DATA.stylists.length].image,
               specialty: w.station ? `Station: ${w.station}` : "Certified Beauty Specialist",
               approvedLeaves: Array.isArray(w.approved_leaves) ? w.approved_leaves : [],
@@ -708,12 +728,18 @@ export default function SalonDetail() {
             });
           }
 
+          const dynRating = typeof apiData.rating === "number" ? apiData.rating : (parseFloat(apiData.rating) || 5.0);
+          const dynReviewsCount = typeof apiData.reviews_count === "number" ? apiData.reviews_count : (parseInt(apiData.reviews_count, 10) || 0);
+          const dynReviews = Array.isArray(apiData.reviews) && apiData.reviews.length > 0
+            ? apiData.reviews
+            : (Array.isArray(apiData.reviews) ? [] : DEFAULT_SALON_DATA.reviews);
+
           setSalon({
             id: apiData.id || id,
             name: apiData.name || DEFAULT_SALON_DATA.name,
             tagline: apiData.tagline || DEFAULT_SALON_DATA.tagline,
-            rating: 4.9,
-            reviewsCount: 124,
+            rating: dynRating,
+            reviewsCount: dynReviewsCount,
             priceTier: "₹₹₹ Luxury",
             status: dynamicStatus,
             address: apiData.address || DEFAULT_SALON_DATA.address,
@@ -729,7 +755,8 @@ export default function SalonDetail() {
             stylists: stylistList,
             amenities: DEFAULT_SALON_DATA.amenities,
             offers: DEFAULT_SALON_DATA.offers,
-            reviews: DEFAULT_SALON_DATA.reviews,
+            reviews: dynReviews,
+            ratingBreakdown: apiData.rating_breakdown || null,
             openingHours: dynamicOpeningHours,
             offDays: Array.isArray(apiData.off_days) ? apiData.off_days : [],
           });
@@ -827,10 +854,70 @@ export default function SalonDetail() {
     return ["All", ...Array.from(cats)];
   }, [salon.services]);
 
+  const categoryCounts = useMemo(() => {
+    const counts = { All: salon.services.length };
+    salon.services.forEach((s) => {
+      const cat = s.category || "General";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [salon.services]);
+
   const filteredServices = useMemo(() => {
-    if (selectedServiceCategory === "All") return salon.services;
-    return salon.services.filter((s) => (s.category || "General") === selectedServiceCategory);
-  }, [salon.services, selectedServiceCategory]);
+    return salon.services.filter((s) => {
+      const catMatch =
+        selectedServiceCategory === "All" ||
+        (s.category || "General") === selectedServiceCategory;
+      const q = serviceSearchQuery.trim().toLowerCase();
+      const searchMatch =
+        !q ||
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.description && s.description.toLowerCase().includes(q)) ||
+        (s.category && s.category.toLowerCase().includes(q));
+      return catMatch && searchMatch;
+    });
+  }, [salon.services, selectedServiceCategory, serviceSearchQuery]);
+
+  const slotCounts = useMemo(() => {
+    let morning = 0;
+    let afternoon = 0;
+    let evening = 0;
+    dynamicSlots.forEach((s) => {
+      const h = parseInt((s.time || "").split(":")[0], 10);
+      if (!isNaN(h)) {
+        if (h < 12) morning++;
+        else if (h < 17) afternoon++;
+        else evening++;
+      }
+    });
+    return { all: dynamicSlots.length, morning, afternoon, evening };
+  }, [dynamicSlots]);
+
+  const filteredSlots = useMemo(() => {
+    if (slotTimeFilter === "all") return dynamicSlots;
+    return dynamicSlots.filter((s) => {
+      const h = parseInt((s.time || "").split(":")[0], 10);
+      if (isNaN(h)) return true;
+      if (slotTimeFilter === "morning") return h < 12;
+      if (slotTimeFilter === "afternoon") return h >= 12 && h < 17;
+      if (slotTimeFilter === "evening") return h >= 17;
+      return true;
+    });
+  }, [dynamicSlots, slotTimeFilter]);
+
+  const filteredReviews = useMemo(() => {
+    if (!reviewFilterRating) return salon.reviews;
+    return salon.reviews.filter((r) => Number(r.rating) === Number(reviewFilterRating));
+  }, [salon.reviews, reviewFilterRating]);
+
+  const bookingCompletion = useMemo(() => {
+    let completed = 0;
+    if (selectedServices.length > 0) completed++;
+    if (dateSlots[selectedDateIdx] && !dateSlots[selectedDateIdx].isOffDay) completed++;
+    if (selectedStylist) completed++;
+    if (selectedTimeSlot) completed++;
+    return completed;
+  }, [selectedServices, selectedDateIdx, dateSlots, selectedStylist, selectedTimeSlot]);
 
   
   const handleTabClick = (tabKey, elementId) => {
@@ -863,9 +950,9 @@ export default function SalonDetail() {
       <section className="salon-detail-topbar">
         <div className="salon-detail-container topbar-flex">
           <nav className="detail-breadcrumbs" aria-label="Breadcrumb">
-            <Link to="/customer-home">Home</Link>
+            <Link to="/customer/home">Home</Link>
             <span className="breadcrumb-separator">/</span>
-            <Link to="/salons">Salons</Link>
+            <Link to="/customer/salons">Salons</Link>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-active">{salon.name}</span>
           </nav>
@@ -1087,6 +1174,32 @@ export default function SalonDetail() {
 
               {openSections.services && (
                 <div className="section-collapsible-body">
+                  {/* Interactive Service Search & Filter Toolbar */}
+                  <div className="services-toolbar-row">
+                    <div className="service-search-box">
+                      <svg className="search-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search treatments (e.g. Balayage, Keratin, Facial, Haircut)..."
+                        value={serviceSearchQuery}
+                        onChange={(e) => setServiceSearchQuery(e.target.value)}
+                        className="service-search-input"
+                      />
+                      {serviceSearchQuery && (
+                        <button
+                          type="button"
+                          className="service-search-clear-btn"
+                          onClick={() => setServiceSearchQuery("")}
+                          title="Clear search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Service Categories Filter Pills */}
                   <div className="service-category-pills">
                     {availableCategories.map((cat) => (
@@ -1095,64 +1208,83 @@ export default function SalonDetail() {
                         className={`category-pill-btn ${selectedServiceCategory === cat ? "active" : ""}`}
                         onClick={() => setSelectedServiceCategory(cat)}
                       >
-                        {cat}
+                        <span>{cat}</span>
+                        <span className="cat-count-badge">{categoryCounts[cat] || 0}</span>
                       </button>
                     ))}
                   </div>
 
-                  {/* Services List */}
-                  <div className="services-card-list">
-                    {filteredServices.map((service) => {
-                      const isAdded = selectedServices.some((s) => s.id === service.id);
-                      return (
-                        <article key={service.id} className={`service-item-card ${isAdded ? "item-selected" : ""}`}>
-                          <div className="service-item-main">
-                            <div className="service-item-top">
-                              <h3 className="service-name">{service.name}</h3>
-                              {service.badge && <span className="service-badge-pill">{service.badge}</span>}
-                            </div>
-                            <p className="service-description">{service.description}</p>
-                            <div className="service-specs-row">
-                              <span className="spec-item">
-                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {service.duration}
-                              </span>
-                              <span className="spec-dot">•</span>
-                              <span className="service-category-tag">{service.category}</span>
-                            </div>
-                          </div>
-
-                          <div className="service-item-action-col">
-                            <div className="service-price-block">
-                              <span className="currency-symbol">₹</span>
-                              <span className="price-number">{service.price.toLocaleString("en-IN")}</span>
-                            </div>
-
-                            <button
-                              type="button"
-                              className={`service-add-btn ${isAdded ? "added-state" : ""}`}
-                              onClick={() => handleToggleService(service)}
-                            >
-                              {isAdded ? (
-                                <>
-                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                  {/* Services List or Empty State */}
+                  {filteredServices.length === 0 ? (
+                    <div className="empty-search-state">
+                      <span className="empty-search-icon">🔍</span>
+                      <h4>No services match "{serviceSearchQuery}"</h4>
+                      <p>Try searching for a different keyword or reset filters to see all available treatments.</p>
+                      <button
+                        type="button"
+                        className="reset-search-btn"
+                        onClick={() => {
+                          setServiceSearchQuery("");
+                          setSelectedServiceCategory("All");
+                        }}
+                      >
+                        Reset All Filters
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="services-card-list">
+                      {filteredServices.map((service) => {
+                        const isAdded = selectedServices.some((s) => s.id === service.id);
+                        return (
+                          <article key={service.id} className={`service-item-card ${isAdded ? "item-selected" : ""}`}>
+                            <div className="service-item-main">
+                              <div className="service-item-top">
+                                <h3 className="service-name">{service.name}</h3>
+                                {service.badge && <span className="service-badge-pill">{service.badge}</span>}
+                              </div>
+                              <p className="service-description">{service.description}</p>
+                              <div className="service-specs-row">
+                                <span className="spec-item">
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
-                                  Added
-                                </>
-                              ) : (
-                                <>
-                                  <span>+</span> Add
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
+                                  {service.duration}
+                                </span>
+                                <span className="spec-dot">•</span>
+                                <span className="service-category-tag">{service.category}</span>
+                              </div>
+                            </div>
+
+                            <div className="service-item-action-col">
+                              <div className="service-price-block">
+                                <span className="currency-symbol">₹</span>
+                                <span className="price-number">{service.price.toLocaleString("en-IN")}</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                className={`service-add-btn ${isAdded ? "added-state" : ""}`}
+                                onClick={() => handleToggleService(service)}
+                              >
+                                {isAdded ? (
+                                  <>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                                    </svg>
+                                    Added
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>+</span> Add
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1479,58 +1611,109 @@ export default function SalonDetail() {
                       <span className="big-score">{salon.rating}</span>
                       <div className="stars-gold">★★★★★</div>
                       <span className="total-reviews-label">Based on {salon.reviewsCount} verified visits</span>
+                      {reviewFilterRating > 0 && (
+                        <button
+                          type="button"
+                          className="reset-star-filter-link"
+                          onClick={() => setReviewFilterRating(0)}
+                        >
+                          Clear Filter (Show All)
+                        </button>
+                      )}
                     </div>
 
                     <div className="overview-bars-box">
-                      <div className="rating-bar-row">
-                        <span>5 Stars</span>
-                        <div className="progress-track"><div className="progress-fill" style={{ width: "88%" }}></div></div>
-                        <span>88%</span>
-                      </div>
-                      <div className="rating-bar-row">
-                        <span>4 Stars</span>
-                        <div className="progress-track"><div className="progress-fill" style={{ width: "9%" }}></div></div>
-                        <span>9%</span>
-                      </div>
-                      <div className="rating-bar-row">
-                        <span>3 Stars</span>
-                        <div className="progress-track"><div className="progress-fill" style={{ width: "2%" }}></div></div>
-                        <span>2%</span>
-                      </div>
-                      <div className="rating-bar-row">
-                        <span>2 Stars</span>
-                        <div className="progress-track"><div className="progress-fill" style={{ width: "1%" }}></div></div>
-                        <span>1%</span>
-                      </div>
-                      <div className="rating-bar-row">
-                        <span>1 Star</span>
-                        <div className="progress-track"><div className="progress-fill" style={{ width: "0%" }}></div></div>
-                        <span>0%</span>
-                      </div>
+                      {[5, 4, 3, 2, 1].map((star) => {
+                        const pct = salon.ratingBreakdown?.[star]?.percentage ?? (star === 5 ? 88 : star === 4 ? 9 : star === 3 ? 2 : star === 2 ? 1 : 0);
+                        const isSelectedStar = reviewFilterRating === star;
+                        return (
+                          <div
+                            key={star}
+                            className={`rating-bar-row ${isSelectedStar ? "rating-bar-selected" : ""}`}
+                            onClick={() => setReviewFilterRating((prev) => (prev === star ? 0 : star))}
+                            title={`Filter by ${star} Star reviews (click to toggle)`}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <span className="star-bar-label">{star} Star{star > 1 ? "s" : ""}</span>
+                            <div className="progress-track">
+                              <div className="progress-fill" style={{ width: `${pct}%` }}></div>
+                            </div>
+                            <span className="star-bar-pct">{pct}%</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
+                  {/* Active Star Filter Banner */}
+                  {reviewFilterRating > 0 && (
+                    <div className="review-filter-active-bar">
+                      <span>
+                        Showing <strong>{reviewFilterRating} Star</strong> reviews ({filteredReviews.length})
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-clear-review-filter"
+                        onClick={() => setReviewFilterRating(0)}
+                      >
+                        ✕ Show All
+                      </button>
+                    </div>
+                  )}
+
                   {/* Reviews List */}
-                  <div className="reviews-list">
-                    {salon.reviews.map((rev) => (
-                      <div key={rev.id} className="review-card">
-                        <div className="review-header">
-                          <div className="reviewer-info">
-                            <div className="reviewer-avatar">{rev.initial}</div>
-                            <div>
-                              <h4 className="reviewer-name">{rev.author}</h4>
-                              <span className="review-treatment-tag">Treatment: {rev.treatment}</span>
+                  {filteredReviews.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "32px 16px", color: "#64748b", background: "#f8fafc", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: "2rem", marginBottom: "8px" }}>⭐</div>
+                      <h4 style={{ margin: "0 0 4px", color: "#1e293b", fontSize: "0.95rem", fontWeight: 700 }}>
+                        {reviewFilterRating > 0 ? `No ${reviewFilterRating}-Star Reviews Found` : "No Reviews Yet"}
+                      </h4>
+                      <p style={{ margin: "0 0 12px", fontSize: "0.82rem" }}>
+                        {reviewFilterRating > 0
+                          ? "There are currently no reviews matching this specific star rating."
+                          : "Be the first verified client to review this salon after completing an appointment!"}
+                      </p>
+                      {reviewFilterRating > 0 && (
+                        <button
+                          type="button"
+                          className="reset-search-btn"
+                          onClick={() => setReviewFilterRating(0)}
+                        >
+                          View All Reviews
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="reviews-list">
+                      {filteredReviews.map((rev) => (
+                        <div key={rev.id} className="review-card">
+                          <div className="review-header">
+                            <div className="reviewer-info">
+                              {rev.avatar ? (
+                                <img
+                                  src={rev.avatar}
+                                  alt={rev.author}
+                                  className="reviewer-avatar"
+                                  style={{ objectFit: "cover" }}
+                                />
+                              ) : (
+                                <div className="reviewer-avatar">{rev.initial}</div>
+                              )}
+                              <div>
+                                <h4 className="reviewer-name">{rev.author}</h4>
+                                <span className="review-treatment-tag">Treatment: {rev.treatment}</span>
+                              </div>
+                            </div>
+                            <div className="review-meta">
+                              <div className="review-stars">{"★".repeat(rev.rating)}</div>
+                              <span className="review-date">{rev.date}</span>
                             </div>
                           </div>
-                          <div className="review-meta">
-                            <div className="review-stars">{"★".repeat(rev.rating)}</div>
-                            <span className="review-date">{rev.date}</span>
-                          </div>
+                          {rev.comment && <p className="review-comment">“{rev.comment}”</p>}
                         </div>
-                        <p className="review-comment">“{rev.comment}”</p>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1621,7 +1804,7 @@ export default function SalonDetail() {
 
           {/* RIGHT STICKY COLUMN: Appointment Booking Drawer */}
           <aside className="detail-sidebar-col">
-            <div className="sticky-booking-card">
+            <div className="sticky-booking-card" id="booking-card-anchor">
               <div
                 className="booking-card-header collapsible-header"
                 onClick={() => toggleSection("booking")}
@@ -1653,6 +1836,32 @@ export default function SalonDetail() {
                       </svg>
                     </span>
                   </button>
+                </div>
+              </div>
+
+              {/* Interactive Booking Progress Step Indicator */}
+              <div className="booking-progress-container">
+                <div className="booking-progress-info">
+                  <span className="progress-step-text">
+                    {bookingCompletion === 4
+                      ? "✓ All details selected — Ready to book!"
+                      : `Step ${bookingCompletion + 1} of 4: ${
+                          !selectedServices[0]
+                            ? "Select a Treatment"
+                            : !dateSlots[selectedDateIdx] || dateSlots[selectedDateIdx].isOffDay
+                            ? "Select an Open Date"
+                            : !selectedStylist
+                            ? "Choose Specialist"
+                            : "Pick Time Slot"
+                        }`}
+                  </span>
+                  <span className="progress-pct-text">{bookingCompletion} / 4</span>
+                </div>
+                <div className="booking-progress-bar">
+                  <div
+                    className="booking-progress-bar-fill"
+                    style={{ width: `${(bookingCompletion / 4) * 100}%` }}
+                  />
                 </div>
               </div>
 
@@ -2171,32 +2380,71 @@ export default function SalonDetail() {
                           )}
                         </div>
                       ) : (
-                        <div className="time-slots-grid">
-                          {dynamicSlots.map((s) => {
-                            const isSelected = selectedSlotObj?.time === s.time || selectedTimeSlot === s.time_display;
-                            return (
+                        <div>
+                          {/* Time-of-day Filter Segmented Tabs */}
+                          <div className="slot-tod-tabs">
+                            {[
+                              { id: "all", label: "All", count: slotCounts.all },
+                              { id: "morning", label: "Morning", icon: "🌅", count: slotCounts.morning },
+                              { id: "afternoon", label: "Afternoon", icon: "☀️", count: slotCounts.afternoon },
+                              { id: "evening", label: "Evening", icon: "🌙", count: slotCounts.evening },
+                            ].map((tod) => (
                               <button
-                                key={s.time}
+                                key={tod.id}
                                 type="button"
-                                disabled={!s.available}
-                                title={!s.available ? (s.reason ? `Unavailable (${s.reason})` : "Slot unavailable") : `${s.time_display} - ${s.end_time_display}`}
-                                className={`time-slot-btn ${isSelected ? "time-active" : ""}`}
-                                onClick={() => {
-                                  if (s.available) {
-                                    setSelectedSlotObj(s);
-                                    setSelectedTimeSlot(s.time_display || s.time);
-                                  }
-                                }}
+                                className={`slot-tod-tab ${slotTimeFilter === tod.id ? "active" : ""}`}
+                                onClick={() => setSlotTimeFilter(tod.id)}
                               >
-                                <span>{s.time_display}</span>
-                                {!s.available && (
-                                  <span style={{ fontSize: "0.66rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
-                                    - {s.reason === "Break" ? "Break" : "Booked"}
-                                  </span>
-                                )}
+                                {tod.icon && <span className="tod-icon">{tod.icon}</span>}
+                                <span>{tod.label}</span>
+                                <span className="tod-badge">{tod.count}</span>
                               </button>
-                            );
-                          })}
+                            ))}
+                          </div>
+
+                          {filteredSlots.length === 0 ? (
+                            <div className="empty-tod-slots">
+                              <p>No available slots in the {slotTimeFilter} session.</p>
+                              <button
+                                type="button"
+                                className="show-all-slots-link"
+                                onClick={() => setSlotTimeFilter("all")}
+                              >
+                                View All Available Slots ({dynamicSlots.length})
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="time-slots-grid">
+                              {filteredSlots.map((s) => {
+                                const isSelected = selectedSlotObj?.time === s.time || selectedTimeSlot === s.time_display;
+                                return (
+                                  <button
+                                    key={s.time}
+                                    type="button"
+                                    disabled={!s.available}
+                                    title={!s.available ? (s.reason ? `Unavailable (${s.reason})` : "Slot unavailable") : `${s.time_display} - ${s.end_time_display}`}
+                                    className={`time-slot-btn ${isSelected ? "time-active" : ""}`}
+                                    onClick={() => {
+                                      if (s.available) {
+                                        setSelectedSlotObj(s);
+                                        setSelectedTimeSlot(s.time_display || s.time);
+                                      }
+                                    }}
+                                  >
+                                    <span className="slot-time-text">{s.time_display}</span>
+                                    {s.end_time_display && s.available && (
+                                      <span className="slot-end-time">until {s.end_time_display}</span>
+                                    )}
+                                    {!s.available && (
+                                      <span style={{ fontSize: "0.66rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
+                                        - {s.reason === "Break" ? "Break" : "Booked"}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
@@ -2230,6 +2478,42 @@ export default function SalonDetail() {
                 <span className="total-price-tag">₹{billSummary.total.toLocaleString("en-IN")}</span>
               </div>
             </div>
+
+            {bookingError && (
+              <div
+                style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  padding: "10px 12px",
+                  marginBottom: "12px",
+                  color: "#b91c1c",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                }}
+              >
+                <span>⚠️ {bookingError}</span>
+                <button
+                  type="button"
+                  onClick={() => setBookingError("")}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#b91c1c",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                    lineHeight: 1,
+                  }}
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* STEP 6: Primary Action CTA */}
             <button
@@ -2349,6 +2633,42 @@ export default function SalonDetail() {
       )}
 
 
+
+      {/* Interactive Mobile Bottom Booking Bar */}
+      <aside className="mobile-bottom-booking-bar" aria-label="Quick Booking Bar">
+        <div className="mobile-bottom-bar-inner">
+          <div className="mobile-bar-info">
+            <span className="mobile-bar-service-title">
+              {selectedServices[0]?.name || "Select a Treatment"}
+            </span>
+            <div className="mobile-bar-meta-row">
+              <span className="mobile-bar-total">₹{billSummary.total.toLocaleString("en-IN")}</span>
+              <span className="mobile-bar-sep">•</span>
+              <span className="mobile-bar-slot">
+                {selectedTimeSlot ? `${dateSlots[selectedDateIdx]?.dayName} ${selectedTimeSlot}` : "Choose time slot"}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="mobile-bar-action-btn"
+            onClick={() => {
+              if (!openSections.booking) {
+                setOpenSections((prev) => ({ ...prev, booking: true }));
+              }
+              const el = document.getElementById("booking-card-anchor");
+              if (el) {
+                const yOffset = -70;
+                const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                window.scrollTo({ top: y, behavior: "smooth" });
+              }
+            }}
+          >
+            <span>{bookingCompletion === 4 ? "Book Now ⚡" : "Select Slot →"}</span>
+          </button>
+        </div>
+      </aside>
 
       <CustomerFooter />
     </div>

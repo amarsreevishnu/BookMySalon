@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
-import { setCredentials } from "../../features/auth/authSlice";
+import { selectUserAvatar } from "../../features/auth/authSlice";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
 import { resolveImageUrl } from "../../utils/imageUtils";
@@ -11,8 +11,8 @@ import "../../styles/customerProfile.css";
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const { user, logout } = useAuth();
+  const { user, updateUser } = useAuth();
+  const reduxAvatar = useSelector(selectUserAvatar);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef(null);
@@ -85,6 +85,19 @@ export default function CustomerProfile() {
         setEditSensitivities(data.wellness_preferences.sensitivities || []);
         setEditRituals(data.wellness_preferences.rituals || []);
       }
+
+      // Synchronize latest profile data with global Redux auth state
+      updateUser({
+        ...user,
+        id: data.id || user?.id,
+        email: data.email || user?.email,
+        first_name: data.first_name ?? user?.first_name ?? "",
+        last_name: data.last_name ?? user?.last_name ?? "",
+        full_name: data.full_name || `${data.first_name || ""} ${data.last_name || ""}`.trim() || user?.full_name,
+        avatar: data.avatar || "",
+        phone_number: data.phone_number || "",
+        role: user?.role || "CUSTOMER",
+      });
     } catch (err) {
       console.error("Failed to fetch customer profile:", err);
       showToast("Unable to load latest profile data. Using stored credentials.");
@@ -143,17 +156,17 @@ export default function CustomerProfile() {
       const res = await api.put("/accounts/customer/profile/", payload);
       setProfileData(res.data);
 
-      if (res.data.user) {
-        const storedToken = localStorage.getItem("access_token");
-        const storedRefresh = localStorage.getItem("refresh_token");
-        dispatch(
-          setCredentials({
-            token: storedToken,
-            refreshToken: storedRefresh,
-            user: res.data.user,
-          })
-        );
-      }
+      const updatedUser = {
+        ...user,
+        ...(res.data.user || {}),
+        first_name: res.data.first_name || firstName,
+        last_name: res.data.last_name || lastName,
+        full_name: res.data.full_name || `${firstName} ${lastName}`.trim(),
+        avatar: res.data.avatar || user?.avatar || "",
+        phone_number: res.data.phone_number || phone,
+        role: user?.role || "CUSTOMER",
+      };
+      updateUser(updatedUser);
 
       showToast("Personal information updated successfully!");
     } catch (err) {
@@ -182,22 +195,19 @@ export default function CustomerProfile() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      const newAvatarUrl = res.data.avatar || res.data.user?.avatar || "";
+
       setProfileData((prev) => ({
         ...prev,
-        avatar: res.data.avatar,
+        avatar: newAvatarUrl,
       }));
 
-      if (res.data.user) {
-        const storedToken = localStorage.getItem("access_token");
-        const storedRefresh = localStorage.getItem("refresh_token");
-        dispatch(
-          setCredentials({
-            token: storedToken,
-            refreshToken: storedRefresh,
-            user: res.data.user,
-          })
-        );
-      }
+      const updatedUser = {
+        ...user,
+        ...(res.data.user || {}),
+        avatar: newAvatarUrl,
+      };
+      updateUser(updatedUser);
 
       showToast("Profile avatar updated successfully!");
     } catch (err) {
@@ -214,17 +224,12 @@ export default function CustomerProfile() {
         avatar: "",
       }));
 
-      if (res.data.user) {
-        const storedToken = localStorage.getItem("access_token");
-        const storedRefresh = localStorage.getItem("refresh_token");
-        dispatch(
-          setCredentials({
-            token: storedToken,
-            refreshToken: storedRefresh,
-            user: res.data.user,
-          })
-        );
-      }
+      const updatedUser = {
+        ...user,
+        ...(res.data.user || {}),
+        avatar: "",
+      };
+      updateUser(updatedUser);
 
       showToast("Avatar removed successfully.");
     } catch (err) {
@@ -333,8 +338,8 @@ export default function CustomerProfile() {
 
   const userInitial = currentFullName.charAt(0).toUpperCase();
 
-  const userAvatarUrl = profileData?.avatar || user?.avatar || "";
-
+  const userAvatarUrl = profileData?.avatar || reduxAvatar || user?.avatar || "";
+  
   return (
     <div className="customer-profile-page">
       <CustomerHeader />
@@ -343,13 +348,11 @@ export default function CustomerProfile() {
         {/* Header & Title */}
         
 
-        {/* Two Column Layout Grid */}
+        
         <div className="profile-layout-grid">
-          {/* ================================================================
-              LEFT SIDEBAR
-              ================================================================ */}
+          {/* LEFT SIDEBAR*/}
           <aside className="profile-sidebar">
-            {/* Identity Card */}
+            
             <div className="sidebar-identity-card">
               <div className="sidebar-avatar-wrap">
                 {userAvatarUrl ? ( 
@@ -497,9 +500,7 @@ export default function CustomerProfile() {
             </div>
           </aside>
 
-          {/* ================================================================
-              MAIN CONTENT: TAB ROUTER
-              ================================================================ */}
+          {/* MAIN CONTENT: TAB ROUTE */}
           <section className="profile-content-area">
             {activeTab === "profile" && (
               <>
@@ -956,9 +957,7 @@ export default function CustomerProfile() {
               </>
             )}
 
-            {/* ================================================================
-                TAB: MY BOOKINGS
-                ================================================================ */}
+            {/*TAB: MY BOOKINGS */}
             {activeTab === "bookings" && (
               <div className="profile-card">
                 <div className="profile-card-header">
@@ -966,7 +965,7 @@ export default function CustomerProfile() {
                     <h3>My Appointments & Rituals</h3>
                     <p>Track your scheduled sessions and past botanical salon visits.</p>
                   </div>
-                  <Link to="/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
+                  <Link to="/customer/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
                     + Book New Ritual
                   </Link>
                 </div>
@@ -985,7 +984,7 @@ export default function CustomerProfile() {
                       Explore certified salons and reserve your initial conscious ritual.
                     </p>
                     <Link
-                      to="/salons"
+                      to="/customer/salons"
                       className="btn-upload-avatar"
                       style={{ textDecoration: "none", display: "inline-block" }}
                     >
@@ -1041,7 +1040,7 @@ export default function CustomerProfile() {
                           </small>
                         </div>
                         <Link
-                          to={`/salons/${b.salon_id}`}
+                          to={`/customer/salons/${b.salon_id}`}
                           className="btn-outline-action"
                           style={{ textDecoration: "none" }}
                         >
@@ -1054,9 +1053,7 @@ export default function CustomerProfile() {
               </div>
             )}
 
-            {/* ================================================================
-                TAB: FAVORITES
-                ================================================================ */}
+            {/*  TAB: FAVORITES*/}
             {activeTab === "favorites" && (
               <div className="profile-card">
                 <div className="profile-card-header">
@@ -1064,7 +1061,7 @@ export default function CustomerProfile() {
                     <h3>Saved Favorite Salons</h3>
                     <p>Your curated selection of organic, vegan-certified partner spaces.</p>
                   </div>
-                  <Link to="/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
+                  <Link to="/customer/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
                     Explore More
                   </Link>
                 </div>
@@ -1083,7 +1080,7 @@ export default function CustomerProfile() {
                       Discover vetted salons and save your preferred spaces for quick bookings.
                     </p>
                     <Link
-                      to="/salons"
+                      to="/customer/salons"
                       className="btn-upload-avatar"
                       style={{ textDecoration: "none", display: "inline-block" }}
                     >

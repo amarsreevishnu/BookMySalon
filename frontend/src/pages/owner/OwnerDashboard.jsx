@@ -5,13 +5,25 @@ import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
 import OwnerBanner from "../../components/owner/OwnerBanner";
+import OwnerBookingsTab from "../../components/owner/OwnerBookingsTab";
+import OwnerReviewsTab from "../../components/owner/OwnerReviewsTab";
 import "../../styles/ownerDashboard.css";
+
+const formatLocalDate = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, updateUser } = useAuth();
 
+  const [scheduleView, setScheduleView] = useState("today"); // "today" | "upcoming" | "all"
   const searchInputRef = useRef(null);
   
   const [workersList, setWorkersList] = useState([]);
@@ -23,6 +35,8 @@ export default function OwnerDashboard() {
   const [workerError, setWorkerError] = useState("");
   const [submittingWorker, setSubmittingWorker] = useState(false);
   const [workerSuccessModal, setWorkerSuccessModal] = useState(null);
+  const [allBookings, setAllBookings] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
   
   const [workerForm, setWorkerForm] = useState({
     full_name: "", email: "", phone_number: "", specialization: "Senior Hair Stylist",
@@ -59,6 +73,16 @@ export default function OwnerDashboard() {
       setWorkerError(err.response?.data?.detail || "Could not load workers. Check the workers API endpoint.");
     } finally {
       setLoadingWorkers(false);
+    }
+  };
+
+  const fetchServices = async () => {
+    try {
+      const res = await api.get("/services/owner/services/");
+      const svcs = res.data?.services || (Array.isArray(res.data) ? res.data : []);
+      setServicesList(svcs);
+    } catch (err) {
+      console.log("Could not load salon services for walk-in:", err);
     }
   };
 
@@ -246,13 +270,13 @@ export default function OwnerDashboard() {
     client_name: "",
     phone: "",
     service: "Haircut & Styling",
-    stylist: "Rahul Sharma",
+    stylist: "",
     station: "Station 01",
     duration: "45 mins",
   });
 
   const [blockChairForm, setBlockChairForm] = useState({
-    station: "Station 03",
+    station: "Station 01",
     reason: "Sanitization & Deep Cleaning",
     duration: "45 mins",
   });
@@ -276,95 +300,38 @@ export default function OwnerDashboard() {
   
   const [dashboardData, setDashboardData] = useState({
     salon_info: {
-      id: 4,
-      name: "ABC Salon & Spa - Indiranagar Flagship",
-      city: "Indiranagar Flagship",
-      category: "Hair & Styling • Spa",
-      outlet_code: "#04",
+      id: null,
+      name: "",
+      city: "",
+      category: "",
+      outlet_code: "",
       is_open: true,
-      approval_status: "APPROVED",
+      approval_status: "",
     },
     kpi_stats: {
-      bookings: { value: 24, trend: "+12% vs yesterday", trend_type: "positive" },
-      revenue: { value: 8450, formatted: "₹8,450", trend: "+18% target pacing", trend_type: "positive" },
-      completed: { value: 15, trend: "+9% turnaround", trend_type: "positive" },
-      cancelled: { value: 2, trend: "-1% low attrition", trend_type: "warning" },
-      upcoming: { value: 7, trend: "+8% booked slots", trend_type: "positive" },
+      bookings: { value: 0, trend: "0 today", trend_type: "positive" },
+      revenue: { value: 0, formatted: "₹0", trend: "Accrued Revenue", trend_type: "positive" },
+      completed: { value: 0, trend: "0 completed", trend_type: "positive" },
+      cancelled: { value: 0, trend: "0 cancelled", trend_type: "positive" },
+      upcoming: { value: 0, trend: "0 active slots", trend_type: "positive" },
     },
-    today_schedule: [
-      {
-        id: 101,
-        time: "10:00",
-        period: "AM",
-        client_name: "Vishnu Prasad",
-        station: "Station 01",
-        stylist: "Rahul",
-        service: "Haircut & Styling",
-        duration: "45 mins",
-        status: "In Progress",
-        status_type: "in-progress",
-        action_label: "Check In",
-        action_type: "primary",
-      },
-      {
-        id: 102,
-        time: "10:30",
-        period: "AM",
-        client_name: "Meera Nair",
-        station: "Station 02",
-        stylist: "Anjali",
-        service: "Hydra Facial",
-        duration: "60 mins",
-        status: "Arrived",
-        status_type: "arrived",
-        action_label: "Seat Client",
-        action_type: "warm",
-      },
-      {
-        id: 103,
-        time: "11:00",
-        period: "AM",
-        client_name: "Vikram Singhania",
-        station: "Station 03",
-        stylist: "Rahul",
-        service: "Royal Beard Sculpt",
-        duration: "30 mins",
-        status: "Confirmed",
-        status_type: "confirmed",
-        action_label: "Send Reminder",
-        action_type: "outline",
-      },
-    ],
-    staff_on_duty: [
-      
-    ],
+    today_schedule: [],
+    all_bookings: [],
+    staff_on_duty: [],
+    reviews: [],
+    worker_reviews: [],
+    rating: 5.0,
+    reviews_count: 0,
+    rating_breakdown: null,
     revenue_progression: {
-      peak_window: "11 AM - 1 PM",
-      daily_accrued: "₹8,450",
-      target: "₹12,000",
-      hours: [
-        { time: "9 AM", amount: "₹650", height: "35%", color: "#bde5d2", is_peak: false },
-        { time: "10 AM", amount: "₹1,400", height: "60%", color: "#8ec3a7", is_peak: false },
-        { time: "11 AM", amount: "₹2,600", height: "92%", color: "#295541", is_peak: true },
-        { time: "12 PM", amount: "₹2,100", height: "80%", color: "#477660", is_peak: false },
-        { time: "1 PM", amount: "₹1,100", height: "50%", color: "#f3cb87", is_peak: false },
-        { time: "2 PM", amount: "₹600", height: "25%", color: "#e9ecef", is_peak: false },
-      ],
+      peak_window: "--",
+      daily_accrued: "₹0",
+      target: "₹0",
+      hours: [],
     },
-    popular_services: [
-      {
-        id: 1,
-        name: "Haircut & Styling",
-        icon: "✂",
-        bookings: 32,
-        contribution_pct: 58,
-        color: "#2b5a45",
-        avg_price: "₹450",
-      },
-    ],
+    popular_services: [],
   });
 
-  console.log(dashboardData);
   
   useEffect(() => {
     if (!toastMessage) return;
@@ -373,30 +340,42 @@ export default function OwnerDashboard() {
   }, [toastMessage]);
 
   
-  useEffect(() => {
-    const fetchOwnerData = async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-        const res = await api.get("/salons/owner/dashboard/", config);
-        if (res.data) {
-          setDashboardData((prev) => ({
-            ...prev,
-            salon_info: { ...prev.salon_info, ...(res.data.salon_info || {}) },
-            kpi_stats: { ...prev.kpi_stats, ...(res.data.kpi_stats || {}) },
-            staff_on_duty: res.data.staff_on_duty && res.data.staff_on_duty.length > 0 ? res.data.staff_on_duty : prev.staff_on_duty,
-            popular_services: res.data.popular_services && res.data.popular_services.length > 0 ? res.data.popular_services : prev.popular_services,
-          }));
+  const fetchOwnerData = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const res = await api.get("/salons/owner/dashboard/", config);
+      if (res.data) {
+        setDashboardData((prev) => ({
+          ...prev,
+          salon_info: { ...prev.salon_info, ...(res.data.salon_info || {}) },
+          kpi_stats: res.data.kpi_stats || prev.kpi_stats,
+          staff_on_duty: res.data.staff_on_duty || [],
+          popular_services: res.data.popular_services || [],
+          revenue_progression: res.data.revenue_progression || prev.revenue_progression,
+          today_schedule: Array.isArray(res.data.today_schedule) ? res.data.today_schedule : [],
+          all_bookings: Array.isArray(res.data.all_bookings) ? res.data.all_bookings : [],
+          reviews: Array.isArray(res.data.reviews) ? res.data.reviews : [],
+          worker_reviews: Array.isArray(res.data.worker_reviews) ? res.data.worker_reviews : [],
+          rating: typeof res.data.rating === "number" ? res.data.rating : (parseFloat(res.data.rating) || 5.0),
+          reviews_count: typeof res.data.reviews_count === "number" ? res.data.reviews_count : (parseInt(res.data.reviews_count, 10) || 0),
+          rating_breakdown: res.data.rating_breakdown || null,
+        }));
+        if (Array.isArray(res.data.all_bookings)) {
+          setAllBookings(res.data.all_bookings);
         }
-      } catch (err) {
-        
-        console.log("Using studio defaults for owner dashboard");
       }
-    };
+    } catch (err) {
+      console.log("Failed to fetch owner dashboard data:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchOwnerData();
+    fetchWorkers();
+    fetchServices();
   }, []);
 
-  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "/" && document.activeElement !== searchInputRef.current) {
@@ -408,92 +387,61 @@ export default function OwnerDashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  
-  const handleAppointmentAction = (appointmentId, currentAction) => {
-    setDashboardData((prev) => {
-      const updatedSchedule = prev.today_schedule.map((item) => {
-        if (item.id !== appointmentId) return item;
+  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+    try {
+      await api.patch(`/salons/owner/bookings/${bookingId}/status/`, { status: newStatus });
+      setToastMessage(`Booking status updated to ${newStatus}!`);
+      await fetchOwnerData();
+    } catch (err) {
+      console.error("Failed to update booking status:", err);
+      setToastMessage(err.response?.data?.error || "Failed to update appointment status");
+    }
+  };
 
-        if (currentAction === "Seat Client") {
-          setToastMessage(`Seated ${item.client_name} at ${item.station}. Service in progress!`);
-          return {
-            ...item,
-            status: "In Progress",
-            status_type: "in-progress",
-            action_label: "Check In",
-            action_type: "primary",
-          };
-        } else if (currentAction === "Check In") {
-          setToastMessage(`${item.client_name} checked in! Session active.`);
-          return {
-            ...item,
-            status: "Completed",
-            status_type: "confirmed",
-            action_label: "Done ✓",
-            action_type: "outline",
-          };
-        } else if (currentAction === "Send Reminder") {
-          setToastMessage(`SMS & WhatsApp appointment reminder sent to ${item.client_name}!`);
-          return {
-            ...item,
-            action_label: "Reminder Sent",
-            action_type: "outline",
-          };
-        }
-        return item;
-      });
+  const handleAppointmentAction = async (appointmentId, currentAction) => {
+    let targetStatus = null;
+    if (currentAction === "Seat Client") {
+      targetStatus = "IN_PROGRESS";
+    } else if (currentAction === "Check In" || currentAction === "Complete") {
+      targetStatus = "COMPLETED";
+    } else if (currentAction === "Cancel") {
+      targetStatus = "CANCELLED";
+    } else if (currentAction === "Send Reminder") {
+      setToastMessage("Appointment reminder sent to client via SMS & WhatsApp!");
+      return;
+    }
 
-      return {
-        ...prev,
-        today_schedule: updatedSchedule,
-      };
-    });
+    if (targetStatus) {
+      await handleUpdateBookingStatus(appointmentId, targetStatus);
+    }
   };
 
   // Submit Quick Walk-In
-  const handleQuickWalkInSubmit = (e) => {
+  const handleQuickWalkInSubmit = async (e) => {
     e.preventDefault();
     if (!walkInForm.client_name.trim()) return;
 
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes().toString().padStart(2, "0");
-    const formattedHour = (hours % 12 || 12).toString().padStart(2, "0");
-    const period = hours >= 12 ? "PM" : "AM";
+    try {
+      await api.post("/salons/owner/quick-walkin/", {
+        client_name: walkInForm.client_name.trim(),
+        phone: walkInForm.phone,
+        service: walkInForm.service,
+        stylist: walkInForm.stylist || (workersList[0]?.full_name || "Specialist"),
+        station: walkInForm.station,
+        duration: walkInForm.duration,
+      });
+      setToastMessage(`Walk-in for ${walkInForm.client_name} registered successfully at ${walkInForm.station}!`);
+      await fetchOwnerData();
+    } catch (err) {
+      console.error("Failed to register walk-in:", err);
+      setToastMessage(err.response?.data?.error || "Failed to register walk-in.");
+    }
 
-    const newAppointment = {
-      id: Date.now(),
-      time: `${formattedHour}:${minutes}`,
-      period: period,
-      client_name: walkInForm.client_name.trim(),
-      station: walkInForm.station,
-      stylist: walkInForm.stylist.split(" ")[0],
-      service: walkInForm.service,
-      duration: walkInForm.duration,
-      status: "In Progress",
-      status_type: "in-progress",
-      action_label: "Check In",
-      action_type: "primary",
-    };
-
-    setDashboardData((prev) => ({
-      ...prev,
-      kpi_stats: {
-        ...prev.kpi_stats,
-        bookings: {
-          ...prev.kpi_stats.bookings,
-          value: prev.kpi_stats.bookings.value + 1,
-        },
-      },
-      today_schedule: [newAppointment, ...prev.today_schedule],
-    }));
-
-    setToastMessage(`Walk-in for ${walkInForm.client_name} registered successfully at ${walkInForm.station}!`);
     setWalkInForm({
       client_name: "",
       phone: "",
       service: "Haircut & Styling",
-      stylist: "Rahul Sharma",
+      stylist: "",
       station: "Station 01",
       duration: "45 mins",
     });
@@ -507,18 +455,40 @@ export default function OwnerDashboard() {
     setIsBlockChairOpen(false);
   };
 
+  const activeScheduleList = useMemo(() => {
+    const today = formatLocalDate(new Date());
+    const all = dashboardData.all_bookings?.length ? dashboardData.all_bookings : allBookings;
+
+    if (scheduleView === "today") {
+      if (dashboardData.today_schedule && dashboardData.today_schedule.length > 0) {
+        return dashboardData.today_schedule;
+      }
+      return (all || []).filter((b) => b.booking_date === today);
+    }
+
+    if (scheduleView === "upcoming") {
+      return (all || []).filter((b) => {
+        const isFutureOrToday = !b.booking_date || b.booking_date >= today;
+        const s = String(b.raw_status || b.status || "").toUpperCase();
+        return isFutureOrToday && s !== "CANCELLED" && s !== "COMPLETED";
+      });
+    }
+
+    return all || [];
+  }, [dashboardData.today_schedule, dashboardData.all_bookings, allBookings, scheduleView]);
+
   // Filtered schedule based on search
   const filteredSchedule = useMemo(() => {
-    if (!searchQuery.trim()) return dashboardData.today_schedule;
+    if (!searchQuery.trim()) return activeScheduleList;
     const q = searchQuery.toLowerCase();
-    return dashboardData.today_schedule.filter(
+    return activeScheduleList.filter(
       (item) =>
-        item.client_name.toLowerCase().includes(q) ||
-        item.service.toLowerCase().includes(q) ||
-        item.stylist.toLowerCase().includes(q) ||
-        item.station.toLowerCase().includes(q)
+        (item.client_name || "").toLowerCase().includes(q) ||
+        (item.service || item.service_name || "").toLowerCase().includes(q) ||
+        (item.stylist || item.worker_name || "").toLowerCase().includes(q) ||
+        (item.station || "").toLowerCase().includes(q)
     );
-  }, [dashboardData.today_schedule, searchQuery]);
+  }, [activeScheduleList, searchQuery]);
 
   const navTabs = [
     "Dashboard",
@@ -808,6 +778,24 @@ export default function OwnerDashboard() {
               </div>
             </div>
           </div>
+        ) : activeTab === "Bookings" ? (
+          <OwnerBookingsTab
+            bookings={allBookings.length > 0 ? allBookings : (dashboardData.all_bookings || [])}
+            workers={workersList}
+            onUpdateStatus={handleUpdateBookingStatus}
+            onRefresh={fetchOwnerData}
+          />
+        ) : activeTab === "Reviews" ? (
+          <OwnerReviewsTab
+            reviews={dashboardData.reviews || []}
+            workerReviews={dashboardData.worker_reviews || []}
+            rating={dashboardData.rating || 5.0}
+            reviewsCount={dashboardData.reviews_count || 0}
+            ratingBreakdown={dashboardData.rating_breakdown}
+            workers={workersList}
+            onRefresh={fetchOwnerData}
+            onBackToDashboard={() => setActiveTab("Dashboard")}
+          />
         ) : (
           <>
             {/* Operations Banner: Salon Name, Live Status & Quick Actions */}
@@ -820,7 +808,12 @@ export default function OwnerDashboard() {
 
         <section className="studio-kpi-grid">
           {/* 1. BOOKINGS */}
-          <div className="studio-kpi-card">
+          <div
+            className="studio-kpi-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setActiveTab("Bookings")}
+            title="Click to view all bookings in Bookings Manager"
+          >
             <div className="studio-kpi-header">
               <span className="studio-kpi-label">BOOKINGS</span>
               <span className="studio-kpi-icon">📅</span>
@@ -872,7 +865,12 @@ export default function OwnerDashboard() {
           </div>
 
           {/* 5. UPCOMING */}
-          <div className="studio-kpi-card">
+          <div
+            className="studio-kpi-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setScheduleView("upcoming")}
+            title="Click to show upcoming appointments in schedule"
+          >
             <div className="studio-kpi-header">
               <span className="studio-kpi-label">UPCOMING</span>
               <span className="studio-kpi-icon">⏱</span>
@@ -883,61 +881,213 @@ export default function OwnerDashboard() {
               <span>{dashboardData.kpi_stats.upcoming.trend}</span>
             </div>
           </div>
+
+          {/* 6. SALON RATING */}
+          <div
+            className="studio-kpi-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setActiveTab("Reviews")}
+            title="Click to view Customer Reviews & Quality Ratings"
+          >
+            <div className="studio-kpi-header">
+              <span className="studio-kpi-label">SALON RATING</span>
+              <span className="studio-kpi-icon" style={{ color: "#f59e0b" }}>★</span>
+            </div>
+            <div className="studio-kpi-value" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span>{dashboardData.rating || 5.0}</span>
+              <span style={{ fontSize: "18px", color: "#f59e0b" }}>★</span>
+            </div>
+            <div className="studio-kpi-trend positive">
+              <span>💬</span>
+              <span>{dashboardData.reviews_count || 0} reviews</span>
+            </div>
+          </div>
         </section>
 
         
         <div className="studio-dashboard-grid">
           
           <div className="studio-grid-left">
-            {/* Widget 1: Today's Schedule */}
+            {/* Widget 1: Schedule */}
             <section className="studio-widget-card">
-              <div className="studio-widget-header">
+              <div className="studio-widget-header" style={{ flexWrap: "wrap", gap: "10px" }}>
                 <div className="studio-widget-title-group">
                   <span style={{ fontSize: "18px" }}>📅</span>
-                  <h2 className="studio-widget-title">Today&apos;s Schedule</h2>
+                  <h2 className="studio-widget-title">
+                    {scheduleView === "today"
+                      ? "Today's Schedule"
+                      : scheduleView === "upcoming"
+                      ? "Upcoming Bookings"
+                      : "All Salon Bookings"}
+                  </h2>
                 </div>
-                <span className="studio-widget-badge">
-                  Live appointments ({filteredSchedule.length} active)
-                </span>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <div style={{ display: "inline-flex", background: "#f3f4f6", borderRadius: "8px", padding: "3px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleView("today")}
+                      style={{
+                        padding: "5px 12px",
+                        fontSize: "12px",
+                        fontWeight: scheduleView === "today" ? 700 : 500,
+                        background: scheduleView === "today" ? "#ffffff" : "transparent",
+                        color: scheduleView === "today" ? "#111827" : "#6b7280",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        boxShadow: scheduleView === "today" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      }}
+                    >
+                      Today ({dashboardData.today_schedule?.length || 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleView("upcoming")}
+                      style={{
+                        padding: "5px 12px",
+                        fontSize: "12px",
+                        fontWeight: scheduleView === "upcoming" ? 700 : 500,
+                        background: scheduleView === "upcoming" ? "#ffffff" : "transparent",
+                        color: scheduleView === "upcoming" ? "#111827" : "#6b7280",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        boxShadow: scheduleView === "upcoming" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      }}
+                    >
+                      Upcoming ({dashboardData.kpi_stats?.upcoming?.value || 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleView("all")}
+                      style={{
+                        padding: "5px 12px",
+                        fontSize: "12px",
+                        fontWeight: scheduleView === "all" ? 700 : 500,
+                        background: scheduleView === "all" ? "#ffffff" : "transparent",
+                        color: scheduleView === "all" ? "#111827" : "#6b7280",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        boxShadow: scheduleView === "all" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      }}
+                    >
+                      All Bookings ({dashboardData.all_bookings?.length || allBookings.length || 0})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("Bookings")}
+                    style={{
+                      padding: "5px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      background: "transparent",
+                      color: "#4f46e5",
+                      border: "1px solid #e0e7ff",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Full Bookings Tab →
+                  </button>
+                </div>
               </div>
 
               <div className="schedule-list">
-                {filteredSchedule.map((item) => (
-                  <div key={item.id} className="schedule-item-card">
-                    {/* Time block */}
-                    <div className="schedule-time-box">
-                      <span className="schedule-time-value">{item.time}</span>
-                      <span className="schedule-time-period">{item.period || "AM"}</span>
-                    </div>
-
-                    {/* Customer & Service Info */}
-                    <div className="schedule-client-info">
-                      <div className="schedule-client-name-row">
-                        <span className="schedule-client-name">{item.client_name}</span>
-                        <span className="schedule-station-tag">{item.station}</span>
+                {filteredSchedule.length === 0 ? (
+                  <div style={{ padding: "36px 16px", textAlign: "center", color: "var(--studio-text-muted)" }}>
+                    <div style={{ fontSize: "28px", marginBottom: "8px" }}>📅</div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: "14px", color: "var(--studio-text-main)" }}>
+                      {scheduleView === "today"
+                        ? "No appointments scheduled for today yet"
+                        : "No appointments found for this filter"}
+                    </p>
+                    <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--studio-text-muted)" }}>
+                      {scheduleView === "today" && (dashboardData.all_bookings?.length > 0 || allBookings.length > 0)
+                        ? `You have ${dashboardData.all_bookings?.length || allBookings.length} total salon bookings in the system.`
+                        : "Customer bookings will appear here in real time."}
+                    </p>
+                    {(dashboardData.all_bookings?.length > 0 || allBookings.length > 0) && (
+                      <div style={{ marginTop: "14px", display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+                        {scheduleView !== "all" && (
+                          <button
+                            type="button"
+                            onClick={() => setScheduleView("all")}
+                            style={{
+                              padding: "7px 14px",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              background: "#111827",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            View All Salon Bookings ({dashboardData.all_bookings?.length || allBookings.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("Bookings")}
+                          style={{
+                            padding: "7px 14px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            background: "#f3f4f6",
+                            color: "#374151",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Open Bookings Manager →
+                        </button>
                       </div>
-                      <div className="schedule-service-desc">
-                        {item.stylist} • {item.service} • {item.duration}
-                      </div>
-                    </div>
-
-                    {/* Status & Action */}
-                    <div className="schedule-actions-group">
-                      <span className={`schedule-status-pill ${item.status_type || "confirmed"}`}>
-                        {item.status === "In Progress" && "● "}
-                        {item.status}
-                      </span>
-
-                      <button
-                        type="button"
-                        className={`btn-schedule-action ${item.action_type || "primary"}`}
-                        onClick={() => handleAppointmentAction(item.id, item.action_label)}
-                      >
-                        {item.action_label}
-                      </button>
-                    </div>
+                    )}
                   </div>
-                ))}
+                ) : (
+                  filteredSchedule.map((item) => (
+                    <div key={item.id} className="schedule-item-card">
+                      {/* Time block */}
+                      <div className="schedule-time-box">
+                        <span className="schedule-time-value">{item.time || item.booking_time || "10:00"}</span>
+                        <span className="schedule-time-period">{item.period || "AM"}</span>
+                      </div>
+
+                      {/* Customer & Service Info */}
+                      <div className="schedule-client-info">
+                        <div className="schedule-client-name-row">
+                          <span className="schedule-client-name">{item.client_name}</span>
+                          <span className="schedule-station-tag">{item.station}</span>
+                        </div>
+                        <div className="schedule-service-desc">
+                          {item.booking_date ? `${item.booking_date} • ` : ""}
+                          {item.stylist || item.worker_name || "Specialist"} • {item.service || item.service_name} • {item.duration || "45 mins"}
+                        </div>
+                      </div>
+
+                      {/* Status & Action */}
+                      <div className="schedule-actions-group">
+                        <span className={`schedule-status-pill ${item.status_type || "confirmed"}`}>
+                          {(item.status === "In Progress" || item.raw_status === "IN_PROGRESS") && "● "}
+                          {item.status || item.status_display}
+                        </span>
+
+                        <button
+                          type="button"
+                          className={`btn-schedule-action ${item.action_type || "primary"}`}
+                          onClick={() => handleAppointmentAction(item.id, item.action_label || "Seat Client")}
+                        >
+                          {item.action_label || "Update"}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </section>
 
@@ -1004,7 +1154,9 @@ export default function OwnerDashboard() {
                         <span className="staff-role-desc">{staff.role}</span>
 
                         <div className="staff-metric-row">
-                          <span className="staff-rating-star">★ {staff.rating}</span>
+                          <span className="staff-rating-star">
+                            ★ {staff.rating} {staff.reviews_count !== undefined ? `(${staff.reviews_count} reviews)` : ""}
+                          </span>
                           <span>•</span>
                           <span>{staff.booked_count} booked today</span>
                         </div>
@@ -1133,6 +1285,101 @@ export default function OwnerDashboard() {
                 <span>→</span>
               </button>
             </section>
+
+            {/* Widget 5: Recent Customer Feedback & Reviews */}
+            <section className="studio-widget-card" style={{ marginTop: "16px" }}>
+              <div className="studio-widget-header">
+                <div className="studio-widget-title-group">
+                  <span style={{ fontSize: "18px" }}>💬</span>
+                  <h2 className="studio-widget-title">Customer Feedback</h2>
+                </div>
+                <span
+                  style={{
+                    background: "#eaf7ef",
+                    color: "#1e824c",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "99px",
+                  }}
+                >
+                  {dashboardData.rating || 5.0}★ ({dashboardData.reviews_count || 0})
+                </span>
+              </div>
+
+              {(!dashboardData.reviews || dashboardData.reviews.length === 0) ? (
+                <div style={{ textAlign: "center", padding: "24px 16px", color: "#627267", fontSize: "13px" }}>
+                  <p style={{ margin: "0 0 6px", fontWeight: 600 }}>No client reviews yet</p>
+                  <span style={{ fontSize: "12px", color: "#8a9990" }}>
+                    Verified reviews from completed customer appointments will appear here.
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+                  {dashboardData.reviews.slice(0, 3).map((r) => {
+                    const initial = (r.customer_name || r.author || "C")[0].toUpperCase();
+                    return (
+                      <div
+                        key={r.id}
+                        style={{
+                          background: "#f8faf9",
+                          padding: "12px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #e8edea",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "50%",
+                                background: "#1e392a",
+                                color: "#ffffff",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {initial}
+                            </div>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: "#1e392a" }}>
+                              {r.customer_name || r.author}
+                            </span>
+                          </div>
+                          <span style={{ color: "#f59e0b", fontSize: "13px" }}>{"★".repeat(r.rating)}</span>
+                        </div>
+                        {r.comment && (
+                          <p style={{ margin: 0, fontSize: "12px", color: "#4a5568", fontStyle: "italic", lineHeight: 1.4 }}>
+                            “{r.comment.length > 90 ? `${r.comment.slice(0, 90)}...` : r.comment}”
+                          </p>
+                        )}
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#8a9990" }}>
+                          <span>{r.treatment || "Salon Service"}</span>
+                          <span>{r.date}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="btn-manage-catalog"
+                style={{ marginTop: "12px" }}
+                onClick={() => setActiveTab("Reviews")}
+              >
+                <span>View All Reviews &amp; Ratings ({dashboardData.reviews_count || 0})</span>
+                <span>→</span>
+              </button>
+            </section>
           </div>
         </div>
           </>
@@ -1201,11 +1448,22 @@ export default function OwnerDashboard() {
                       value={walkInForm.service}
                       onChange={(e) => setWalkInForm({ ...walkInForm, service: e.target.value })}
                     >
-                      <option value="Haircut & Styling">Haircut & Styling</option>
-                      <option value="Hydra Facial">Hydra Facial</option>
-                      <option value="Royal Beard Sculpt">Royal Beard Sculpt</option>
-                      <option value="Head & Shoulder Massage">Head & Shoulder Massage</option>
-                      <option value="Deep Condition Spa">Deep Condition Spa</option>
+                      {servicesList.length > 0 ? (
+                        servicesList.map((s) => {
+                          const sName = s.custom_name || s.service_name || s.name;
+                          return (
+                            <option key={s.id} value={sName}>
+                              {sName} {s.duration ? `(${s.duration} mins)` : ""}
+                            </option>
+                          );
+                        })
+                      ) : (
+                        <>
+                          <option value="Haircut & Styling">Haircut & Styling</option>
+                          <option value="Hydra Facial">Hydra Facial</option>
+                          <option value="Royal Beard Sculpt">Royal Beard Sculpt</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -1216,8 +1474,18 @@ export default function OwnerDashboard() {
                       value={walkInForm.stylist}
                       onChange={(e) => setWalkInForm({ ...walkInForm, stylist: e.target.value })}
                     >
-                      <option value="Rahul Sharma">Rahul Sharma (Station 01)</option>
-                      <option value="Anjali Sen">Anjali Sen (Station 02)</option>
+                      {workersList.length > 0 ? (
+                        workersList.map((w) => {
+                          const name = w.full_name || (w.user ? `${w.user.first_name} ${w.user.last_name || ""}`.trim() : "Stylist");
+                          return (
+                            <option key={w.id} value={name}>
+                              {name} ({w.station || "Station 01"})
+                            </option>
+                          );
+                        })
+                      ) : (
+                        <option value="Any Available">Any Available Stylist</option>
+                      )}
                     </select>
                   </div>
                 </div>

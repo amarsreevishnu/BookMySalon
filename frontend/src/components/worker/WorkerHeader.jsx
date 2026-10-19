@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import api from "../../api/axios";
+import NotificationBell from "../common/NotificationBell";
 import "../../styles/workerDashboard.css";
 
 export default function WorkerHeader({
@@ -20,6 +21,7 @@ export default function WorkerHeader({
   const profileMenuRef = useRef(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [fetchedSalon, setFetchedSalon] = useState(null);
   const [fetchedWorker, setFetchedWorker] = useState(null);
@@ -118,10 +120,10 @@ export default function WorkerHeader({
             <nav className="wd-nav-links">
               <button
                 type="button"
-                className={`wd-nav-tab ${activeTab === "appointments" ? "active" : ""}`}
+                className={`wd-nav-tab ${activeTab === "dashboard" ? "active" : ""}`}
                 onClick={() => {
-                  if (activeTab === "appointments" && onTabChange) {
-                    onTabChange("appointments");
+                  if (onTabChange) {
+                    onTabChange("dashboard");
                   } else {
                     navigate("/worker/dashboard");
                   }
@@ -129,28 +131,15 @@ export default function WorkerHeader({
               >
                 Dashboard
               </button>
-              {/* <button
-                type="button"
-                className={`wd-nav-tab ${activeTab === "calendar" ? "active" : ""}`}
-                onClick={() => {
-                  if (activeTab === "calendar" && onTabChange) {
-                    onTabChange("calendar");
-                  } else {
-                    navigate("/worker/calendar");
-                  }
-                }}
-              >
-                Calendar
-              </button> */}
 
               <button
                 type="button"
-                className={`wd-nav-tab ${activeTab === "" ? "active" : ""}`}
+                className={`wd-nav-tab ${activeTab === "appointments" ? "active" : ""}`}
                 onClick={() => {
-                  if (activeTab === "appointments" && onTabChange) {
+                  if (onTabChange) {
                     onTabChange("appointments");
                   } else {
-                    navigate("/worker/dashboard");
+                    navigate("/worker/dashboard", { state: { view: "all" } });
                   }
                 }}
               >
@@ -191,6 +180,7 @@ export default function WorkerHeader({
 
           <div className="wd-navbar-right">
             {rightActions}
+            <NotificationBell />
 
             <div className="wd-nav-profile-menu-wrap" ref={profileMenuRef}>
               <button
@@ -296,8 +286,75 @@ export default function WorkerHeader({
                 </div>
               )}
             </div>
+
+            {/* Mobile Hamburger Menu Button */}
+            <button
+              type="button"
+              className="wd-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-label="Toggle Navigation Menu"
+            >
+              {mobileMenuOpen ? "✕" : "☰"}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="wd-mobile-drawer">
+            <button
+              type="button"
+              className={`wd-mobile-drawer-link ${activeTab === "dashboard" ? "active" : ""}`}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onTabChange) onTabChange("dashboard");
+                else navigate("/worker/dashboard");
+              }}
+            >
+              <span>📊</span>
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              type="button"
+              className={`wd-mobile-drawer-link ${activeTab === "appointments" ? "active" : ""}`}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onTabChange) onTabChange("appointments");
+                else navigate("/worker/dashboard", { state: { view: "all" } });
+              }}
+            >
+              <span>📅</span>
+              <span>Appointments</span>
+            </button>
+
+            <button
+              type="button"
+              className={`wd-mobile-drawer-link ${activeTab === "leaves" ? "active" : ""}`}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (activeTab === "leaves" && onTabChange) onTabChange("leaves");
+                else navigate("/worker/leave");
+              }}
+            >
+              <span>🏖️</span>
+              <span>Leaves &amp; Schedule</span>
+            </button>
+
+            <button
+              type="button"
+              className={`wd-mobile-drawer-link ${activeTab === "profile" ? "active" : ""}`}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (activeTab === "profile" && onTabChange) onTabChange("profile");
+                else navigate("/worker/profile");
+              }}
+            >
+              <span>👤</span>
+              <span>My Profile</span>
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Logout Confirmation Modal */}

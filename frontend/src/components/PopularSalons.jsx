@@ -100,7 +100,7 @@ function PopularSalons() {
           <h2>Nearby & Top-Rated Salons</h2>
         </div>
 
-        <Link to="/salons" className="text-button">
+        <Link to="/customer/salons" className="text-button">
           View all salons ({salons.length}) →
         </Link>
       </div>
@@ -147,7 +147,7 @@ function PopularSalons() {
                   <strong>{salon.price}</strong>
                 </div>
 
-                <Link to="/salons" className="small-button">
+                <Link to="/customer/salons" className="small-button">
                   <span>Book Slot</span>
                   <span>→</span>
                 </Link>

@@ -21,9 +21,9 @@ function CustomerHome() {
     const query = search.trim();
 
     if (query) {
-      navigate(`/salons?search=${encodeURIComponent(query)}`);
+      navigate(`/customer/salons?search=${encodeURIComponent(query)}`);
     } else {
-      navigate("/salons");
+      navigate("/customer/salons");
     }
   };
 
@@ -31,10 +31,10 @@ function CustomerHome() {
     setSelectedCategory(category);
 
     if (category === "All") {
-      navigate("/salons");
+      navigate("/customer/salons");
     } else {
       navigate(
-        `/salons?category=${encodeURIComponent(category)}`
+        `/customer/salons?category=${encodeURIComponent(category)}`
       );
     }
   };
@@ -78,7 +78,7 @@ function CustomerHome() {
           <button
             type="button"
             className="outline-button"
-            onClick={() => navigate("/salons/map")}
+            onClick={() => navigate("/customer/salons?view=map")}
           >
             Open Map View →
           </button>

@@ -38,11 +38,13 @@ import RoleRoute from "./RoleRoute";
 function AppRoutes() {
   return (
     <Routes>
+      
+      
       <Route path="/" element={<LandingPage />} />
       <Route path="/google-callback" element={<GoogleCallback />} />
-      <Route path="/salon-application" element={<CreateSalon />} />      
-      <Route path="/salons/:id" element={<SalonDetail />} />
+      <Route path="/salon-application" element={<CreateSalon />} />
 
+      
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -50,18 +52,14 @@ function AppRoutes() {
       </Route>
 
       <Route element={<RoleRoute allowedRoles={["CUSTOMER"]} />}>
-        <Route path="/customer-home" element={<CustomerHome />} />
-        <Route path="/salons" element={<SalonsExplore />} />
+        <Route path="/customer/home" element={<CustomerHome />} />
         <Route path="/customer/salons" element={<SalonsExplore />} />
-        <Route path="/customer/salons/:id" element={<SalonDetail />} />
+        <Route path="/customer/salons/:id" element={<SalonDetail />} /> 
         <Route path="/customer/profile" element={<CustomerProfile />} />
-        <Route path="/profile" element={<CustomerProfile />} />
         <Route path="/customer/salons/:id/book" element={<BookingPage />} />
         <Route path="/customer/my-bookings" element={<MyBookings />} />
       </Route>
 
-      {/* Public booking route — redirects to login if not authenticated via API */}
-      <Route path="/salons/:id/book" element={<BookingPage />} />
 
       <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

@@ -9,3 +9,4 @@ class BookingAdmin(admin.ModelAdmin):
     search_fields = ['client_name', 'client_email', 'client_phone', 'service_name']
     ordering = ['-booking_date', '-start_time']
     readonly_fields = ['created_at', 'updated_at']
+

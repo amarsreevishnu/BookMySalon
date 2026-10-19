@@ -14,6 +14,6 @@ export function getRoleDashboardPath(user) {
     return "/worker/dashboard";
   }
 
-  return "/customer-home";
+  return "/customer/home";
 }
 

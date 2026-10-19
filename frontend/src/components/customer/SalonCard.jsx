@@ -41,7 +41,7 @@ function SalonCard({ salon }) {
 
         <button
           className="view-salon-button"
-          onClick={() => navigate(`/salons/${salon.id}`)}
+          onClick={() => navigate(`/customer/salons/${salon.id}`)}
         >
           View Salon <span>→</span>
         </button>

@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import NotificationBell from "../../components/common/NotificationBell";
 import "../../styles/adminDashboard.css";
 
 const REGIONAL_HUBS = [
@@ -252,15 +253,7 @@ export default function AdminDashboard() {
             </div>
             <span className="admin-region-text">Region: US-East-1</span>
 
-            <button
-              type="button"
-              className="admin-notif-btn"
-              title="Pending Approvals"
-              onClick={() => setActiveTab("PENDING")}
-            >
-              🔔
-              {pendingCount > 0 && <span className="admin-notif-dot" />}
-            </button>
+            <NotificationBell />
 
             <Link
               to="/"

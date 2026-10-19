@@ -176,7 +176,7 @@ export default function NotFound() {
           <div className="nf-shortcuts">
             <span className="nf-shortcuts-label">Helpful Navigation Shortcuts</span>
             <div className="nf-shortcuts-list">
-              <Link to="/salons" className="nf-shortcut-chip">
+              <Link to="/customer/salons" className="nf-shortcut-chip">
                 <span>📍</span>
                 <span>Explore Salons</span>
               </Link>

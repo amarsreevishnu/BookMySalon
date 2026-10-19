@@ -21,6 +21,18 @@ urlpatterns = [
         "api/v1/bookings/",
         include("bookings.urls"),
     ),
+    path(
+        "api/v1/payments/",
+        include("payments.urls"),
+    ),
+    path(
+        "api/v1/reviews/",
+        include("reviews.urls"),
+    ),
+    path(
+        "api/v1/notifications/",
+        include("notifications.urls"),
+    ),
 
     # Allauth OAuth URLs
     path("accounts/", include("allauth.urls")),

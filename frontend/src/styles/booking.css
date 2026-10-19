@@ -2370,4 +2370,138 @@
   cursor: pointer;
 }
 
+/* ── Customer Booking Review Modal & Buttons ────────────────────── */
+.bk-btn-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--bk-radius-sm);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(27, 67, 50, 0.2);
+}
+
+.bk-btn-review:hover {
+  background: linear-gradient(135deg, #143527 0%, #245740 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(27, 67, 50, 0.3);
+}
+
+.bk-btn-view-review {
+  padding: 6px 12px;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--bk-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bk-btn-view-review:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.bk-reviewed-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-reviewed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+}
+
+/* Modal Overlay & Card */
+.bk-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.bk-review-modal-card {
+  background: #ffffff;
+  border-radius: 18px;
+  max-width: 540px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+}
+
+.bk-stars-row {
+  display: flex;
+  gap: 6px;
+  font-size: 1.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bk-star-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.bk-star-btn--filled {
+  color: #f59e0b;
+}
+
+.bk-star-btn:hover {
+  transform: scale(1.15);
+}
+
+.bk-review-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  color: #1e293b;
+  resize: vertical;
+  min-height: 70px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.bk-review-textarea:focus {
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.12);
+}
+
 
