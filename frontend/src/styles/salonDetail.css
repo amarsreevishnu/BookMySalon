@@ -169,6 +169,14 @@
   box-shadow: var(--salon-shadow-md);
 }
 
+.salon-gallery-mosaic.is-single-photo {
+  grid-template-columns: 1fr;
+}
+
+.salon-gallery-mosaic.is-single-photo .gallery-hero-main {
+  height: 420px;
+}
+
 .gallery-hero-main {
   position: relative;
   height: 100%;
@@ -1214,6 +1222,7 @@
   color: var(--salon-text-muted);
   padding: 5px 8px;
   border-radius: 8px;
+  cursor: pointer;
   transition: all 0.16s ease;
   user-select: none;
 }
@@ -1333,6 +1342,7 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
+  object-fit: cover;
   background: var(--salon-emerald-100);
   color: var(--salon-emerald-800);
   font-weight: 700;
@@ -1487,18 +1497,38 @@
 
 .sticky-booking-card {
   position: sticky;
-  top: 130px;
+  top: 96px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: var(--salon-radius-lg, 20px);
-  padding: 28px 20px;
+  padding: 24px 20px;
   box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 0 1px 1px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
   gap: 14px;
   position: relative;
-  overflow: hidden;
   margin-top: 0;
+}
+
+.sticky-booking-card::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sticky-booking-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sticky-booking-card::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.sticky-booking-card::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .sticky-booking-card::before {
@@ -1986,6 +2016,7 @@
 .stylist-assigned-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
@@ -2009,6 +2040,12 @@
   justify-content: center;
   font-weight: 700;
   font-size: 1rem;
+}
+
+.assigned-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .assigned-name {
@@ -2539,6 +2576,8 @@
 
   .sticky-booking-card {
     position: static;
+    max-height: none;
+    overflow-y: visible;
     margin-top: 20px;
   }
 
@@ -2684,4 +2723,464 @@
     padding-bottom: 70px;
   }
 }
+
+/* ==========================================================================
+   Luxury Design System Component Styles (Salon Detail Refinements)
+   ========================================================================== */
+
+/* Main Column: Stylist Status Chips & Alerts */
+.stylist-status-stack {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stylist-status-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  line-height: 1.3;
+  width: fit-content;
+}
+
+.stylist-status-chip--not-performed {
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.stylist-status-chip--performed {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+.stylist-status-chip--advance-booked {
+  color: #0369a1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}
+
+.stylist-status-chip--clear {
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+}
+
+.stylist-notice-box {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.stylist-notice-box--leave {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.stylist-notice-box--booked {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.stylist-disabled-btn {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: not-allowed;
+  margin-top: 8px;
+}
+
+/* Sidebar Step 1: Service Switcher */
+.service-switcher-wrapper {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.service-switcher-label {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-bottom: 5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.service-switcher-select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+}
+
+.service-switcher-select:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+/* Sidebar Step 2: Date CLOSED Badge & Alerts */
+.date-closed-badge {
+  font-size: 9px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-top: 2px;
+  font-weight: 700;
+}
+
+.booking-alert-banner {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.booking-alert-banner-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+  font-size: 0.88rem;
+}
+
+.booking-alert-banner--danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.booking-alert-banner--warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.side-stylist-status-col {
+  text-align: right;
+}
+
+.btn-switch-auto-assign-wrap {
+  margin-top: 8px;
+}
+
+/* Sidebar Step 3: Stylist Selection */
+.step-summary-pill--warning {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  font-weight: 700 !important;
+}
+
+.stylist-assigned-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.stylist-assigned-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.assigned-advance-info {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  line-height: 1.35;
+}
+
+.assigned-advance-info--booked {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.assigned-advance-info--available {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.assigned-avatar-placeholder--warning {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+}
+
+.assigned-name--warning {
+  color: #92400e !important;
+}
+
+.sidebar-loading-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 10px 0;
+  text-align: center;
+}
+
+.side-stylists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.side-stylist-auto-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.side-stylist-card--selected .side-stylist-auto-title {
+  color: #059669;
+}
+
+.side-stylist-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.side-stylist-badge--active {
+  color: #059669;
+  background: #d1fae5;
+}
+
+.side-stylist-badge--idle {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.side-stylist-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.side-stylist-info {
+  text-align: left;
+}
+
+.side-stylist-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+
+.side-stylist-role {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.side-stylist-badge--selected {
+  background: #059669;
+  color: #ffffff;
+}
+
+.side-stylist-badge--leave {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.side-stylist-badge--off {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.side-stylist-badge--booked {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.side-stylist-badge--advance {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.side-stylist-badge--available {
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 600;
+}
+
+/* Sidebar Step 4: Time Slot Prompts & Alerts */
+.slots-unselected-prompt {
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  color: #64748b;
+}
+
+.slots-unselected-icon {
+  font-size: 1.4rem;
+  margin-bottom: 4px;
+}
+
+.slots-unselected-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.slots-unselected-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.slots-showing-subtitle {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.slots-showing-name {
+  color: #059669;
+  font-weight: 700;
+}
+
+.btn-switch-auto-assign {
+  margin-top: 8px;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.btn-switch-auto-assign:hover {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+.btn-switch-auto-assign--warning {
+  background: #d97706;
+}
+
+.btn-switch-auto-assign--warning:hover {
+  background: #b45309;
+}
+
+.slot-unavailable-reason {
+  font-size: 0.66rem;
+  opacity: 0.85;
+  font-weight: 500;
+  display: block;
+}
+
+/* Sidebar Step 6: Booking Error Banner */
+.booking-error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.booking-error-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.booking-error-dismiss-btn:hover {
+  background: rgba(185, 28, 28, 0.1);
+}
+
+/* Reviews Empty State */
+.reviews-empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.reviews-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.reviews-empty-title {
+  margin: 0 0 4px;
+  color: #1e293b;
+  fontSize: 0.95rem;
+  font-weight: 700;
+}
+
+.reviews-empty-desc {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+/* Booking Header Rating & Actions */
+.booking-card-rating {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.booking-card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 

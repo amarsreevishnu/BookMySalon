@@ -856,11 +856,13 @@ export default function SalonsExplore() {
                 <article key={salon.id} className="salon-explore-card">
                   {/* Media Left */}
                   <div className="salon-card-media">
-                    <img
-                      src={resolveImageUrl(salon.image)}
-                      alt={salon.name}
-                      className="salon-card-img"
-                    />
+                    <Link to={`/customer/salons/${salon.id}`} style={{ display: "block" }}>
+                      <img
+                        src={resolveImageUrl(salon.image)}
+                        alt={salon.name}
+                        className="salon-card-img"
+                      />
+                    </Link>
                     
                     <span className={`salon-badge-overlay ${salon.badge_type || "organic"}`}>
                       {salon.badge || "● Verified Organic"}
@@ -879,7 +881,9 @@ export default function SalonsExplore() {
                   <div className="salon-card-content">
                     <div className="salon-card-header-group">
                       <div className="salon-card-top-row">
-                        <h3 className="salon-card-name" title={salon.name}>{salon.name}</h3>
+                        <Link to={`/customer/salons/${salon.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                          <h3 className="salon-card-name" title={salon.name}>{salon.name}</h3>
+                        </Link>
                         <span className="salon-card-rating">
                           <span className="rating-star">★</span>
                           <span className="rating-val">{salon.rating || "4.9"}</span>
@@ -1150,7 +1154,7 @@ export default function SalonsExplore() {
 
                 <div className="booking-modal-cta-row">
                   <Link
-                    to={`/salons/${bookingModalSalon.id}`}
+                    to={`/customer/salons/${bookingModalSalon.id}`}
                     className="btn-modal-reserve-online"
                   >
                     <span>Proceed to Book Slot</span>
@@ -1204,7 +1208,7 @@ export default function SalonsExplore() {
                   Close
                 </button>
                 <Link
-                  to={`/salons/${bookingModalSalon.id}`}
+                  to={`/customer/salons/${bookingModalSalon.id}`}
                   className="btn-book-slot"
                   style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                 >

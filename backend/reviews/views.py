@@ -25,18 +25,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
 
 
 class BookingReviewCreateView(APIView):
-    """
-    GET /api/v1/reviews/bookings/<int:pk>/
-    POST /api/v1/reviews/bookings/<int:pk>/
-    (Also accessible via /api/v1/bookings/<int:pk>/reviews/ for backward compatibility)
 
-    Enforces backend eligibility:
-    1. Customer authentication required.
-    2. Customer can only review bookings made from their own account (cannot review other customers' bookings).
-    3. Customer can only review a booking that has been marked as COMPLETED.
-    4. Exactly one salon review per booking.
-    5. Exactly one worker review per booking (booking must have an assigned worker).
-    """
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -189,12 +178,7 @@ class BookingReviewCreateView(APIView):
 
 
 class SalonReviewsListView(APIView):
-    """
-    GET /api/v1/reviews/salons/<int:salon_id>/
-    (Also accessible via /api/v1/bookings/salons/<int:salon_id>/reviews/ for backward compatibility)
-    Returns dynamic overall rating, review count, rating breakdown, and list of reviews.
-    Calculates overall rating as: sum of ratings / total review count (rounded to 2 decimal places).
-    """
+   
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 
@@ -250,11 +234,7 @@ class SalonReviewsListView(APIView):
 
 
 class WorkerReviewsListView(APIView):
-    """
-    GET /api/v1/reviews/workers/<int:worker_id>/
-    (Also accessible via /api/v1/bookings/workers/<int:worker_id>/reviews/ for backward compatibility)
-    Returns dynamic average rating, review count, and list of reviews for an assigned worker.
-    """
+    
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 

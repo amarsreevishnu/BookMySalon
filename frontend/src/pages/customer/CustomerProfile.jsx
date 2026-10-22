@@ -1040,7 +1040,7 @@ export default function CustomerProfile() {
                           </small>
                         </div>
                         <Link
-                          to={`/customer/salons/${b.salon_id}`}
+                          to={`/customer/salons/${b.salon_id || b.salon}`}
                           className="btn-outline-action"
                           style={{ textDecoration: "none" }}
                         >

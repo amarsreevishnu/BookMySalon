@@ -107,10 +107,12 @@ export default function BookingPage() {
 
   /* selections */
   const [step, setStep] = useState(0);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedWorker, setSelectedWorker] = useState(null); // worker id, "any", or null
   const [selectedSlot, setSelectedSlot] = useState(null);
+
+  const selectedService = selectedServices[0] || null;
 
   /* customer info */
   const [clientName, setClientName] = useState("");
@@ -137,20 +139,41 @@ export default function BookingPage() {
 
   const days = buildNextDays(30);
 
-  /* ── Calculations ─── */
+  /* ── Multi-Service Duration & Financial Calculations ─── */
+  const totalDurationMinutes = useMemo(() => {
+    return selectedServices.reduce((sum, s) => {
+      let mins = 45;
+      if (typeof s.duration === "number") mins = s.duration;
+      else if (typeof s.duration === "string") {
+        const m = s.duration.match(/\d+/);
+        if (m) mins = parseInt(m[0], 10);
+      }
+      return sum + mins;
+    }, 0);
+  }, [selectedServices]);
+
   const serviceSubtotal = useMemo(() => {
-    return selectedService ? Number(selectedService.price) || 0 : 0;
-  }, [selectedService]);
+    return selectedServices.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  }, [selectedServices]);
+
+  const taxAmount = useMemo(() => {
+    return Math.round(serviceSubtotal * 0.05); // 5% GST & Hygiene Safety
+  }, [serviceSubtotal]);
 
   const discountAmount = useMemo(() => {
     if (!appliedVoucher || !serviceSubtotal) return 0;
-    if (appliedVoucher.discount) return Math.min(serviceSubtotal, appliedVoucher.discount);
+    if (appliedVoucher.discountRate) {
+      return Math.round(serviceSubtotal * appliedVoucher.discountRate);
+    }
+    if (appliedVoucher.discount) {
+      return Math.min(serviceSubtotal, appliedVoucher.discount);
+    }
     return 0;
   }, [appliedVoucher, serviceSubtotal]);
 
   const totalPayable = useMemo(() => {
-    return Math.max(0, serviceSubtotal - discountAmount);
-  }, [serviceSubtotal, discountAmount]);
+    return Math.max(0, serviceSubtotal + taxAmount - discountAmount);
+  }, [serviceSubtotal, taxAmount, discountAmount]);
 
   const payableNowAmount = useMemo(() => {
     if (isTokenOnly && paymentMethod === "ONLINE") {
@@ -158,6 +181,18 @@ export default function BookingPage() {
     }
     return totalPayable;
   }, [isTokenOnly, paymentMethod, totalPayable]);
+
+  function handleToggleService(svc) {
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === svc.id);
+      if (exists) {
+        if (prev.length <= 1) return prev; // keep at least 1
+        return prev.filter((s) => s.id !== svc.id);
+      } else {
+        return [...prev, svc];
+      }
+    });
+  }
 
   /* ── Load salon + services + off-days ─── */
   useEffect(() => {
@@ -174,10 +209,22 @@ export default function BookingPage() {
         setServices(svcList);
         setOffDays(offDaysRes.data.off_days || []);
 
+        const preServiceIds = searchParams.get("service_ids");
         const preServiceId = searchParams.get("service_id");
-        if (preServiceId && svcList.length > 0) {
-          const pre = svcList.find((s) => String(s.id) === String(preServiceId));
-          if (pre) setSelectedService(pre);
+
+        let initialSelected = [];
+        if (preServiceIds) {
+          const ids = preServiceIds.split(",").map((x) => x.trim());
+          initialSelected = svcList.filter((s) => ids.includes(String(s.id)));
+        } else if (preServiceId) {
+          const found = svcList.find((s) => String(s.id) === String(preServiceId));
+          if (found) initialSelected = [found];
+        }
+
+        if (initialSelected.length > 0) {
+          setSelectedServices(initialSelected);
+        } else if (svcList.length > 0) {
+          setSelectedServices([svcList[0]]);
         }
 
         const preDate = searchParams.get("date");
@@ -187,11 +234,15 @@ export default function BookingPage() {
 
         const preWorkerId = searchParams.get("worker_id");
         if (preWorkerId) {
-          setSelectedWorker(String(preWorkerId));
+          if (preWorkerId === "auto" || preWorkerId === "any") {
+            setSelectedWorker("any");
+          } else {
+            setSelectedWorker(String(preWorkerId));
+          }
         }
 
         const preTime = searchParams.get("time");
-        if (preServiceId && preDate) {
+        if ((preServiceIds || preServiceId) && preDate) {
           if (preWorkerId && preTime) {
             setStep(3); // will auto-fetch slots and advance to 4
           } else if (preWorkerId) {
@@ -209,11 +260,12 @@ export default function BookingPage() {
     init();
   }, [salonId, searchParams]);
 
-  /* ── Load eligible workers when service + date selected ─── */
+  /* ── Load eligible workers when services + date selected ─── */
   useEffect(() => {
-    if (!selectedService || !selectedDate) return;
+    if (selectedServices.length === 0 || !selectedDate) return;
     const params = {
-      service_id: selectedService.id,
+      service_id: selectedServices[0]?.id,
+      service_ids: selectedServices.map((s) => s.id).join(","),
       date: selectedDate,
     };
 
@@ -221,11 +273,11 @@ export default function BookingPage() {
       .get(`/bookings/salons/${salonId}/workers/`, { params })
       .then((r) => setWorkers(r.data.workers || []))
       .catch(console.error);
-  }, [selectedService, selectedDate, salonId]);
+  }, [selectedServices, selectedDate, salonId]);
 
-  /* ── Load slots when worker (or any) + date + service selected ─── */
+  /* ── Load slots when worker (or any) + date + services selected ─── */
   const fetchSlots = useCallback(async () => {
-    if (!selectedService || !selectedDate || !selectedWorker) return;
+    if (selectedServices.length === 0 || !selectedDate || !selectedWorker) return;
     setSlotsLoading(true);
     setSlots([]);
     setClosedInfo(null);
@@ -234,10 +286,11 @@ export default function BookingPage() {
     try {
       const params = {
         salon_id: salonId,
-        service_id: selectedService.id,
+        service_id: selectedServices[0]?.id,
+        service_ids: selectedServices.map((s) => s.id).join(","),
         date: selectedDate,
       };
-      if (selectedWorker !== "any") {
+      if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
         params.worker_id = selectedWorker;
       }
       const r = await api.get("/bookings/slots/", { params });
@@ -270,7 +323,7 @@ export default function BookingPage() {
     } finally {
       setSlotsLoading(false);
     }
-  }, [selectedService, selectedDate, selectedWorker, salonId, searchParams, selectedSlot]);
+  }, [selectedServices, selectedDate, selectedWorker, salonId, searchParams, selectedSlot]);
 
   useEffect(() => {
     if (step === 3) fetchSlots();
@@ -303,7 +356,12 @@ export default function BookingPage() {
 
   function workerLabel() {
     if (!selectedWorker) return "None selected";
-    if (selectedWorker === "any") return "Auto-Assign (Any Available Specialist)";
+    if (selectedWorker === "any" || selectedWorker === "auto") {
+      if (selectedSlot?.assigned_worker?.name) {
+        return `Auto-Assign: ${selectedSlot.assigned_worker.name}`;
+      }
+      return "Auto-Assign (Any Available Specialist)";
+    }
     return selectedWorkerObj ? selectedWorkerObj.name : "Specialist";
   }
 
@@ -319,7 +377,11 @@ export default function BookingPage() {
       setAppliedVoucher({ code: "FIRSTSPA", discount: 200 });
     } else if (code === "LUXE20") {
       const rateDiscount = Math.round(serviceSubtotal * 0.2);
-      setAppliedVoucher({ code: "LUXE20", discount: rateDiscount });
+      setAppliedVoucher({ code: "LUXE20", discountRate: 0.2, discount: rateDiscount });
+    } else if (code === "WELCOME50") {
+      setAppliedVoucher({ code: "WELCOME50", discount: 50 });
+    } else if (code === "FLAT100") {
+      setAppliedVoucher({ code: "FLAT100", discount: 100 });
     } else {
       setAppliedVoucher({ code, discount: 50 });
     }
@@ -337,6 +399,10 @@ export default function BookingPage() {
 
   /* ── Final Booking Confirmation inside Payment Modal ─── */
   async function handleFinalBookingSubmit() {
+    if (selectedServices.length === 0) {
+      setError("Please select at least one service.");
+      return;
+    }
     if (!clientName.trim()) {
       setError("Please enter your full name.");
       return;
@@ -346,7 +412,8 @@ export default function BookingPage() {
 
     const payload = {
       salon_id: Number(salonId),
-      service_id: selectedService.id,
+      service_id: selectedServices[0].id,
+      service_ids: selectedServices.map((s) => s.id),
       booking_date: selectedDate,
       start_time: selectedSlot.time,
       client_name: clientName.trim(),
@@ -354,9 +421,13 @@ export default function BookingPage() {
       client_email: clientEmail.trim(),
       notes: notes.trim(),
       payment_method: paymentMethod,
+      voucher_code: appliedVoucher?.code || "",
+      discount_amount: discountAmount,
     };
-    if (selectedWorker && selectedWorker !== "any") {
+    if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
       payload.worker_id = Number(selectedWorker);
+    } else if (selectedSlot?.assigned_worker?.id) {
+      payload.worker_id = Number(selectedSlot.assigned_worker.id);
     }
 
     // 1. PAY AT SALON
@@ -495,8 +566,8 @@ export default function BookingPage() {
                 </strong>
               </div>
               <div className="bk-detail-row">
-                <span>✂ Service</span>
-                <strong>{bookingResult.service_name}</strong>
+                <span>✂ Service(s)</span>
+                <strong>{bookingResult.service_display_name || bookingResult.service_name}</strong>
               </div>
               <div className="bk-detail-row">
                 <span>👤 Specialist</span>
@@ -504,7 +575,7 @@ export default function BookingPage() {
               </div>
               <div className="bk-detail-row">
                 <span>💰 Total Amount</span>
-                <strong>₹{Number(bookingResult.service_price).toLocaleString("en-IN")}</strong>
+                <strong>₹{Number(bookingResult.total_amount != null ? bookingResult.total_amount : bookingResult.service_price).toLocaleString("en-IN")}</strong>
               </div>
               <div className="bk-detail-row">
                 <span>💳 Payment Status</span>
@@ -571,38 +642,58 @@ export default function BookingPage() {
           {/* ── STEP 0: Service Selection ─── */}
           {step === 0 && (
             <div className="bk-panel">
-              <h2 className="bk-panel-title">Select a Service</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+                <div>
+                  <h2 className="bk-panel-title" style={{ margin: 0 }}>Select Services & Treatments</h2>
+                  <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "#64748b" }}>
+                    Select one or more services to curate your custom salon session.
+                  </p>
+                </div>
+                {selectedServices.length > 0 && (
+                  <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", padding: "6px 14px", borderRadius: "999px", fontSize: "0.82rem", color: "#065f46", fontWeight: 600 }}>
+                    ✨ {selectedServices.length} Selected • ₹{serviceSubtotal.toLocaleString("en-IN")} • {totalDurationMinutes} mins
+                  </div>
+                )}
+              </div>
+
               {services.length === 0 ? (
                 <p className="bk-empty">No services available for this salon.</p>
               ) : (
                 <div className="bk-services-grid">
-                  {services.map((svc) => (
-                    <div
-                      key={svc.id}
-                      className={`bk-service-card ${selectedService?.id === svc.id ? "bk-service-card--selected" : ""}`}
-                      onClick={() => setSelectedService(svc)}
-                    >
-                      <div className="bk-svc-category">{svc.category || "Service"}</div>
-                      <div className="bk-svc-name">{svc.name}</div>
-                      <div className="bk-svc-meta">
-                        <span className="bk-svc-duration">⏱ {svc.duration} min</span>
-                        <span className="bk-svc-price">₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                  {services.map((svc) => {
+                    const isSelected = selectedServices.some((s) => s.id === svc.id);
+                    return (
+                      <div
+                        key={svc.id}
+                        className={`bk-service-card ${isSelected ? "bk-service-card--selected" : ""}`}
+                        onClick={() => handleToggleService(svc)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <div className="bk-svc-category">{svc.category || "Service"}</div>
+                        <div className="bk-svc-name">{svc.name}</div>
+                        <div className="bk-svc-meta">
+                          <span className="bk-svc-duration">⏱ {svc.duration} min</span>
+                          <span className="bk-svc-price">₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                        </div>
+                        {svc.description && <p className="bk-svc-desc">{svc.description}</p>}
+                        {isSelected && (
+                          <div className="bk-svc-check">✓ Added to Booking</div>
+                        )}
                       </div>
-                      {svc.description && <p className="bk-svc-desc">{svc.description}</p>}
-                      {selectedService?.id === svc.id && (
-                        <div className="bk-svc-check">✓ Selected</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
-              <div className="bk-footer">
+              <div className="bk-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem", color: "#475569" }}>
+                  {selectedServices.length} treatment{selectedServices.length > 1 ? "s" : ""} chosen ({totalDurationMinutes} mins)
+                </span>
                 <button
                   className="bk-btn-primary"
-                  disabled={!selectedService}
+                  disabled={selectedServices.length === 0}
                   onClick={() => setStep(1)}
                 >
-                  Continue →
+                  Continue to Date Selection →
                 </button>
               </div>
             </div>
@@ -916,26 +1007,61 @@ export default function BookingPage() {
                   {/* Card 2: Selected Treatment Card */}
                   <div className="bk-treatment-card">
                     <div className="bk-treatment-card-header">
-                      <span className="bk-treatment-label">SELECTED TREATMENT</span>
+                      <span className="bk-treatment-label">
+                        {selectedServices.length > 1 ? `SELECTED TREATMENTS (${selectedServices.length})` : "SELECTED TREATMENT"}
+                      </span>
                       <span className="bk-treatment-cat-pill">
-                        {selectedService.category || "Precision Styling"}
+                        {selectedServices.length > 1 ? "Curated Package" : (selectedService.category || "Precision Styling")}
                       </span>
                     </div>
 
-                    <div className="bk-treatment-title-row">
-                      <h3 className="bk-treatment-name">{selectedService.name}</h3>
-                      <div className="bk-treatment-price-wrap">
-                        <div className="bk-treatment-price">
-                          ₹{Number(selectedService.price).toLocaleString("en-IN")}
+                    {selectedServices.length === 1 ? (
+                      <>
+                        <div className="bk-treatment-title-row">
+                          <h3 className="bk-treatment-name">{selectedService.name}</h3>
+                          <div className="bk-treatment-price-wrap">
+                            <div className="bk-treatment-price">
+                              ₹{Number(selectedService.price).toLocaleString("en-IN")}
+                            </div>
+                            <div className="bk-treatment-duration">{selectedService.duration} mins</div>
+                          </div>
                         </div>
-                        <div className="bk-treatment-duration">{selectedService.duration} mins</div>
-                      </div>
-                    </div>
 
-                    <p className="bk-treatment-desc">
-                      {selectedService.description ||
-                        "Precision scissor cut & organic botanical wash with invigorating scalp acupressure massage."}
-                    </p>
+                        <p className="bk-treatment-desc">
+                          {selectedService.description ||
+                            "Precision scissor cut & organic botanical wash with invigorating scalp acupressure massage."}
+                        </p>
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "10px 0" }}>
+                        {selectedServices.map((svc) => (
+                          <div
+                            key={svc.id}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "10px 14px",
+                              background: "#f8fafc",
+                              borderRadius: "8px",
+                              border: "1px solid #e2e8f0",
+                            }}
+                          >
+                            <div>
+                              <strong style={{ fontSize: "0.92rem", color: "#0f172a", display: "block" }}>
+                                {svc.name}
+                              </strong>
+                              <span style={{ fontSize: "0.76rem", color: "#64748b" }}>
+                                ⏱ {svc.duration} mins • {svc.category || "Service"}
+                              </span>
+                            </div>
+                            <span style={{ fontWeight: 700, color: "#1b4332", fontSize: "0.92rem" }}>
+                              ₹{Number(svc.price).toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Stylist Sub-card */}
                     <div className="bk-stylist-row">
@@ -1001,7 +1127,7 @@ export default function BookingPage() {
                         <div className="bk-stat-tile-icon">⏱</div>
                         <div className="bk-stat-tile-content">
                           <span className="bk-stat-tile-label">TOTAL DURATION</span>
-                          <span className="bk-stat-tile-val">{selectedService.duration} Minutes</span>
+                          <span className="bk-stat-tile-val">{totalDurationMinutes} Minutes</span>
                         </div>
                       </div>
                     </div>
@@ -1092,24 +1218,31 @@ export default function BookingPage() {
                   <div className="bk-payment-summary-box">
                     <h3 className="bk-payment-summary-title">Payment Summary</h3>
 
-                    <div className="bk-ps-line">
-                      <span>
-                        {selectedService.name} ({selectedService.duration} mins)
-                      </span>
+                    {selectedServices.map((svc) => (
+                      <div key={svc.id} className="bk-ps-line">
+                        <span>
+                          {svc.name} ({svc.duration} mins)
+                        </span>
+                        <strong>₹{Number(svc.price).toLocaleString("en-IN")}</strong>
+                      </div>
+                    ))}
+
+                    <div className="bk-ps-line" style={{ borderTop: "1px dashed #e2e8f0", paddingTop: "6px", marginTop: "4px" }}>
+                      <span>Subtotal ({selectedServices.length} treatment{selectedServices.length > 1 ? "s" : ""})</span>
                       <strong>₹{serviceSubtotal.toLocaleString("en-IN")}</strong>
+                    </div>
+
+                    <div className="bk-ps-line">
+                      <span>GST & Hygiene Safety (5%)</span>
+                      <strong>₹{taxAmount.toLocaleString("en-IN")}</strong>
                     </div>
 
                     {discountAmount > 0 && (
                       <div className="bk-ps-line bk-ps-line--discount">
-                        <span>🏷 Welcome Wellness Discount</span>
+                        <span>🏷 Voucher Discount ({appliedVoucher?.code})</span>
                         <strong>-₹{discountAmount}</strong>
                       </div>
                     )}
-
-                    <div className="bk-ps-line" style={{ color: "#64748b" }}>
-                      <span>Applicable Taxes & Spa Surcharge</span>
-                      <span>Included</span>
-                    </div>
 
                     <div className="bk-ps-divider" />
 
@@ -1474,9 +1607,11 @@ export default function BookingPage() {
                 <div className="bk-modal-svc-card">
                   <div className="bk-modal-svc-top">
                     <div>
-                      <span className="bk-modal-svc-name">✂ {selectedService.name}</span>
+                      <span className="bk-modal-svc-name">
+                        ✂ {selectedServices.map((s) => s.name).join(" + ")}
+                      </span>
                       <div className="bk-modal-svc-sub">
-                        {selectedService.duration} mins • Styling & Botanical Wash
+                        {totalDurationMinutes} mins total • {selectedServices.length} treatment{selectedServices.length > 1 ? "s" : ""}
                       </div>
                     </div>
                     <span className="bk-modal-svc-price">
@@ -1499,22 +1634,28 @@ export default function BookingPage() {
 
                 {/* Bill Breakdown */}
                 <div className="bk-modal-bill-breakdown">
-                  <div className="bk-modal-bill-line">
-                    <span>Service Subtotal</span>
+                  {selectedServices.map((svc) => (
+                    <div key={svc.id} className="bk-modal-bill-line" style={{ fontSize: "0.8rem" }}>
+                      <span>{svc.name}</span>
+                      <span>₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                  <div className="bk-modal-bill-line" style={{ borderTop: "1px dashed #e2e8f0", paddingTop: "4px" }}>
+                    <span>Subtotal</span>
                     <strong>₹{serviceSubtotal.toLocaleString("en-IN")}</strong>
+                  </div>
+
+                  <div className="bk-modal-bill-line">
+                    <span>GST & Hygiene Safety (5%)</span>
+                    <strong>₹{taxAmount.toLocaleString("en-IN")}</strong>
                   </div>
 
                   {discountAmount > 0 && (
                     <div className="bk-modal-bill-line bk-modal-bill-line--discount">
-                      <span>Welcome Wellness Discount</span>
+                      <span>Voucher Discount ({appliedVoucher?.code})</span>
                       <strong>-₹{discountAmount}</strong>
                     </div>
                   )}
-
-                  <div className="bk-modal-bill-line" style={{ color: "#64748b" }}>
-                    <span>Taxes & Salon Fees</span>
-                    <span>Included</span>
-                  </div>
 
                   <div className="bk-modal-bill-divider" />
 
@@ -1526,7 +1667,7 @@ export default function BookingPage() {
                       ₹{payableNowAmount.toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <p className="bk-modal-tax-note">Inclusive of all local taxes</p>
+                  <p className="bk-modal-tax-note">Inclusive of 5% GST & all charges</p>
                 </div>
 
                 {/* Error Banner with Try Again Button */}

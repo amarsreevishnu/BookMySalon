@@ -58,6 +58,8 @@ function AppRoutes() {
         <Route path="/customer/profile" element={<CustomerProfile />} />
         <Route path="/customer/salons/:id/book" element={<BookingPage />} />
         <Route path="/customer/my-bookings" element={<MyBookings />} />
+        <Route path="/salons/:id" element={<SalonDetail />} />
+        <Route path="/salons/:id/book" element={<BookingPage />} />
       </Route>
 
 

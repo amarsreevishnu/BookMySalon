@@ -1884,12 +1884,13 @@ class CustomerSalonDetailView(APIView):
 
     def get(self, request, pk):
         try:
-            salon = Salon.objects.get(pk=pk)
+            salon = Salon.objects.get(pk=pk,approval_status=Salon.ApprovalStatus.APPROVED,)
             serializer = SalonSerializer(salon, context={"request": request})
             data = serializer.data
 
             today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
             from reviews.models import SalonReview, WorkerReview
+            from salons.media_utils import build_full_media_url
             workers = WorkerProfile.objects.filter(salon=salon, is_active=True).select_related("user")
             workers_data = []
             for w in workers:
@@ -1906,16 +1907,17 @@ class CustomerSalonDetailView(APIView):
 
                 workers_data.append({
                     "id": w.id,
-                    "name": w.user.get_full_name() or w.user.email,
-                    "specialization": w.specialization or "Master Stylist",
-                    "experience": w.experience or "3+ Years",
+                    "name": w.user.get_full_name() or w.user.email.split('@')[0].title(),
+                    "specialization": w.specialization or "Stylist",
+                    "experience": w.experience or "",
                     "rating": w_rating,
                     "reviews_count": w_reviews_count,
-                    "profile_photo": w.profile_photo,
-                    "station": w.station,
+                    "profile_photo": build_full_media_url(request, w.profile_photo) if w.profile_photo else "",
+                    "station": w.station or "",
                     "approved_leaves": [d.isoformat() for d in leaves_dates],
                 })
             data["workers_list"] = workers_data
+            data["workers"] = workers_data
 
             try:
                 salon_services = SalonService.objects.filter(salon=salon, is_active=True).select_related("service", "service__category")
@@ -2014,6 +2016,34 @@ class CustomerSalonDetailView(APIView):
             data["reviews_count"] = salon_reviews_count
             data["rating_breakdown"] = breakdown_pct
             data["reviews"] = reviews_data
+
+            # Real platform promotional offers from pricing engine
+            try:
+                from bookings.pricing import COUPON_RULES
+                offers_data = []
+                for code, rule in COUPON_RULES.items():
+                    if rule["type"] == "percent":
+                        pct = int(rule["value"] * 100)
+                        title = f"{pct}% OFF - {rule['label']}"
+                        desc = f"Valid on bookings above ₹{int(rule['min_spend'])}"
+                        discount_rate = rule["value"]
+                        discount_fixed = None
+                    else:
+                        title = f"Flat ₹{int(rule['value'])} OFF - {rule['label']}"
+                        desc = f"Valid on bookings above ₹{int(rule['min_spend'])}"
+                        discount_rate = None
+                        discount_fixed = float(rule["value"])
+                    offers_data.append({
+                        "code": code,
+                        "title": title,
+                        "desc": desc,
+                        "discountRate": discount_rate,
+                        "discountFixed": discount_fixed,
+                        "minSpend": float(rule["min_spend"]),
+                    })
+                data["offers"] = offers_data
+            except Exception:
+                data["offers"] = []
 
             return Response(data, status=status.HTTP_200_OK)
         except Salon.DoesNotExist:

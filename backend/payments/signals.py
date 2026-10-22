@@ -9,10 +9,7 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=Booking)
 def sync_booking_to_payment(sender, instance, created, **kwargs):
-    """
-    Ensure every Booking has a corresponding Payment record in the payments app.
-    Keeps payment details synchronized automatically.
-    """
+    
     try:
         payment, was_created = Payment.objects.get_or_create(
             booking=instance,

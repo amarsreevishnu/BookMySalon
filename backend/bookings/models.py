@@ -37,11 +37,22 @@ class Booking(models.Model):
         blank=True,
         related_name='bookings',
     )
+    services = models.ManyToManyField(
+        'services.SalonService',
+        blank=True,
+        related_name='multi_service_bookings',
+        help_text='All services selected for this appointment',
+    )
     client_name = models.CharField(max_length=150)
     client_phone = models.CharField(max_length=20, blank=True, default="")
     client_email = models.EmailField(blank=True, default="")
     service_name = models.CharField(max_length=150)
     service_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Sum of all services prices')
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Taxes (GST & hygiene)')
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Discounts/coupons/vouchers')
+    voucher_code = models.CharField(max_length=50, blank=True, default="", help_text='Applied promo or voucher code')
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Final payable total')
     booking_date = models.DateField()
     booking_time = models.CharField(max_length=50)
     start_time = models.TimeField(null=True, blank=True, help_text='Start time for online bookings')

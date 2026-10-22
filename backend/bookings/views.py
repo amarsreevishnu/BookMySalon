@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, date
-import hmac
-import hashlib
-import requests
+from decimal import Decimal
+import json
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Avg, Count, Sum
@@ -40,21 +39,13 @@ def _get_weekday_key(d: date) -> str:
 
 
 def _get_salon_day_hours(salon, booking_date: date):
-    """
-    Robustly extract (open_time, close_time, is_closed, reason) for the given salon and date.
-    Handles:
-    - {"days": [{"day": "Monday", "isOpen": true, "openTime": "09:00", "closeTime": "21:00"}, ...]}
-    - {"monday": {"open": "09:00", "close": "21:00", "closed": false}, ...}
-    - {"openTime": "09:00", "closeTime": "21:00"}
-    - empty / None / unconfigured (defaults to 09:00 - 21:00 open)
-    """
+   
     weekday_lower = _get_weekday_key(booking_date)
     day_name = booking_date.strftime("%A")
 
     raw_hours = getattr(salon, "opening_hours", None) or {}
     if isinstance(raw_hours, str):
         try:
-            import json
             raw_hours = json.loads(raw_hours)
         except Exception:
             raw_hours = {}
@@ -70,7 +61,6 @@ def _get_salon_day_hours(salon, booking_date: date):
     elif isinstance(raw_hours, list):
         days_list = raw_hours
 
-    # 1. If we have a list of day objects
     if days_list:
         matched = None
         for item in days_list:
@@ -89,13 +79,10 @@ def _get_salon_day_hours(salon, booking_date: date):
             close_t = _parse_time(str(matched.get("closeTime") or matched.get("close") or "21:00")) or _parse_time("21:00")
             return open_t, close_t, False, ""
         else:
-            # If day list exists but this day isn't explicitly configured as closed, default open 09:00-21:00
-            # (unless it's Sunday and empty, default Sunday open 10:00-19:00)
             open_t = _parse_time("09:00")
             close_t = _parse_time("21:00")
             return open_t, close_t, False, ""
 
-    # 2. If it's a dict keyed by day: {"monday": {"open": "09:00", ...}}
     if isinstance(raw_hours, dict) and weekday_lower in raw_hours:
         day_info = raw_hours.get(weekday_lower) or {}
         if isinstance(day_info, dict):
@@ -105,7 +92,6 @@ def _get_salon_day_hours(salon, booking_date: date):
             close_t = _parse_time(str(day_info.get("close") or day_info.get("closeTime") or "21:00")) or _parse_time("21:00")
             return open_t, close_t, False, ""
 
-    # 3. Default fallback for salons with no custom hours: 09:00 to 21:00
     open_t = _parse_time("09:00")
     close_t = _parse_time("21:00")
     return open_t, close_t, False, ""
@@ -125,7 +111,6 @@ RESERVATION_TIMEOUT_MINUTES = 10
 
 
 def _clean_expired_reservations():
-    """Cancel any PENDING bookings whose expires_at has passed."""
     Booking.objects.filter(
         status=Booking.Status.PENDING,
         expires_at__isnull=False,
@@ -134,12 +119,7 @@ def _clean_expired_reservations():
 
 
 def _generate_slots(open_time, close_time, duration_minutes, interval_minutes=30):
-    """
-    Generate candidate start times at 30-minute intervals (or min(30, duration)),
-    ensuring slot_start + duration <= close_time.
-    For a 60-minute service, candidate start times are still generated at 30-min intervals,
-    and each slot checks the full 60-minute duration.
-    """
+  
     step_minutes = min(interval_minutes, duration_minutes) if (duration_minutes and duration_minutes < interval_minutes) else interval_minutes
     slots = []
     current = datetime.combine(date.today(), open_time)
@@ -153,7 +133,7 @@ def _generate_slots(open_time, close_time, duration_minutes, interval_minutes=30
 
 
 def _worker_is_on_leave(worker_id, booking_date):
-    """Check if worker has an approved leave on the given date."""
+
     return WorkerLeave.objects.filter(
         worker_id=worker_id,
         date=booking_date,
@@ -162,7 +142,7 @@ def _worker_is_on_leave(worker_id, booking_date):
 
 
 def _worker_is_on_weekly_off(worker, booking_date: date) -> bool:
-    """Check if booking_date matches worker's configured weekly off day."""
+    
     if not worker or not worker.shift_hours:
         return False
     shift_hours = worker.shift_hours if isinstance(worker.shift_hours, dict) else {}
@@ -183,16 +163,12 @@ def _worker_is_on_weekly_off(worker, booking_date: date) -> bool:
 
 
 def _get_worker_working_intervals(worker, booking_date: date, salon_open_time, salon_close_time):
-    """
-    Returns (work_start, work_end, breaks_list) for this worker on this date.
-    Returns (None, None, []) if worker is off or hours are invalid.
-    """
+    
     if _worker_is_on_weekly_off(worker, booking_date):
         return None, None, []
 
     shift = worker.shift_hours if isinstance(getattr(worker, 'shift_hours', None), dict) else {}
     
-    # Extract shift start/end
     raw_in = shift.get("time_in") or shift.get("start") or shift.get("open")
     raw_out = shift.get("time_out") or shift.get("end") or shift.get("close")
 
@@ -204,14 +180,12 @@ def _get_worker_working_intervals(worker, booking_date: date, salon_open_time, s
     if not w_end:
         w_end = salon_close_time
 
-    # Constrain within salon opening hours
     effective_start = max(w_start, salon_open_time)
     effective_end = min(w_end, salon_close_time)
 
     if effective_start >= effective_end:
         return None, None, []
 
-    # Parse any breaks configured: e.g. [{"start": "13:00", "end": "14:00"}] or {"start": "...", "end": "..."}
     breaks = []
     raw_breaks = (
         shift.get("breaks")
@@ -238,7 +212,7 @@ def _get_worker_working_intervals(worker, booking_date: date, salon_open_time, s
 
 
 def _get_booked_slots_for_worker(worker_id, booking_date):
-    """Return list of (start_time, end_time) tuples for active bookings, excluding expired pending reservations."""
+
     _clean_expired_reservations()
     active_statuses = [Booking.Status.PENDING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
     bookings = Booking.objects.filter(
@@ -251,10 +225,6 @@ def _get_booked_slots_for_worker(worker_id, booking_date):
 
 
 def _check_slot_status(slot_start, slot_end, booked_slots, worker_start=None, worker_end=None, breaks=None):
-    """
-    Return (is_free: bool, reason: str).
-    Reasons: '' (available), 'Outside working hours', 'Break', 'Already booked'
-    """
     if worker_start and slot_start < worker_start:
         return False, "Outside working hours"
     if worker_end and slot_end > worker_end:
@@ -275,13 +245,12 @@ def _check_slot_status(slot_start, slot_end, booked_slots, worker_start=None, wo
 
 
 def _slot_is_free(slot_start, slot_end, booked_slots, worker_start=None, worker_end=None, breaks=None):
-    """Backward compatible wrapper returning boolean."""
     is_free, _ = _check_slot_status(slot_start, slot_end, booked_slots, worker_start, worker_end, breaks)
     return is_free
 
 
 class SalonOffDaysView(APIView):
-    """GET /api/v1/bookings/salons/{salon_id}/off-days/ - list salon off-days."""
+    
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 
@@ -301,7 +270,7 @@ class SalonOffDaysView(APIView):
 
 
 class SalonServicesView(APIView):
-    """GET /api/v1/bookings/salons/{salon_id}/services/ - list active services."""
+    
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 
@@ -330,13 +299,55 @@ class SalonServicesView(APIView):
         return Response({'services': data})
 
 
+def _get_services_from_request(request, salon):
+   
+    svc_id_list = []
+    
+    service_ids_str = request.query_params.get('service_ids')
+    service_ids_list = request.query_params.getlist('service_ids') if hasattr(request.query_params, 'getlist') else []
+    service_id = request.query_params.get('service_id')
+
+    
+    if not service_ids_str and not service_ids_list and not service_id and hasattr(request, 'data'):
+        data_sids = request.data.get('service_ids')
+        if isinstance(data_sids, list):
+            service_ids_list = data_sids
+        elif data_sids:
+            service_ids_str = str(data_sids)
+        service_id = request.data.get('service_id')
+
+    if service_ids_str:
+        if isinstance(service_ids_str, list):
+            for item in service_ids_str:
+                if str(item).strip().isdigit():
+                    svc_id_list.append(int(item))
+        else:
+            for item in str(service_ids_str).split(','):
+                item = item.strip()
+                if item.isdigit():
+                    val = int(item)
+                    if val not in svc_id_list:
+                        svc_id_list.append(val)
+    elif service_ids_list:
+        for item in service_ids_list:
+            item = str(item).strip()
+            if item.isdigit():
+                val = int(item)
+                if val not in svc_id_list:
+                    svc_id_list.append(val)
+    elif service_id and str(service_id).isdigit():
+        svc_id_list.append(int(service_id))
+
+    if not svc_id_list:
+        return []
+
+    services = list(SalonService.objects.filter(pk__in=svc_id_list, salon=salon, is_active=True))
+    svc_map = {s.id: s for s in services}
+    return [svc_map[sid] for sid in svc_id_list if sid in svc_map]
+
+
 class SalonWorkersView(APIView):
-    """
-    GET /api/v1/bookings/salons/{salon_id}/workers/
-    Query params:
-    - service_id (optional): only return workers who perform this service
-    - date (optional, YYYY-MM-DD): checks if worker has advance bookings, is on leave, or is fully booked on this date
-    """
+    
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 
@@ -346,9 +357,8 @@ class SalonWorkersView(APIView):
         except Salon.DoesNotExist:
             return Response({'error': 'Salon not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        service_id = request.query_params.get('service_id')
         date_str = request.query_params.get('date')
-        time_str = request.query_params.get('time')  # HH:MM format optional
+        time_str = request.query_params.get('time')
 
         target_date = None
         if date_str:
@@ -357,12 +367,8 @@ class SalonWorkersView(APIView):
             except ValueError:
                 target_date = None
 
-        service_obj = None
-        if service_id:
-            try:
-                service_obj = SalonService.objects.get(pk=service_id, salon=salon)
-            except SalonService.DoesNotExist:
-                service_obj = None
+        selected_services = _get_services_from_request(request, salon)
+        total_duration = sum(s.duration for s in selected_services) if selected_services else 45
 
         req_time = _parse_time(time_str) if time_str else None
 
@@ -375,18 +381,23 @@ class SalonWorkersView(APIView):
 
         data = []
         for w in workers_qs:
-            # If service_id provided, only include workers who can do it
-            if service_obj:
-                service_name = service_obj.effective_name.lower()
-                service_std_name = service_obj.service.name.lower() if service_obj.service else ''
+            if selected_services:
                 assigned = [str(s).lower() for s in (w.assigned_services or [])]
-                can_do = (
-                    any(service_name in a or a in service_name for a in assigned)
-                    or any(service_std_name in a or a in service_std_name for a in assigned)
-                    or str(service_obj.id) in [str(s) for s in (w.assigned_services or [])]
-                )
-                if not can_do and assigned:  # worker has assigned services but not this one
-                    continue
+                if assigned:
+                    can_do_all = True
+                    for ss in selected_services:
+                        service_name = ss.effective_name.lower()
+                        service_std_name = ss.service.name.lower() if ss.service else ''
+                        can_do = (
+                            any(service_name in a or a in service_name for a in assigned)
+                            or any(service_std_name in a or a in service_std_name for a in assigned)
+                            or str(ss.id) in assigned
+                        )
+                        if not can_do:
+                            can_do_all = False
+                            break
+                    if not can_do_all:
+                        continue
 
             # Advance bookings & schedule check
             is_on_leave = False
@@ -429,8 +440,8 @@ class SalonWorkersView(APIView):
                     if b.start_time and b.end_time:
                         booked_tuples.append((b.start_time, b.end_time))
 
-                if not is_salon_closed and not is_on_leave and not is_weekly_off and open_time and close_time and service_obj:
-                    duration = service_obj.duration
+                if not is_salon_closed and not is_on_leave and not is_weekly_off and open_time and close_time and selected_services:
+                    duration = total_duration
                     cand_slots = _generate_slots(open_time, close_time, duration)
                     now = datetime.now().time() if target_date == timezone.localdate() else None
                     free_count = 0
@@ -444,7 +455,6 @@ class SalonWorkersView(APIView):
                     if len(cand_slots) > 0 and free_count == 0:
                         is_fully_booked = True
 
-                    # If specific time requested, check if free at that specific slot
                     if req_time:
                         slot_end = (datetime.combine(target_date, req_time) + timedelta(minutes=duration)).time()
                         is_available_at_time = _slot_is_free(
@@ -454,7 +464,6 @@ class SalonWorkersView(APIView):
                 elif req_time:
                     is_available_at_time = False
             else:
-                # If no date specified, count total upcoming advance bookings
                 upcoming_qs = Booking.objects.filter(
                     worker=w,
                     booking_date__gte=timezone.localdate(),
@@ -465,8 +474,13 @@ class SalonWorkersView(APIView):
 
             full_name = w.user.get_full_name() or w.user.email.split('@')[0].title()
             from salons.media_utils import build_full_media_url
+            from reviews.models import WorkerReview
+            from django.db.models import Avg, Count
 
-            # A worker is available on this date if not on leave, not on weekly off, and has at least one open slot
+            w_agg = WorkerReview.objects.filter(worker=w).aggregate(avg=Avg('rating'), count=Count('id'))
+            w_reviews_count = w_agg['count'] or 0
+            w_rating = round(float(w_agg['avg']), 2) if (w_agg['avg'] is not None and w_reviews_count > 0) else 5.0
+
             is_available = not is_on_leave and not is_weekly_off and not is_fully_booked if target_date else True
 
             data.append({
@@ -474,6 +488,8 @@ class SalonWorkersView(APIView):
                 'name': full_name,
                 'specialization': w.specialization or 'Stylist',
                 'experience': w.experience or '',
+                'rating': w_rating,
+                'reviews_count': w_reviews_count,
                 'station': w.station or '',
                 'profile_photo': build_full_media_url(request, w.profile_photo) if w.profile_photo else '',
                 'assigned_services': w.assigned_services or [],
@@ -492,24 +508,18 @@ class SalonWorkersView(APIView):
 
 
 class AvailableSlotsView(APIView):
-    """
-    GET /api/v1/bookings/slots/
-    Query params: salon_id, service_id, date (YYYY-MM-DD), worker_id (optional, omit = any)
-    Returns available time slots, respecting salon off-days, worker leaves, and existing bookings.
-    """
+    
     permission_classes = [AllowAny]
     authentication_classes = [OptionalJWTAuthentication]
 
     def get(self, request):
         salon_id = request.query_params.get('salon_id')
-        service_id = request.query_params.get('service_id')
         date_str = request.query_params.get('date')
         worker_id = request.query_params.get('worker_id')  # None = 'any'
 
-        # Validate required params
-        if not all([salon_id, service_id, date_str]):
+        if not salon_id or not date_str:
             return Response(
-                {'error': 'salon_id, service_id, and date are required.'},
+                {'error': 'salon_id and date are required.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -521,13 +531,20 @@ class AvailableSlotsView(APIView):
         if booking_date < timezone.localdate():
             return Response({'error': 'Cannot book for a past date.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch salon
         try:
             salon = Salon.objects.get(pk=salon_id)
         except Salon.DoesNotExist:
             return Response({'error': 'Salon not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check salon off-day
+        services = _get_services_from_request(request, salon)
+        if not services:
+            return Response(
+                {'error': 'At least one valid service_id or service_ids is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        total_duration = sum(s.duration for s in services)
+
         off_day = SalonOffDay.objects.filter(salon=salon, date=booking_date).first()
         if off_day:
             reason_text = f"Salon is closed on this date: {off_day.reason}" if off_day.reason else "Salon is closed on this date"
@@ -538,15 +555,6 @@ class AvailableSlotsView(APIView):
                 'slots': [],
             })
 
-        # Fetch service
-        try:
-            service = SalonService.objects.get(pk=service_id, salon=salon, is_active=True)
-        except SalonService.DoesNotExist:
-            return Response({'error': 'Service not found for this salon.'}, status=status.HTTP_404_NOT_FOUND)
-
-        duration = service.duration  # minutes
-
-        # Get salon opening hours for this date
         weekday = _get_weekday_key(booking_date)
         open_time, close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
 
@@ -558,23 +566,40 @@ class AvailableSlotsView(APIView):
                 'slots': [],
             })
 
-        candidate_slots = _generate_slots(open_time, close_time, duration)
+        candidate_slots = _generate_slots(open_time, close_time, total_duration)
 
-        # Determine eligible workers
         specific_worker = None
-        if worker_id and worker_id != 'any':
+        if worker_id and str(worker_id).strip().lower() not in ('any', 'auto', 'null', 'none', '', 'undefined'):
             try:
                 specific_worker = WorkerProfile.objects.get(pk=int(worker_id), salon=salon, is_active=True)
             except (WorkerProfile.DoesNotExist, ValueError):
                 return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Build slot availability
         slots = []
         now = datetime.now().time() if booking_date == timezone.localdate() else None
+        from salons.media_utils import build_full_media_url
 
         if specific_worker:
             worker_name = specific_worker.user.get_full_name() or specific_worker.user.email
-            # Specific worker chosen
+
+            assigned = [str(s).lower() for s in (specific_worker.assigned_services or [])]
+            if assigned:
+                for ss in services:
+                    service_name = ss.effective_name.lower()
+                    service_std_name = ss.service.name.lower() if ss.service else ''
+                    can_do = (
+                        any(service_name in a or a in service_name for a in assigned)
+                        or any(service_std_name in a or a in service_std_name for a in assigned)
+                        or str(ss.id) in assigned
+                    )
+                    if not can_do:
+                        return Response({
+                            'closed': False,
+                            'worker_unavailable': True,
+                            'reason': f'{worker_name} is not assigned to perform {ss.effective_name}.',
+                            'slots': [],
+                        })
+
             on_leave = _worker_is_on_leave(specific_worker.id, booking_date)
             if on_leave:
                 return Response({
@@ -599,7 +624,7 @@ class AvailableSlotsView(APIView):
             for slot_start in candidate_slots:
                 if now and slot_start <= now:
                     continue
-                slot_end = (datetime.combine(booking_date, slot_start) + timedelta(minutes=duration)).time()
+                slot_end = (datetime.combine(booking_date, slot_start) + timedelta(minutes=total_duration)).time()
                 is_free, reason = _check_slot_status(
                     slot_start, slot_end, booked,
                     worker_start=w_start, worker_end=w_end, breaks=w_breaks
@@ -611,85 +636,133 @@ class AvailableSlotsView(APIView):
                     'end_time_display': datetime.combine(booking_date, slot_end).strftime('%I:%M %p').lstrip('0'),
                     'available': is_free,
                     'reason': reason,
+                    'assigned_worker': {
+                        'id': specific_worker.id,
+                        'name': worker_name,
+                        'role': specific_worker.specialization or 'Stylist',
+                        'station': specific_worker.station or 'Station 01',
+                        'profile_photo': build_full_media_url(request, specific_worker.profile_photo) if specific_worker.profile_photo else '',
+                    } if is_free else None,
                 })
         else:
-            # Any available worker
+            # Any available worker who can perform ALL selected services
             eligible_workers_qs = WorkerProfile.objects.filter(salon=salon, is_active=True).select_related('user')
             
-            # Filter workers by assigned service if worker has specific assigned_services
-            service_name = service.effective_name.lower()
-            service_std_name = service.service.name.lower() if service.service else ''
-            service_id_str = str(service.id)
-            
-            capable_workers = []
-            for w in eligible_workers_qs:
-                assigned = [str(s).lower() for s in (w.assigned_services or [])]
-                if not assigned:
-                    capable_workers.append(w)
-                else:
-                    can_do = (
-                        any(service_name in a or a in service_name for a in assigned)
-                        or any(service_std_name in a or a in service_std_name for a in assigned)
-                        or service_id_str in [str(s) for s in (w.assigned_services or [])]
-                    )
-                    if can_do:
+            if not eligible_workers_qs.exists():
+                active_statuses = [Booking.Status.PENDING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
+                salon_bookings = Booking.objects.filter(
+                    salon=salon,
+                    booking_date=booking_date,
+                    status__in=active_statuses,
+                )
+                max_concurrent = 4
+                for slot_start in candidate_slots:
+                    if now and slot_start <= now:
+                        continue
+                    slot_end = (datetime.combine(booking_date, slot_start) + timedelta(minutes=total_duration)).time()
+                    conflicts_count = salon_bookings.filter(
+                        start_time__lt=slot_end,
+                        end_time__gt=slot_start,
+                    ).count()
+                    is_free = conflicts_count < max_concurrent
+                    slots.append({
+                        'time': slot_start.strftime('%H:%M'),
+                        'time_display': datetime.combine(booking_date, slot_start).strftime('%I:%M %p').lstrip('0'),
+                        'end_time': slot_end.strftime('%H:%M'),
+                        'end_time_display': datetime.combine(booking_date, slot_end).strftime('%I:%M %p').lstrip('0'),
+                        'available': is_free,
+                        'reason': '' if is_free else 'Fully Booked',
+                        'assigned_worker': {
+                            'id': None,
+                            'name': 'Salon Specialist (Auto-Assign)',
+                            'role': 'Salon Specialist',
+                            'station': 'Main Salon Floor',
+                            'profile_photo': '',
+                        } if is_free else None,
+                    })
+            else:
+                capable_workers = []
+                for w in eligible_workers_qs:
+                    assigned = [str(s).lower() for s in (w.assigned_services or [])]
+                    if not assigned:
                         capable_workers.append(w)
+                    else:
+                        can_do_all = True
+                        for ss in services:
+                            service_name = ss.effective_name.lower()
+                            service_std_name = ss.service.name.lower() if ss.service else ''
+                            can_do = (
+                                any(service_name in a or a in service_name for a in assigned)
+                                or any(service_std_name in a or a in service_std_name for a in assigned)
+                                or str(ss.id) in assigned
+                            )
+                            if not can_do:
+                                can_do_all = False
+                                break
+                        if can_do_all:
+                            capable_workers.append(w)
 
-            # Filter out workers on leave that day or on weekly off
-            workers_on_leave = set(
-                WorkerLeave.objects.filter(
-                    worker__in=capable_workers,
-                    date=booking_date,
-                    status=WorkerLeave.Status.APPROVED,
-                ).values_list('worker_id', flat=True)
-            )
+                workers_on_leave = set(
+                    WorkerLeave.objects.filter(
+                        worker__in=capable_workers,
+                        date=booking_date,
+                        status=WorkerLeave.Status.APPROVED,
+                    ).values_list('worker_id', flat=True)
+                )
 
-            available_workers = []
-            worker_intervals = {}
-            for w in capable_workers:
-                if w.id in workers_on_leave:
-                    continue
-                w_start, w_end, w_breaks = _get_worker_working_intervals(w, booking_date, open_time, close_time)
-                if w_start and w_end:
-                    available_workers.append(w)
-                    worker_intervals[w.id] = (w_start, w_end, w_breaks)
+                available_workers = []
+                worker_intervals = {}
+                for w in capable_workers:
+                    if w.id in workers_on_leave:
+                        continue
+                    w_start, w_end, w_breaks = _get_worker_working_intervals(w, booking_date, open_time, close_time)
+                    if w_start and w_end:
+                        available_workers.append(w)
+                        worker_intervals[w.id] = (w_start, w_end, w_breaks)
 
-            if not available_workers:
-                return Response({
-                    'closed': False,
-                    'worker_unavailable': True,
-                    'reason': 'No eligible workers available on this date.',
-                    'slots': [],
-                })
+                if not available_workers:
+                    return Response({
+                        'closed': False,
+                        'worker_unavailable': True,
+                        'reason': 'No eligible specialists available for these services on this date.',
+                        'slots': [],
+                    })
 
-            # Build booked slots per worker
-            worker_booked = {}
-            for w in available_workers:
-                worker_booked[w.id] = _get_booked_slots_for_worker(w.id, booking_date)
-
-            for slot_start in candidate_slots:
-                if now and slot_start <= now:
-                    continue
-                slot_end = (datetime.combine(booking_date, slot_start) + timedelta(minutes=duration)).time()
-                # Slot available if at least one worker is free within their working interval
-                any_free = False
+                worker_booked = {}
                 for w in available_workers:
-                    w_start, w_end, w_breaks = worker_intervals[w.id]
-                    if _slot_is_free(
-                        slot_start, slot_end, worker_booked[w.id],
-                        worker_start=w_start, worker_end=w_end, breaks=w_breaks
-                    ):
-                        any_free = True
-                        break
+                    worker_booked[w.id] = _get_booked_slots_for_worker(w.id, booking_date)
 
-                slots.append({
-                    'time': slot_start.strftime('%H:%M'),
-                    'time_display': datetime.combine(booking_date, slot_start).strftime('%I:%M %p').lstrip('0'),
-                    'end_time': slot_end.strftime('%H:%M'),
-                    'end_time_display': datetime.combine(booking_date, slot_end).strftime('%I:%M %p').lstrip('0'),
-                    'available': any_free,
-                    'reason': '' if any_free else 'Unavailable',
-                })
+                for slot_start in candidate_slots:
+                    if now and slot_start <= now:
+                        continue
+                    slot_end = (datetime.combine(booking_date, slot_start) + timedelta(minutes=total_duration)).time()
+                    any_free = False
+                    assigned_worker_info = None
+                    for w in available_workers:
+                        w_start, w_end, w_breaks = worker_intervals[w.id]
+                        if _slot_is_free(
+                            slot_start, slot_end, worker_booked[w.id],
+                            worker_start=w_start, worker_end=w_end, breaks=w_breaks
+                        ):
+                            any_free = True
+                            assigned_worker_info = {
+                                'id': w.id,
+                                'name': w.user.get_full_name() or w.user.email,
+                                'role': w.specialization or 'Stylist',
+                                'station': w.station or 'Station 01',
+                                'profile_photo': build_full_media_url(request, w.profile_photo) if w.profile_photo else '',
+                            }
+                            break
+
+                    slots.append({
+                        'time': slot_start.strftime('%H:%M'),
+                        'time_display': datetime.combine(booking_date, slot_start).strftime('%I:%M %p').lstrip('0'),
+                        'end_time': slot_end.strftime('%H:%M'),
+                        'end_time_display': datetime.combine(booking_date, slot_end).strftime('%I:%M %p').lstrip('0'),
+                        'available': any_free,
+                        'reason': '' if any_free else 'Unavailable',
+                        'assigned_worker': assigned_worker_info,
+                    })
 
         return Response({
             'closed': False,
@@ -697,16 +770,13 @@ class AvailableSlotsView(APIView):
             'weekday': weekday,
             'open_time': open_time.strftime('%H:%M'),
             'close_time': close_time.strftime('%H:%M'),
-            'duration_minutes': duration,
+            'duration_minutes': total_duration,
             'slots': slots,
         })
 
 
 class BookingCreateView(APIView):
-    """
-    POST /api/v1/bookings/create/
-    Creates a booking with double-booking prevention via SELECT FOR UPDATE inside a transaction.
-    """
+
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -717,11 +787,18 @@ class BookingCreateView(APIView):
 
         salon = data['salon']
         service = data['service']
+        services_list = data.get('services_list', [service])
         booking_date = data['booking_date']
         start_time = data['start_time']
         end_time = data['end_time']
         worker_id = data.get('worker_id')
-        duration = service.duration
+        total_duration = data.get('total_duration', service.duration)
+        subtotal = data.get('subtotal', service.price)
+        tax_amount = data.get('tax_amount', Decimal('0.00'))
+        discount_amount = data.get('discount_amount', Decimal('0.00'))
+        voucher_code = data.get('voucher_code', '')
+        total_amount = data.get('total_amount', subtotal)
+        service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
 
         weekday = _get_weekday_key(booking_date)
         salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
@@ -735,7 +812,6 @@ class BookingCreateView(APIView):
             with transaction.atomic():
                 _clean_expired_reservations()
 
-                # -- Re-check salon off-day inside transaction --
                 if SalonOffDay.objects.filter(salon=salon, date=booking_date).exists():
                     off = SalonOffDay.objects.get(salon=salon, date=booking_date)
                     return Response(
@@ -746,13 +822,12 @@ class BookingCreateView(APIView):
                 active_statuses = [Booking.Status.PENDING, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
 
                 if worker_id:
-                    # Specific worker requested
                     try:
                         worker = WorkerProfile.objects.get(pk=worker_id, salon=salon, is_active=True)
                     except WorkerProfile.DoesNotExist:
                         return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-                    # Re-check worker leave
+                    
                     if WorkerLeave.objects.filter(
                         worker=worker, date=booking_date, status=WorkerLeave.Status.APPROVED
                     ).exists():
@@ -761,7 +836,6 @@ class BookingCreateView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
 
-                    # Re-check worker working shift / off-day / breaks
                     w_start, w_end, w_breaks = _get_worker_working_intervals(
                         worker, booking_date, salon_open_time, salon_close_time
                     )
@@ -771,7 +845,24 @@ class BookingCreateView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
 
-                    # Validate slot is inside worker shift and not on break
+                    # Check  worker can do the selected services
+                    assigned = [str(s).lower() for s in (worker.assigned_services or [])]
+                    if assigned:
+                        for ss in services_list:
+                            s_name = ss.effective_name.lower()
+                            s_std = ss.service.name.lower() if ss.service else ''
+                            s_id = str(ss.id)
+                            can_do = (
+                                any(s_name in a or a in s_name for a in assigned)
+                                or any(s_std in a or a in s_std for a in assigned)
+                                or s_id in assigned
+                            )
+                            if not can_do:
+                                return Response(
+                                    {'error': f'Selected specialist cannot perform {ss.effective_name}.'},
+                                    status=status.HTTP_409_CONFLICT,
+                                )
+
                     if start_time < w_start or end_time > w_end:
                         return Response(
                             {'error': f'Selected slot is outside worker working hours ({w_start.strftime("%I:%M %p")} - {w_end.strftime("%I:%M %p")}).'},
@@ -786,7 +877,6 @@ class BookingCreateView(APIView):
                                     status=status.HTTP_409_CONFLICT,
                                 )
 
-                    # Lock conflicting rows and check overlap
                     conflicts = Booking.objects.select_for_update().filter(
                         worker=worker,
                         booking_date=booking_date,
@@ -802,80 +892,83 @@ class BookingCreateView(APIView):
                     assigned_worker = worker
 
                 else:
-                    # Any available worker — find first free one
-                    eligible_workers = list(
-                        WorkerProfile.objects.filter(salon=salon, is_active=True)
-                        .exclude(
-                            leaves__date=booking_date,
-                            leaves__status=WorkerLeave.Status.APPROVED,
-                        )
-                    )
-                    
-                    # Filter by assigned service capability
-                    service_name = service.effective_name.lower()
-                    service_std_name = service.service.name.lower() if service.service else ''
-                    service_id_str = str(service.id)
-                    capable_candidates = []
-                    for w in eligible_workers:
-                        assigned = [str(s).lower() for s in (w.assigned_services or [])]
-                        if not assigned:
-                            capable_candidates.append(w)
-                        else:
-                            can_do = (
-                                any(service_name in a or a in service_name for a in assigned)
-                                or any(service_std_name in a or a in service_std_name for a in assigned)
-                                or service_id_str in [str(s) for s in (w.assigned_services or [])]
+                    eligible_workers_qs = WorkerProfile.objects.filter(salon=salon, is_active=True)
+                    if not eligible_workers_qs.exists():
+                        assigned_worker = None
+                    else:
+                        eligible_workers = list(
+                            eligible_workers_qs.exclude(
+                                leaves__date=booking_date,
+                                leaves__status=WorkerLeave.Status.APPROVED,
                             )
-                            if can_do:
+                        )
+                        
+                        capable_candidates = []
+                        for w in eligible_workers:
+                            assigned = [str(s).lower() for s in (w.assigned_services or [])]
+                            if not assigned:
                                 capable_candidates.append(w)
+                            else:
+                                can_do_all = True
+                                for ss in services_list:
+                                    s_name = ss.effective_name.lower()
+                                    s_std = ss.service.name.lower() if ss.service else ''
+                                    s_id = str(ss.id)
+                                    can_do = (
+                                        any(s_name in a or a in s_name for a in assigned)
+                                        or any(s_std in a or a in s_std for a in assigned)
+                                        or s_id in assigned
+                                    )
+                                    if not can_do:
+                                        can_do_all = False
+                                        break
+                                if can_do_all:
+                                    capable_candidates.append(w)
 
-                    if not capable_candidates:
-                        return Response(
-                            {'error': 'No eligible workers available on this date.'},
-                            status=status.HTTP_409_CONFLICT,
-                        )
+                        if not capable_candidates:
+                            return Response(
+                                {'error': 'No eligible workers available on this date for the selected services.'},
+                                status=status.HTTP_409_CONFLICT,
+                            )
 
-                    assigned_worker = None
-                    for candidate in capable_candidates:
-                        w_start, w_end, w_breaks = _get_worker_working_intervals(
-                            candidate, booking_date, salon_open_time, salon_close_time
-                        )
-                        if not w_start or not w_end:
-                            continue
-                        if start_time < w_start or end_time > w_end:
-                            continue
-                        # Check break overlap
-                        has_break_overlap = False
-                        if w_breaks:
-                            for b_s, b_e in w_breaks:
-                                if start_time < b_e and end_time > b_s:
-                                    has_break_overlap = True
-                                    break
-                        if has_break_overlap:
-                            continue
+                        assigned_worker = None
+                        for candidate in capable_candidates:
+                            w_start, w_end, w_breaks = _get_worker_working_intervals(
+                                candidate, booking_date, salon_open_time, salon_close_time
+                            )
+                            if not w_start or not w_end:
+                                continue
+                            if start_time < w_start or end_time > w_end:
+                                continue
+                            has_break_overlap = False
+                            if w_breaks:
+                                for b_s, b_e in w_breaks:
+                                    if start_time < b_e and end_time > b_s:
+                                        has_break_overlap = True
+                                        break
+                            if has_break_overlap:
+                                continue
 
-                        # Lock and check this worker's conflicts
-                        conflicts = Booking.objects.select_for_update().filter(
-                            worker=candidate,
-                            booking_date=booking_date,
-                            start_time__lt=end_time,
-                            end_time__gt=start_time,
-                            status__in=active_statuses,
-                        )
-                        if not conflicts.exists():
-                            assigned_worker = candidate
-                            break
+                            conflicts = Booking.objects.select_for_update().filter(
+                                worker=candidate,
+                                booking_date=booking_date,
+                                start_time__lt=end_time,
+                                end_time__gt=start_time,
+                                status__in=active_statuses,
+                            )
+                            if not conflicts.exists():
+                                assigned_worker = candidate
+                                break
 
-                    if not assigned_worker:
-                        return Response(
-                            {'error': 'No workers are available for this time slot. Please choose another slot.'},
-                            status=status.HTTP_409_CONFLICT,
-                        )
+                        if not assigned_worker:
+                            return Response(
+                                {'error': 'No workers are available for this time slot. Please choose another slot.'},
+                                status=status.HTTP_409_CONFLICT,
+                            )
 
-                # Determine customer
                 customer = request.user if request.user and request.user.is_authenticated else None
 
-                # Create the booking
+                
                 booking = Booking.objects.create(
                     salon=salon,
                     service=service,
@@ -884,19 +977,25 @@ class BookingCreateView(APIView):
                     client_name=data['client_name'],
                     client_phone=data.get('client_phone', ''),
                     client_email=data.get('client_email', ''),
-                    service_name=service.effective_name,
-                    service_price=service.price,
+                    service_name=service_name,
+                    service_price=subtotal,
+                    subtotal=subtotal,
+                    tax_amount=tax_amount,
+                    discount_amount=discount_amount,
+                    voucher_code=voucher_code,
+                    total_amount=total_amount,
                     booking_date=booking_date,
-                    booking_time=start_time.strftime('%H:%M'),  # keep backward compat
+                    booking_time=start_time.strftime('%H:%M'),  
                     start_time=start_time,
                     end_time=end_time,
-                    duration=f'{duration} mins',
+                    duration=f'{total_duration} mins',
                     station=assigned_worker.station if assigned_worker else 'Station 01',
                     status=Booking.Status.CONFIRMED,
                     payment_method=data.get('payment_method', Booking.PaymentMethod.PAY_AT_SALON),
                     payment_status=Booking.PaymentStatus.PENDING if data.get('payment_method') != Booking.PaymentMethod.ONLINE else Booking.PaymentStatus.PAID,
                     notes=data.get('notes', ''),
                 )
+                booking.services.set(services_list)
 
                 from payments.models import Payment
                 Payment.objects.update_or_create(
@@ -904,7 +1003,7 @@ class BookingCreateView(APIView):
                     defaults={
                         'customer': customer,
                         'salon': salon,
-                        'amount': service.price or 0.00,
+                        'amount': total_amount,
                         'payment_method': booking.payment_method,
                         'payment_status': booking.payment_status,
                         'notes': data.get('notes', ''),
@@ -933,11 +1032,7 @@ class BookingCreateView(APIView):
 
 
 class BookingReserveView(APIView):
-    """
-    POST /api/v1/bookings/reserve/
-    Atomically rechecks availability and temporarily reserves the slot (status=PENDING, expires_at=now+10m)
-    so no other customer can book it while processing payment.
-    """
+   
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -948,11 +1043,18 @@ class BookingReserveView(APIView):
 
         salon = data['salon']
         service = data['service']
+        services_list = data.get('services_list', [service])
         booking_date = data['booking_date']
         start_time = data['start_time']
         end_time = data['end_time']
         worker_id = data.get('worker_id')
-        duration = service.duration
+        total_duration = data.get('total_duration', service.duration)
+        subtotal = data.get('subtotal', service.price)
+        tax_amount = data.get('tax_amount', Decimal('0.00'))
+        discount_amount = data.get('discount_amount', Decimal('0.00'))
+        voucher_code = data.get('voucher_code', '')
+        total_amount = data.get('total_amount', subtotal)
+        service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
 
         salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
         if is_salon_closed or not salon_open_time or not salon_close_time:
@@ -996,6 +1098,24 @@ class BookingReserveView(APIView):
                             {'error': 'Worker is not scheduled to work on this day.'},
                             status=status.HTTP_409_CONFLICT,
                         )
+
+                    # Check that worker is qualified for ALL selected services
+                    assigned = [str(s).lower() for s in (worker.assigned_services or [])]
+                    if assigned:
+                        for ss in services_list:
+                            s_name = ss.effective_name.lower()
+                            s_std = ss.service.name.lower() if ss.service else ''
+                            s_id = str(ss.id)
+                            can_do = (
+                                any(s_name in a or a in s_name for a in assigned)
+                                or any(s_std in a or a in s_std for a in assigned)
+                                or s_id in assigned
+                            )
+                            if not can_do:
+                                return Response(
+                                    {'error': f'Selected specialist cannot perform {ss.effective_name}.'},
+                                    status=status.HTTP_409_CONFLICT,
+                                )
 
                     if start_time < w_start or end_time > w_end:
                         return Response(
@@ -1026,68 +1146,77 @@ class BookingReserveView(APIView):
                     assigned_worker = worker
 
                 else:
-                    eligible_workers = list(
-                        WorkerProfile.objects.filter(salon=salon, is_active=True)
-                        .exclude(
-                            leaves__date=booking_date,
-                            leaves__status=WorkerLeave.Status.APPROVED,
-                        )
-                    )
-                    service_name = service.effective_name.lower()
-                    service_std_name = service.service.name.lower() if service.service else ''
-                    service_id_str = str(service.id)
-                    capable_candidates = []
-                    for w in eligible_workers:
-                        assigned = [str(s).lower() for s in (w.assigned_services or [])]
-                        if not assigned:
-                            capable_candidates.append(w)
-                        else:
-                            can_do = (
-                                any(service_name in a or a in service_name for a in assigned)
-                                or any(service_std_name in a or a in service_std_name for a in assigned)
-                                or service_id_str in [str(s) for s in (w.assigned_services or [])]
+                    eligible_workers_qs = WorkerProfile.objects.filter(salon=salon, is_active=True)
+                    if not eligible_workers_qs.exists():
+                        assigned_worker = None
+                    else:
+                        eligible_workers = list(
+                            eligible_workers_qs.exclude(
+                                leaves__date=booking_date,
+                                leaves__status=WorkerLeave.Status.APPROVED,
                             )
-                            if can_do:
+                        )
+                        
+                        capable_candidates = []
+                        for w in eligible_workers:
+                            assigned = [str(s).lower() for s in (w.assigned_services or [])]
+                            if not assigned:
                                 capable_candidates.append(w)
+                            else:
+                                can_do_all = True
+                                for ss in services_list:
+                                    s_name = ss.effective_name.lower()
+                                    s_std = ss.service.name.lower() if ss.service else ''
+                                    s_id = str(ss.id)
+                                    can_do = (
+                                        any(s_name in a or a in service_name for a in assigned)
+                                        or any(s_std in a or a in service_std_name for a in assigned)
+                                        or s_id in assigned
+                                    )
+                                    if not can_do:
+                                        can_do_all = False
+                                        break
+                                if can_do_all:
+                                    capable_candidates.append(w)
 
-                    if not capable_candidates:
-                        return Response(
-                            {'error': 'No eligible workers available on this date.'},
-                            status=status.HTTP_409_CONFLICT,
-                        )
+                        if not capable_candidates:
+                            return Response(
+                                {'error': 'No eligible workers available on this date.'},
+                                status=status.HTTP_409_CONFLICT,
+                            )
 
-                    assigned_worker = None
-                    for candidate in capable_candidates:
-                        w_start, w_end, w_breaks = _get_worker_working_intervals(
-                            candidate, booking_date, salon_open_time, salon_close_time
-                        )
-                        if not w_start or not w_end:
-                            continue
-                        if start_time < w_start or end_time > w_end:
-                            continue
-                        has_break_overlap = any(
-                            start_time < b_e and end_time > b_s
-                            for b_s, b_e in (w_breaks or [])
-                        )
-                        if has_break_overlap:
-                            continue
+                        assigned_worker = None
+                        for candidate in capable_candidates:
+                            w_start, w_end, w_breaks = _get_worker_working_intervals(
+                                candidate, booking_date, salon_open_time, salon_close_time
+                            )
+                            if not w_start or not w_end:
+                                continue
+                            if start_time < w_start or end_time > w_end:
+                                continue
+                            has_break_overlap = any(
+                                start_time < b_e and end_time > b_s
+                                for b_s, b_e in (w_breaks or [])
+                            )
+                            if has_break_overlap:
+                                continue
 
-                        conflicts = Booking.objects.select_for_update().filter(
-                            worker=candidate,
-                            booking_date=booking_date,
-                            start_time__lt=end_time,
-                            end_time__gt=start_time,
-                            status__in=active_statuses,
-                        )
-                        if not conflicts.exists():
-                            assigned_worker = candidate
-                            break
+                            conflicts = Booking.objects.select_for_update().filter(
+                                worker=candidate,
+                                booking_date=booking_date,
+                                start_time__lt=end_time,
+                                end_time__gt=start_time,
+                                status__in=active_statuses,
+                            )
+                            if not conflicts.exists():
+                                assigned_worker = candidate
+                                break
 
-                    if not assigned_worker:
-                        return Response(
-                            {'error': 'No workers are available for this time slot. Please choose another slot.'},
-                            status=status.HTTP_409_CONFLICT,
-                        )
+                        if not assigned_worker:
+                            return Response(
+                                {'error': 'No workers are available for this time slot. Please choose another slot.'},
+                                status=status.HTTP_409_CONFLICT,
+                            )
 
                 customer = request.user if request.user and request.user.is_authenticated else None
                 expires_at = timezone.now() + timedelta(minutes=RESERVATION_TIMEOUT_MINUTES)
@@ -1100,18 +1229,24 @@ class BookingReserveView(APIView):
                     client_name=data['client_name'],
                     client_phone=data.get('client_phone', ''),
                     client_email=data.get('client_email', ''),
-                    service_name=service.effective_name,
-                    service_price=service.price,
+                    service_name=service_name,
+                    service_price=subtotal,
+                    subtotal=subtotal,
+                    tax_amount=tax_amount,
+                    discount_amount=discount_amount,
+                    voucher_code=voucher_code,
+                    total_amount=total_amount,
                     booking_date=booking_date,
                     booking_time=start_time.strftime('%H:%M'),
                     start_time=start_time,
                     end_time=end_time,
-                    duration=f'{duration} mins',
+                    duration=f'{total_duration} mins',
                     station=assigned_worker.station if assigned_worker else 'Station 01',
                     status=Booking.Status.PENDING,
                     expires_at=expires_at,
                     notes=data.get('notes', ''),
                 )
+                booking.services.set(services_list)
 
                 from payments.models import Payment
                 Payment.objects.update_or_create(
@@ -1119,7 +1254,7 @@ class BookingReserveView(APIView):
                     defaults={
                         'customer': customer,
                         'salon': salon,
-                        'amount': service.price or 0.00,
+                        'amount': total_amount,
                         'payment_method': booking.payment_method or Payment.PaymentMethod.PAY_AT_SALON,
                         'payment_status': Payment.PaymentStatus.PENDING,
                         'notes': data.get('notes', ''),
@@ -1142,10 +1277,7 @@ class BookingReserveView(APIView):
 
 
 class BookingConfirmPaymentView(APIView):
-    """
-    POST /api/v1/bookings/<int:pk>/confirm-payment/
-    Delegates payment confirmation to the payments app ConfirmPaymentView.
-    """
+   
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -1156,10 +1288,7 @@ class BookingConfirmPaymentView(APIView):
 
 
 class BookingReleaseView(APIView):
-    """
-    POST /api/v1/bookings/<int:pk>/release/
-    Releases a temporarily reserved slot if payment fails or user cancels.
-    """
+
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -1193,10 +1322,7 @@ class BookingReleaseView(APIView):
 
 
 class BookingCreateRazorpayOrderView(APIView):
-    """
-    POST /api/v1/bookings/create-razorpay-order/
-    Delegates Razorpay order creation to payments app CreateRazorpayOrderView.
-    """
+    
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -1206,10 +1332,7 @@ class BookingCreateRazorpayOrderView(APIView):
 
 
 class BookingVerifyRazorpayView(APIView):
-    """
-    POST /api/v1/bookings/<int:pk>/verify-razorpay/
-    Delegates Razorpay signature verification and confirmation to payments app VerifyRazorpayPaymentView.
-    """
+   
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -1220,7 +1343,7 @@ class BookingVerifyRazorpayView(APIView):
 
 
 class MyBookingsView(APIView):
-    """GET /api/v1/bookings/my/ - List the authenticated customer's bookings."""
+
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -1235,7 +1358,7 @@ class MyBookingsView(APIView):
 
 
 class BookingCancelView(APIView):
-    """PATCH /api/v1/bookings/{pk}/cancel/ - Customer cancels their booking."""
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -1263,7 +1386,7 @@ class BookingCancelView(APIView):
         return Response({'message': 'Booking cancelled successfully.', 'booking_id': booking.id})
 
 
-# Re-export review views for backward compatibility
+
 from reviews.views import (
     BookingReviewCreateView,
     SalonReviewsListView,
@@ -1273,11 +1396,7 @@ from reviews.views import (
 
 
 class BookingStatusUpdateView(APIView):
-    """
-    PATCH /api/v1/bookings/<int:pk>/status/
-    Ensure salon owner, assigned salon worker, or admin can mark bookings as COMPLETED, IN_PROGRESS, CANCELLED, etc.,
-    or reassign specialist / reschedule.
-    """
+   
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
@@ -1355,7 +1474,6 @@ class BookingStatusUpdateView(APIView):
                 update_fields.append("station")
             update_fields.append("worker")
 
-        # Reschedule support (date / start_time)
         rescheduled = False
         new_booking_date = request.data.get("booking_date")
         new_start_time = request.data.get("start_time") or request.data.get("booking_time")
@@ -1385,19 +1503,15 @@ class BookingStatusUpdateView(APIView):
                 notify_refund_completed,
             )
 
-            # 1. Cancellation
             if new_status == Booking.Status.CANCELLED and old_status != Booking.Status.CANCELLED:
                 notify_booking_cancelled(booking, cancelled_by=request.user)
 
-            # 2. Reassignment
             if reassigned_worker:
                 notify_booking_reassigned(booking, old_worker=old_worker, new_worker=reassigned_worker)
 
-            # 3. Rescheduled
             if rescheduled:
                 notify_booking_rescheduled(booking, previous_date=old_date, previous_time=old_time)
 
-            # 4. Refund
             if (
                 new_status == "REFUNDED"
                 or new_payment_status == Booking.PaymentStatus.REFUNDED

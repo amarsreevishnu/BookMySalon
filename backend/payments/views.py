@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import timedelta
 import hmac
 import hashlib
@@ -26,12 +27,7 @@ from .serializers import PaymentSerializer
 
 
 class CreateRazorpayOrderView(APIView):
-    """
-    POST /api/v1/payments/create-razorpay-order/
-    (Also accessible via /api/v1/bookings/create-razorpay-order/)
-    Atomically rechecks slot availability, temporarily reserves the booking,
-    creates a Razorpay order, creates/updates the Payment record, and returns order metadata.
-    """
+  
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -42,11 +38,17 @@ class CreateRazorpayOrderView(APIView):
 
         salon = data['salon']
         service = data['service']
+        services_list = data.get('services_list', [service])
         booking_date = data['booking_date']
         start_time = data['start_time']
         end_time = data['end_time']
         worker_id = data.get('worker_id')
-        duration = service.duration
+        duration = data.get('total_duration', service.duration)
+        subtotal = data.get('subtotal', service.price)
+        tax_amount = data.get('tax_amount', Decimal('0.00'))
+        discount_amount = data.get('discount_amount', Decimal('0.00'))
+        total_amount = data.get('total_amount', service.price)
+        voucher_code = data.get('voucher_code', '')
 
         salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
         if is_salon_closed or not salon_open_time or not salon_close_time:
@@ -105,6 +107,26 @@ class CreateRazorpayOrderView(APIView):
                                     status=status.HTTP_409_CONFLICT,
                                 )
 
+                    # Verify worker can perform all services
+                    assigned = [str(s).lower() for s in (worker.assigned_services or [])]
+                    if assigned:
+                        can_do_all = True
+                        for ss in services_list:
+                            s_name = ss.effective_name.lower()
+                            s_std = ss.service.name.lower() if ss.service else ''
+                            if not (
+                                any(s_name in a or a in s_name for a in assigned)
+                                or any(s_std in a or a in s_std for a in assigned)
+                                or str(ss.id) in assigned
+                            ):
+                                can_do_all = False
+                                break
+                        if not can_do_all:
+                            return Response(
+                                {'error': 'The selected specialist does not perform all chosen services.'},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+
                     conflicts = Booking.objects.select_for_update().filter(
                         worker=worker,
                         booking_date=booking_date,
@@ -127,21 +149,24 @@ class CreateRazorpayOrderView(APIView):
                             leaves__status=WorkerLeave.Status.APPROVED,
                         )
                     )
-                    service_name = service.effective_name.lower()
-                    service_std_name = service.service.name.lower() if service.service else ''
-                    service_id_str = str(service.id)
                     capable_candidates = []
                     for w in eligible_workers:
                         assigned = [str(s).lower() for s in (w.assigned_services or [])]
                         if not assigned:
                             capable_candidates.append(w)
                         else:
-                            can_do = (
-                                any(service_name in a or a in service_name for a in assigned)
-                                or any(service_std_name in a or a in service_std_name for a in assigned)
-                                or service_id_str in [str(s) for s in (w.assigned_services or [])]
-                            )
-                            if can_do:
+                            can_do_all = True
+                            for ss in services_list:
+                                s_name = ss.effective_name.lower()
+                                s_std = ss.service.name.lower() if ss.service else ''
+                                if not (
+                                    any(s_name in a or a in s_name for a in assigned)
+                                    or any(s_std in a or a in s_std for a in assigned)
+                                    or str(ss.id) in assigned
+                                ):
+                                    can_do_all = False
+                                    break
+                            if can_do_all:
                                 capable_candidates.append(w)
 
                     if not capable_candidates:
@@ -183,7 +208,8 @@ class CreateRazorpayOrderView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
 
-                amount_in_paise = int(round(float(service.price) * 100))
+                # Amount in paise calculated from total_amount (accounting for multi-service, tax, discount)
+                amount_in_paise = max(100, int(round(float(total_amount) * 100)))
 
                 rzp_key = getattr(settings, 'RAZORPAY_KEY_ID', '')
                 rzp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
@@ -194,6 +220,7 @@ class CreateRazorpayOrderView(APIView):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
 
+                service_display = " + ".join(s.effective_name for s in services_list)
                 receipt_id = f"rcpt_{salon.id}_{int(timezone.now().timestamp())}"
                 try:
                     rzp_res = requests.post(
@@ -206,6 +233,13 @@ class CreateRazorpayOrderView(APIView):
                             "notes": {
                                 "salon_id": str(salon.id),
                                 "service_id": str(service.id),
+                                "service_ids": ",".join(str(s.id) for s in services_list),
+                                "service_names": service_display[:200],
+                                "subtotal": str(subtotal),
+                                "tax_amount": str(tax_amount),
+                                "discount_amount": str(discount_amount),
+                                "total_amount": str(total_amount),
+                                "voucher_code": str(voucher_code),
                                 "worker_id": str(assigned_worker.id) if assigned_worker else "",
                                 "client_name": str(data['client_name']),
                                 "booking_date": str(booking_date),
@@ -242,6 +276,7 @@ class CreateRazorpayOrderView(APIView):
                 booking_payload = {
                     'salon_id': salon.id,
                     'service_id': service.id,
+                    'service_ids': [s.id for s in services_list],
                     'worker_id': assigned_worker.id if assigned_worker else None,
                     'booking_date': str(booking_date),
                     'start_time': start_time.strftime('%H:%M'),
@@ -250,6 +285,11 @@ class CreateRazorpayOrderView(APIView):
                     'client_email': data.get('client_email', ''),
                     'notes': data.get('notes', ''),
                     'payment_method': 'ONLINE',
+                    'voucher_code': voucher_code,
+                    'discount_amount': str(discount_amount),
+                    'subtotal': str(subtotal),
+                    'tax_amount': str(tax_amount),
+                    'total_amount': str(total_amount),
                 }
 
         except Exception as e:
@@ -263,7 +303,17 @@ class CreateRazorpayOrderView(APIView):
                 'razorpay_key_id': rzp_key,
                 'amount': amount_in_paise,
                 'currency': 'INR',
-                'service_name': service.effective_name,
+                'service_name': service_display,
+                'services_list': [
+                    {'id': s.id, 'name': s.effective_name, 'price': str(s.price), 'duration': s.duration}
+                    for s in services_list
+                ],
+                'subtotal': str(subtotal),
+                'tax_amount': str(tax_amount),
+                'discount_amount': str(discount_amount),
+                'total_amount': str(total_amount),
+                'voucher_code': voucher_code,
+                'total_duration': duration,
                 'salon_name': salon.name,
                 'client_name': data['client_name'],
                 'client_email': data.get('client_email', ''),
@@ -275,11 +325,7 @@ class CreateRazorpayOrderView(APIView):
 
 
 class VerifyRazorpayPaymentView(APIView):
-    """
-    POST /api/v1/payments/<int:pk>/verify-razorpay/ or /api/v1/payments/verify-razorpay/
-    (Also accessible via /api/v1/bookings/...)
-    Verifies Razorpay payment signature, creates the Booking and Payment records only upon verified success.
-    """
+    
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -330,11 +376,17 @@ class VerifyRazorpayPaymentView(APIView):
 
                     salon = data['salon']
                     service = data['service']
+                    services_list = data.get('services_list', [service])
                     booking_date = data['booking_date']
                     start_time = data['start_time']
                     end_time = data['end_time']
                     worker_id = data.get('worker_id')
-                    duration = service.duration
+                    duration = data.get('total_duration', service.duration)
+                    subtotal = data.get('subtotal', service.price)
+                    tax_amount = data.get('tax_amount', Decimal('0.00'))
+                    discount_amount = data.get('discount_amount', Decimal('0.00'))
+                    total_amount = data.get('total_amount', service.price)
+                    voucher_code = data.get('voucher_code', '')
 
                     assigned_worker = None
                     if worker_id:
@@ -345,6 +397,22 @@ class VerifyRazorpayPaymentView(APIView):
                             .exclude(leaves__date=booking_date, leaves__status=WorkerLeave.Status.APPROVED)
                         )
                         for cand in eligible_workers:
+                            assigned = [str(s).lower() for s in (cand.assigned_services or [])]
+                            if assigned:
+                                can_do_all = True
+                                for ss in services_list:
+                                    s_name = ss.effective_name.lower()
+                                    s_std = ss.service.name.lower() if ss.service else ''
+                                    if not (
+                                        any(s_name in a or a in s_name for a in assigned)
+                                        or any(s_std in a or a in s_std for a in assigned)
+                                        or str(ss.id) in assigned
+                                    ):
+                                        can_do_all = False
+                                        break
+                                if not can_do_all:
+                                    continue
+
                             conflicts = Booking.objects.select_for_update().filter(
                                 worker=cand,
                                 booking_date=booking_date,
@@ -366,8 +434,13 @@ class VerifyRazorpayPaymentView(APIView):
                         client_name=data['client_name'],
                         client_phone=data.get('client_phone', ''),
                         client_email=data.get('client_email', ''),
-                        service_name=service.effective_name,
-                        service_price=service.price,
+                        service_name=" + ".join(s.effective_name for s in services_list),
+                        service_price=subtotal,
+                        subtotal=subtotal,
+                        tax_amount=tax_amount,
+                        discount_amount=discount_amount,
+                        voucher_code=voucher_code,
+                        total_amount=total_amount,
                         booking_date=booking_date,
                         booking_time=start_time.strftime('%H:%M'),
                         start_time=start_time,
@@ -381,6 +454,7 @@ class VerifyRazorpayPaymentView(APIView):
                         razorpay_payment_id=payment_id,
                         notes=data.get('notes', ''),
                     )
+                    booking.services.set(services_list)
 
                 # Record / update Payment record in payments app
                 Payment.objects.update_or_create(
@@ -388,7 +462,7 @@ class VerifyRazorpayPaymentView(APIView):
                     defaults={
                         'customer': booking.customer,
                         'salon': booking.salon,
-                        'amount': booking.service_price or 0.00,
+                        'amount': booking.total_amount if booking.total_amount is not None else (booking.service_price or 0.00),
                         'payment_method': Payment.PaymentMethod.ONLINE,
                         'payment_status': Payment.PaymentStatus.PAID,
                         'razorpay_order_id': order_id,
@@ -401,7 +475,7 @@ class VerifyRazorpayPaymentView(APIView):
                 try:
                     from notifications.services import notify_booking_confirmed, notify_payment_success
                     notify_booking_confirmed(booking)
-                    notify_payment_success(booking, amount=booking.service_price, payment_id=payment_id)
+                    notify_payment_success(booking, amount=booking.total_amount if booking.total_amount is not None else booking.service_price, payment_id=payment_id)
                 except Exception:
                     pass
 
@@ -418,11 +492,7 @@ class VerifyRazorpayPaymentView(APIView):
 
 
 class ConfirmPaymentView(APIView):
-    """
-    POST /api/v1/payments/<int:pk>/confirm-payment/
-    (Also accessible via /api/v1/bookings/<int:pk>/confirm-payment/)
-    Atomically confirms payment on a reserved booking (transitions PENDING -> CONFIRMED).
-    """
+   
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -464,7 +534,7 @@ class ConfirmPaymentView(APIView):
                     defaults={
                         'customer': booking.customer,
                         'salon': booking.salon,
-                        'amount': booking.service_price or 0.00,
+                        'amount': booking.total_amount if booking.total_amount is not None else (booking.service_price or 0.00),
                         'payment_method': booking.payment_method or Payment.PaymentMethod.PAY_AT_SALON,
                         'payment_status': booking.payment_status or Payment.PaymentStatus.PENDING,
                     }
@@ -474,7 +544,7 @@ class ConfirmPaymentView(APIView):
                     from notifications.services import notify_booking_confirmed, notify_payment_success
                     notify_booking_confirmed(booking)
                     if booking.payment_status == Booking.PaymentStatus.PAID:
-                        notify_payment_success(booking, amount=booking.service_price)
+                        notify_payment_success(booking, amount=booking.total_amount if booking.total_amount is not None else booking.service_price)
                 except Exception:
                     pass
 
@@ -491,10 +561,7 @@ class ConfirmPaymentView(APIView):
 
 
 class PaymentDetailView(APIView):
-    """
-    GET /api/v1/payments/<int:pk>/ or /api/v1/payments/booking/<int:booking_id>/
-    Returns payment details for a specific payment or booking.
-    """
+    
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 

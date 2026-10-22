@@ -4,79 +4,12 @@ import SalonCard from "./SalonCard";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
 
-const DEFAULT_SALONS = [
-  {
-    id: 5,
-    name: "Apple Salon Sreekariyam",
-    location: "Sreekariyam Gandhipuarm, sreekariyam",
-    rating: "4.9",
-    openUntil: "8:30 PM",
-    price: "₹349+",
-    description: "Certified partner salon with premium hair styling & grooming.",
-    tags: ["Hair & Styling", "AC", "Certified"],
-    category: "Hair",
-    image:
-      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 1,
-    name: "Aura Luxe Salon & Spa",
-    location: "Kowdiar, Thiruvananthapuram",
-    rating: "4.9",
-    openUntil: "9:00 PM",
-    price: "₹499+",
-    description: "Premium beauty treatments and expert stylists.",
-    tags: ["Hair", "Facial", "Spa"],
-    category: "Hair",
-    image:
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=900&q=85",
-  },
-  {
-    id: 2,
-    name: "Urban Glow Hair Studio",
-    location: "Pattom, Thiruvananthapuram",
-    rating: "4.8",
-    openUntil: "8:30 PM",
-    price: "₹399+",
-    description: "Modern hair styling and personalized care.",
-    tags: ["Hair Styling", "Organic Products"],
-    category: "Hair",
-    image:
-      "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=85",
-  },
-  {
-    id: 3,
-    name: "Verdant Nail & Skin",
-    location: "Vazhuthacaud, Thiruvananthapuram",
-    rating: "4.7",
-    openUntil: "7:30 PM",
-    price: "₹450+",
-    description: "Relaxing skin treatments and professional nail care.",
-    tags: ["Nail Art", "Ayurvedic Facial"],
-    category: "Nails",
-    image:
-      "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=900&q=85",
-  },
-  {
-    id: 4,
-    name: "The Grooming Club",
-    location: "Kesavadasapuram, Thiruvananthapuram",
-    rating: "4.8",
-    openUntil: "8:00 PM",
-    price: "₹250+",
-    description: "Classic grooming services for every occasion.",
-    tags: ["Men's Grooming", "Beard Trim"],
-    category: "Hair",
-    image:
-      "https://images.unsplash.com/photo-1512690459411-b9245aed614b?auto=format&fit=crop&w=900&q=85",
-  },
-];
-
 function SalonSection({
   selectedCategory,
   selectedFilter,
 }) {
-  const [salons, setSalons] = useState(DEFAULT_SALONS);
+  const [salons, setSalons] = useState([]);
+  const [loading, setLoading] = useState(true);
   const scrollContainerRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -95,19 +28,19 @@ function SalonSection({
     api
       .get("/salons/")
       .then((res) => {
-        if (isMounted && res.data && res.data.length > 0) {
+        if (isMounted && Array.isArray(res.data) && res.data.length > 0) {
           const mapped = res.data.map((s) => ({
             id: s.id,
             name: s.name,
             location: s.city
               ? `${s.city}, ${s.state || ""}`.trim().replace(/,$/, "")
               : s.address,
-            rating: "4.9",
+            rating: typeof s.rating === "number" ? s.rating.toFixed(1) : (parseFloat(s.rating) || 5.0).toFixed(1),
             openUntil: "9:00 PM",
-            price: "₹399+",
+            price: "₹299+",
             description:
               s.description ||
-              "Premium salon treatments and expert stylists.",
+              "Verified salon treatments and expert specialists.",
             category: s.category?.toLowerCase().includes("hair")
               ? "Hair"
               : s.category?.toLowerCase().includes("nail")
@@ -128,8 +61,11 @@ function SalonSection({
           setSalons(mapped);
         }
       })
-      .catch(() => {
-        // Fallback to default list
+      .catch((err) => {
+        console.error("Failed to load salons list:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
       });
 
     return () => {

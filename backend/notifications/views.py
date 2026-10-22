@@ -9,10 +9,7 @@ from .serializers import NotificationSerializer
 
 
 class NotificationListView(APIView):
-    """
-    GET /api/v1/notifications/
-    List notifications for the authenticated user with optional unread_only filtering and pagination.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -45,10 +42,7 @@ class NotificationListView(APIView):
 
 
 class NotificationUnreadCountView(APIView):
-    """
-    GET /api/v1/notifications/unread-count/
-    Lightweight endpoint returning the user's unread notification count for badge display.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -58,10 +52,7 @@ class NotificationUnreadCountView(APIView):
 
 
 class NotificationMarkReadView(APIView):
-    """
-    PATCH /api/v1/notifications/<int:pk>/read/
-    Mark a single notification as read.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -82,10 +73,7 @@ class NotificationMarkReadView(APIView):
 
 
 class NotificationMarkAllReadView(APIView):
-    """
-    POST /api/v1/notifications/mark-all-read/
-    Mark all notifications for the authenticated user as read.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -103,10 +91,7 @@ class NotificationMarkAllReadView(APIView):
 
 
 class NotificationDeleteView(APIView):
-    """
-    DELETE /api/v1/notifications/<int:pk>/
-    Dismiss/delete an individual notification.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -126,10 +111,7 @@ class NotificationDeleteView(APIView):
 
 
 class NotificationClearReadView(APIView):
-    """
-    DELETE /api/v1/notifications/clear-read/
-    Delete all read notifications for the current user.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 

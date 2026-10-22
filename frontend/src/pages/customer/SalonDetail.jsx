@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
@@ -21,171 +21,132 @@ function formatTime12(timeStr) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
-function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
+const AMENITY_ICON_MAP = {
+  wifi: { icon: "📶", title: "High-Speed Wi-Fi", desc: "Fast fiber internet for clients" },
+  ac: { icon: "❄️", title: "Air Conditioned", desc: "Climate controlled cooling" },
+  "air conditioned": { icon: "❄️", title: "Air Conditioned", desc: "Climate controlled cooling" },
+  valet: { icon: "🚗", title: "Valet & Dedicated Parking", desc: "Free reserved valet parking bay" },
+  parking: { icon: "🚗", title: "Dedicated Parking", desc: "Convenient vehicle parking" },
+};
+
+function parseSalonAmenities(rawAmenities) {
+  if (!Array.isArray(rawAmenities) || rawAmenities.length === 0) {
+    return [];
+  }
+
+  return rawAmenities.map((item) => {
+    if (typeof item === "object" && item !== null && item.title) {
+      return item;
     }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
+    const str = String(item).trim();
+    const lower = str.toLowerCase();
+    for (const [key, val] of Object.entries(AMENITY_ICON_MAP)) {
+      if (lower === key || lower.includes(key)) {
+        return val;
+      }
+    }
+    return {
+      icon: "✨",
+      title: str,
+      desc: "",
+    };
   });
 }
 
-const DEFAULT_SALON_DATA = {
-  id: 1,
-  name: "Aura Luxe Salon & Spa",
-  tagline: "Exclusive Sanctuary for Hair, Wellness & Skin Artistry",
-  rating: 4.9,
-  reviewsCount: 124,
-  priceTier: "₹₹₹ Luxury",
-  status: "Open until 9:00 PM",
-  address: "Heritage Square, Kowdiar Main Avenue",
-  city: "Thiruvananthapuram",
-  state: "Kerala",
-  pincode: "695003",
-  landmark: "Opposite Raj Bhavan South Gate",
-  phone: "+91 98470 12345",
-  email: "concierge@auraluxesalon.com",
-  isVerified: true,
-  images: [
-    "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1200&q=85",
-    "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=85",
-    "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=85",
-    "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800&q=85",
-    "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=800&q=85",
-    "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=800&q=85",
-    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=85",
-  ],
-  services: [
-    {
-      id: 101,
-      category: "Hair",
-      name: "Signature Balayage & Couture Color",
-      duration: "120 mins",
-      price: 4200,
-      description: "Custom French hand-painted highlights, gloss toner & Kérastase bond repair infusion.",
-      badge: "Best Seller",
-    },
-      {
-      id: 102,
-      category: "Hair",
-      name: "Organic Keratin Smoothing Therapy",
-      duration: "90 mins",
-      price: 5500,
-      description: "Formaldehyde-free organic smoothing treatment with deep protein seal & blowdry finish.",
-      badge: "Popular",
-    },
-    {
-      id: 103,
-      category: "Hair",
-      name: "Master Stylist Precision Haircut & Blowout",
-      duration: "45 mins",
-      price: 1250,
-      description: "Consultation, relaxing scalp wash with Davines shampoo, texture sculpting and signature blowout.",
-      badge: "Essential",
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function buildSalonOpeningHours(openingHoursData) {
+  const currentDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+
+  let rawDays = [];
+  if (openingHoursData) {
+    if (typeof openingHoursData === "string") {
+      try {
+        const parsed = JSON.parse(openingHoursData);
+        rawDays = parsed.days || (Array.isArray(parsed) ? parsed : []);
+      } catch {
+        rawDays = [];
+      }
+    } else if (Array.isArray(openingHoursData.days)) {
+      rawDays = openingHoursData.days;
+    } else if (Array.isArray(openingHoursData)) {
+      rawDays = openingHoursData;
     }
-    
-  ],
-  stylists: [
-    {
-      id: 201,
-      name: "Elena Vance",
-      role: "Creative Hair Director",
-      experience: "8+ yrs exp",
-      rating: 4.95,
-      reviewsCount: 84,
-      image: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80",
-      specialty: "Balayage, Color Correction, Texture Sculpting",
-    },
-    {
-      id: 202,
-      name: "Marcus Cole",
-      role: "Master Colorist & Barber",
-      experience: "6+ yrs exp",
-      rating: 4.9,
-      reviewsCount: 62,
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
-      specialty: "Men's Precision Fades, Beard Architecture & Keratin",
-    },
-    {
-      id: 203,
-      name: "Priya Nair",
-      role: "Senior Esthetician & Spa Therapist",
-      experience: "9+ yrs exp",
-      rating: 4.98,
-      reviewsCount: 110,
-      image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80",
-      specialty: "Hydra Facials, Ayurvedic Deep Tissue, Lymphatic Care",
-    },
-  ],
-  amenities: [
-    { icon: "📶", title: "High-Speed WiFi", desc: "Fast fiber internet for clients" },
-    { icon: "❄️", title: "Climate Controlled", desc: "Central AC with HEPA air filters" },
-    { icon: "☕", title: "Complimentary Beverages", desc: "Artisan espresso, herbal teas & infused waters" },
-    { icon: "🚗", title: "Valet & Dedicated Parking", desc: "Free reserved valet parking bay" },
-    { icon: "💳", title: "Cashless & Contactless Pay", desc: "UPI, Tap to Pay, and major credit cards" },
-    { icon: "🧼", title: "Autoclave Sanitization", desc: "100% medical-grade sterilization & single-use kits" },
-  ],
-  offers: [
-    {
-      code: "LUXE20",
-      title: "Flat 20% OFF Luxury Hair & Spa",
-      desc: "Valid on all services and packages above ₹2,000",
-      discountRate: 0.20,
-      minSpend: 2000,
-    },
-  ],
-  reviews: [
-    {
-      id: 301,
-      author: "Ananya Menon",
-      initial: "A",
-      rating: 5,
-      date: "3 days ago",
-      treatment: "Signature Balayage & Couture Color",
-      comment: "Elena is a true magician! The balayage blend is completely seamless and natural. The ambiance is so calming, like a 5-star spa in Bali. Highly recommended!",
-    },
-    {
-      id: 302,
-      author: "Rahul Varma",
-      initial: "R",
-      rating: 5,
-      date: "1 week ago",
-      treatment: "Master Precision Haircut",
-      comment: "Marcus gave the cleanest fade and beard trim I have had in Trivandrum. The scalp wash with hot towel was pure bliss. 10/10 experience.",
-    },
-    {
-      id: 303,
-      author: "Sneha Kurian",
-      initial: "S",
-      rating: 5,
-      date: "2 weeks ago",
-      treatment: "Hydra-Luxe Radiance Facial Treatment",
-      comment: "Priya took her time explaining my skin type and the hydra facial left my skin glowing for days without any redness. Worth every rupee!",
-    },
-  ],
-  openingHours: [
-    { day: "Monday", hours: "09:00 AM – 09:00 PM", isToday: false },
-    { day: "Tuesday", hours: "09:00 AM – 09:00 PM", isToday: false },
-    { day: "Wednesday", hours: "09:00 AM – 09:00 PM", isToday: false },
-    { day: "Thursday", hours: "09:00 AM – 09:00 PM", isToday: false },
-    { day: "Friday", hours: "09:00 AM – 09:30 PM", isToday: true },
-    { day: "Saturday", hours: "08:30 AM – 09:30 PM", isToday: false },
-    { day: "Sunday", hours: "09:00 AM – 08:30 PM", isToday: false },
-  ],
-};
+  }
+
+  if (!rawDays || rawDays.length === 0) {
+    return { openingHours: [], status: "Hours not specified" };
+  }
+
+  const list = WEEKDAYS.map((day) => {
+    const matched = rawDays.find((d) => d.day && d.day.toLowerCase() === day.toLowerCase());
+    const isToday = day.toLowerCase() === currentDayName.toLowerCase();
+
+    if (!matched) {
+      return {
+        day,
+        hours: "Closed",
+        isToday,
+        isOpen: false,
+        closeFmt: "",
+      };
+    }
+
+    const isClosed = matched.isOpen === false || matched.isOpen === "false";
+    const openRaw = matched.openTime || "09:00";
+    const closeRaw = matched.closeTime || "21:00";
+    const openFmt = formatTime12(openRaw);
+    const closeFmt = formatTime12(closeRaw);
+    const hours = isClosed ? "Holiday / Closed" : `${openFmt} – ${closeFmt}`;
+
+    return {
+      day,
+      hours,
+      isToday,
+      isOpen: !isClosed,
+      closeFmt,
+      openFmt,
+      openRaw,
+      closeRaw,
+    };
+  });
+
+  const todayObj = list.find((d) => d.isToday);
+  let dynamicStatus = "Open today";
+  if (todayObj) {
+    if (!todayObj.isOpen) {
+      dynamicStatus = "Closed today (Holiday / Off)";
+    } else {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const [openH, openM] = (todayObj.openRaw || "09:00").split(":").map(Number);
+      const [closeH, closeM] = (todayObj.closeRaw || "21:00").split(":").map(Number);
+      const openMinutes = (openH || 9) * 60 + (openM || 0);
+      const closeMinutes = (closeH || 21) * 60 + (closeM || 0);
+
+      if (currentMinutes < openMinutes) {
+        dynamicStatus = `Closed now (Opens at ${todayObj.openFmt})`;
+      } else if (currentMinutes >= closeMinutes) {
+        dynamicStatus = `Closed for today (Closed at ${todayObj.closeFmt})`;
+      } else {
+        dynamicStatus = `Open until ${todayObj.closeFmt}`;
+      }
+    }
+  }
+
+  return { openingHours: list, status: dynamicStatus };
+}
 
 export default function SalonDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   // Salon Details State
-  const [salon, setSalon] = useState(DEFAULT_SALON_DATA);
+  const [salon, setSalon] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   // Gallery Modal
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -202,24 +163,15 @@ export default function SalonDetail() {
 
   // Booking & Cart State
   const [selectedServices, setSelectedServices] = useState([]);
-  const [selectedStylist, setSelectedStylist] = useState(null); 
+  const [selectedStylist, setSelectedStylist] = useState("auto"); 
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
   const [selectedSlotObj, setSelectedSlotObj] = useState(null);
   const [slotWorkerUnavailableReason, setSlotWorkerUnavailableReason] = useState(null);
-  const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [bookingNotes, setBookingNotes] = useState("");
-  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingError, setBookingError] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("PAY_AT_SALON"); // "PAY_AT_SALON" or "ONLINE"
-  const [confirmedBookingData, setConfirmedBookingData] = useState(null);
 
   // Collapsible Sections State (Services, Stylists, Amenities, Offers, Reviews, Location, Booking)
   const [openSections, setOpenSections] = useState({
@@ -254,32 +206,23 @@ export default function SalonDetail() {
     }));
   };
 
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("user") || "{}");
-      if (stored.first_name || stored.last_name) {
-        setClientName(`${stored.first_name || ""} ${stored.last_name || ""}`.trim());
-      }
-      if (stored.email) setClientEmail(stored.email);
-      if (stored.phone_number || stored.phone) setClientPhone(stored.phone_number || stored.phone || "");
-    } catch {}
-  }, []);
-
   // Keyboard navigation for photo lightbox gallery
   useEffect(() => {
     if (!isGalleryOpen) return;
+    const numImages = salon?.images?.length || 0;
+    if (numImages === 0) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") setIsGalleryOpen(false);
       if (e.key === "ArrowLeft") {
-        setActivePhotoIdx((prev) => (prev > 0 ? prev - 1 : salon.images.length - 1));
+        setActivePhotoIdx((prev) => (prev > 0 ? prev - 1 : numImages - 1));
       }
       if (e.key === "ArrowRight") {
-        setActivePhotoIdx((prev) => (prev < salon.images.length - 1 ? prev + 1 : 0));
+        setActivePhotoIdx((prev) => (prev < numImages - 1 ? prev + 1 : 0));
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isGalleryOpen, salon.images.length]);
+  }, [isGalleryOpen, salon?.images?.length]);
 
   const dateSlots = useMemo(() => {
     const list = [];
@@ -319,14 +262,13 @@ export default function SalonDetail() {
   const [eligibleWorkers, setEligibleWorkers] = useState([]);
   const [eligibleWorkersLoading, setEligibleWorkersLoading] = useState(false);
 
-  const activeService = selectedServices[0] || null;
   const activeDateObj = dateSlots[selectedDateIdx] || null;
 
-  // 1. Fetch workers that perform the selected service & check their schedule / availability on the chosen date
+  // 1. Fetch workers that perform the selected services & check their schedule / availability on the chosen date
   useEffect(() => {
     let isMounted = true;
 
-    if (!salon?.id || !activeService?.id || !activeDateObj || loading) {
+    if (!salon?.id || selectedServices.length === 0 || !activeDateObj || loading) {
       setEligibleWorkers([]);
       return;
     }
@@ -335,7 +277,8 @@ export default function SalonDetail() {
       setEligibleWorkersLoading(true);
       try {
         const params = {
-          service_id: activeService.id,
+          service_id: selectedServices[0]?.id,
+          service_ids: selectedServices.map((s) => s.id).join(","),
           date: activeDateObj.isoDate,
         };
 
@@ -345,12 +288,14 @@ export default function SalonDetail() {
           const formatted = rawWorkers.map((w, index) => ({
             id: w.id,
             name: w.name,
-            role: w.specialization || "Master Stylist",
-            experience: w.experience || "3+ yrs exp",
-            rating: 4.9,
-            reviewsCount: 30 + index * 5,
-            image: w.profile_photo ? resolveImageUrl(w.profile_photo) : (DEFAULT_SALON_DATA.stylists[index % DEFAULT_SALON_DATA.stylists.length]?.image || ""),
-            specialty: w.station ? `Station: ${w.station}` : "Certified Specialist",
+            role: w.specialization || "Stylist",
+            experience: w.experience || "",
+            rating: typeof w.rating === "number" ? w.rating : (parseFloat(w.rating) || 5.0),
+            reviewsCount: typeof w.reviews_count === "number" ? w.reviews_count : (parseInt(w.reviews_count, 10) || 0),
+            image: w.profile_photo
+              ? resolveImageUrl(w.profile_photo)
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(w.name || "Stylist")}&background=047857&color=ffffff&size=200`,
+            specialty: w.station ? `Station: ${w.station}` : (w.specialization ? `${w.specialization}` : "Salon Specialist"),
             has_advance_bookings: w.has_advance_bookings,
             advance_bookings_count: w.advance_bookings_count,
             advance_bookings: w.advance_bookings || [],
@@ -388,14 +333,14 @@ export default function SalonDetail() {
     return () => {
       isMounted = false;
     };
-  }, [salon?.id, activeService?.id, activeDateObj?.isoDate, loading]);
+  }, [salon?.id, selectedServices, activeDateObj?.isoDate, loading]);
 
-  // 2. Fetch available slots based on Selected Worker (or Auto-assign) and Service Duration
+  // 2. Fetch available slots based on Selected Worker (or Auto-assign) and Total Multi-Service Duration
   useEffect(() => {
     let isMounted = true;
 
     // Do NOT fetch or show slots until a stylist (or Auto-Assign) is chosen
-    if (!activeService?.id || !activeDateObj || !salon?.id || loading || !selectedStylist) {
+    if (selectedServices.length === 0 || !activeDateObj || !salon?.id || loading || !selectedStylist) {
       setDynamicSlots([]);
       setSelectedSlotObj(null);
       setSelectedTimeSlot("");
@@ -418,7 +363,8 @@ export default function SalonDetail() {
       try {
         const params = {
           salon_id: salon.id,
-          service_id: activeService.id,
+          service_id: selectedServices[0]?.id,
+          service_ids: selectedServices.map((s) => s.id).join(","),
           date: activeDateObj.isoDate,
         };
         if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
@@ -473,178 +419,54 @@ export default function SalonDetail() {
     return () => {
       isMounted = false;
     };
-  }, [salon?.id, activeService?.id, activeDateObj?.isoDate, activeDateObj?.isOffDay, selectedStylist, loading]);
-
-  const handleConfirmBookingSubmit = async () => {
-    const activeService = selectedServices[0];
-    const activeDateObj = dateSlots[selectedDateIdx];
-    if (!activeService) {
-      setBookingError("Please select a service.");
-      return;
-    }
-    if (!selectedStylist) {
-      setBookingError("Please select a stylist (or choose Auto-Assign).");
-      return;
-    }
-    if (!clientName.trim()) {
-      setBookingError("Please enter your name.");
-      return;
-    }
-    const slotTime = selectedSlotObj?.time || (
-      dynamicSlots.find(s => s.time_display === selectedTimeSlot)?.time
-    );
-    if (!slotTime) {
-      setBookingError("Please select an available time slot.");
-      return;
-    }
-    setBookingError("");
-    setIsSubmittingBooking(true);
-
-    const payload = {
-      salon_id: Number(salon.id),
-      service_id: activeService.id,
-      booking_date: activeDateObj.isoDate,
-      start_time: slotTime,
-      client_name: clientName.trim(),
-      client_phone: clientPhone.trim(),
-      client_email: clientEmail.trim(),
-      notes: bookingNotes.trim(),
-      payment_method: paymentMethod,
-    };
-    if (selectedStylist && typeof selectedStylist === "object" && selectedStylist.id) {
-      payload.worker_id = Number(selectedStylist.id);
-    }
-
-    if (paymentMethod === "PAY_AT_SALON") {
-      try {
-        const response = await api.post("/bookings/create/", payload);
-        setConfirmedBookingData(response.data.booking);
-        setBookingSuccess(true);
-        showToast("Appointment booked successfully! 🎉");
-      } catch (err) {
-        const errMsg = err?.response?.data?.error || err?.response?.data?.detail || "Booking failed. Please try another slot.";
-        setBookingError(errMsg);
-      } finally {
-        setIsSubmittingBooking(false);
-      }
-      return;
-    }
-
-    // ONLINE PAYMENT (Razorpay)
-    try {
-      const isLoaded = await loadRazorpayScript();
-      if (!isLoaded && !window.Razorpay) {
-        throw new Error("Unable to load Razorpay checkout SDK. Please check your connection or choose Pay at Salon.");
-      }
-
-      const orderRes = await api.post("/bookings/create-razorpay-order/", payload);
-      const orderData = orderRes.data;
-
-      const options = {
-        key: orderData.razorpay_key_id,
-        amount: orderData.amount,
-        currency: orderData.currency || "INR",
-        name: salon?.name || "BookMySalon",
-        description: `${orderData.service_name} Appointment`,
-        order_id: orderData.razorpay_order_id,
-        prefill: {
-          name: orderData.client_name,
-          email: orderData.client_email,
-          contact: orderData.client_phone,
-        },
-        theme: {
-          color: "#059669",
-        },
-        handler: async function (response) {
-          try {
-            setIsSubmittingBooking(true);
-            const verifyPayload = {
-              ...payload,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            };
-            const endpoint =
-              orderData.booking_id && orderData.booking_id !== 0
-                ? `/bookings/${orderData.booking_id}/verify-razorpay/`
-                : `/bookings/verify-razorpay/`;
-            const verifyRes = await api.post(endpoint, verifyPayload);
-            setConfirmedBookingData(verifyRes.data.booking);
-            setBookingSuccess(true);
-            showToast("Online payment successful! Appointment booked. 🎉");
-          } catch (verErr) {
-            setBookingError(
-              verErr?.response?.data?.error ||
-                "Payment was received, but confirmation failed. Please contact salon support with payment ID " +
-                  response.razorpay_payment_id
-            );
-          } finally {
-            setIsSubmittingBooking(false);
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsSubmittingBooking(false);
-            setBookingError("Online payment was cancelled. You can click Try Again or select Pay at Salon.");
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) {
-        setIsSubmittingBooking(false);
-        setBookingError(
-          `Payment failed: ${response.error?.description || "Transaction was declined."}. Please click Try Again or select Pay at Salon.`
-        );
-      });
-      rzp.open();
-    } catch (err) {
-      const errMsg =
-        err?.response?.data?.error ||
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Could not initiate online payment. Please try again.";
-      setBookingError(errMsg);
-      setIsSubmittingBooking(false);
-    }
-  };
+  }, [salon?.id, selectedServices, activeDateObj?.isoDate, activeDateObj?.isOffDay, selectedStylist, loading]);
 
   // Fetch Salon Data from backend 
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchSalonDetails() {
-      setLoading(true);
-      try {
-        const res = await api.get(`/salons/${id}/`);
-        if (res.data && isMounted) {
+  const fetchSalonDetails = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    setNotFound(false);
+
+    if (!id || id === "undefined" || id === "null") {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/salons/${id}/`);
+      if (res.data) {
           const apiData = res.data;
           
           // Parse images
           let parsedImages = [];
           if (Array.isArray(apiData.images) && apiData.images.length > 0) {
-            parsedImages = apiData.images.map((img) => resolveImageUrl(img));
-          } else if (apiData.cover_image) {
-            parsedImages = [resolveImageUrl(apiData.cover_image)];
+            parsedImages = apiData.images.map((img) => resolveImageUrl(img)).filter(Boolean);
+          }
+          if (apiData.cover_image) {
+            const cover = resolveImageUrl(apiData.cover_image);
+            if (cover && !parsedImages.includes(cover)) {
+              parsedImages.unshift(cover);
+            }
           }
           if (parsedImages.length === 0) {
-            parsedImages = DEFAULT_SALON_DATA.images;
-          } else {
-            
-            parsedImages = [...parsedImages, ...DEFAULT_SALON_DATA.images.slice(parsedImages.length)];
+            parsedImages = [resolveImageUrl(null)];
           }
 
           // Parse workers
-          let stylistList = DEFAULT_SALON_DATA.stylists;
+          let stylistList = [];
           if (Array.isArray(apiData.workers_list) && apiData.workers_list.length > 0) {
             stylistList = apiData.workers_list.map((w, index) => ({
               id: w.id || index + 201,
               name: w.name || "Specialist",
-              role: w.specialization || "Master Stylist",
-              experience: w.experience || "4+ yrs exp",
+              role: w.specialization || "Stylist",
+              experience: w.experience || "",
               rating: typeof w.rating === "number" ? w.rating : (parseFloat(w.rating) || 5.0),
               reviewsCount: typeof w.reviews_count === "number" ? w.reviews_count : (parseInt(w.reviews_count, 10) || 0),
-              image: w.profile_photo ? resolveImageUrl(w.profile_photo) : DEFAULT_SALON_DATA.stylists[index % DEFAULT_SALON_DATA.stylists.length].image,
-              specialty: w.station ? `Station: ${w.station}` : "Certified Beauty Specialist",
+              image: w.profile_photo
+                ? resolveImageUrl(w.profile_photo)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(w.name || "Stylist")}&background=047857&color=ffffff&size=200`,
+              specialty: w.station ? `Station: ${w.station}` : (w.specialization ? `${w.specialization}` : "Salon Specialist"),
               approvedLeaves: Array.isArray(w.approved_leaves) ? w.approved_leaves : [],
             }));
           }
@@ -679,109 +501,82 @@ export default function SalonDetail() {
                 category: s.category || "General",
                 name: s.name || "Salon Service",
                 duration: durStr,
-                price: parsedPrice || 500,
-                description:
-                  s.description || "Signature premium treatment tailored to your wellness needs.",
-                badge: index === 0 ? "Popular" : null,
-              };
-            });
-          } else {
-            serviceList = DEFAULT_SALON_DATA.services;
-          }
-
-          const currentDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
-          let dynamicOpeningHours = DEFAULT_SALON_DATA.openingHours;
-          let dynamicStatus = "Open until 9:00 PM";
-
-          let rawDays = null;
-          if (apiData.opening_hours) {
-            if (typeof apiData.opening_hours === "string") {
-              try {
-                const parsed = JSON.parse(apiData.opening_hours);
-                rawDays = parsed.days || (Array.isArray(parsed) ? parsed : null);
-              } catch {
-                rawDays = null;
-              }
-            } else if (apiData.opening_hours.days && Array.isArray(apiData.opening_hours.days)) {
-              rawDays = apiData.opening_hours.days;
-            } else if (Array.isArray(apiData.opening_hours)) {
-              rawDays = apiData.opening_hours;
-            }
-          }
-
-          if (rawDays && rawDays.length > 0) {
-            dynamicOpeningHours = rawDays.map((d) => {
-              const isToday = d.day && d.day.toLowerCase() === currentDayName.toLowerCase();
-              const isClosed = !d.isOpen || d.isOpen === "false" || d.isOpen === false;
-              const openFmt = formatTime12(d.openTime || "09:00");
-              const closeFmt = formatTime12(d.closeTime || "21:00");
-              const hours = isClosed ? "Holiday / Closed" : `${openFmt} – ${closeFmt}`;
-              if (isToday) {
-                dynamicStatus = isClosed ? "Closed today (Holiday / Off)" : `Open until ${closeFmt}`;
-              }
-              return {
-                day: d.day,
-                hours,
-                isToday,
-                isOpen: !isClosed,
+                price: parsedPrice || 0,
+                description: s.description || "",
+                badge: s.badge || null,
               };
             });
           }
+
+          const { openingHours: dynamicOpeningHours, status: dynamicStatus } = buildSalonOpeningHours(apiData.opening_hours);
+          const dynamicAmenities = parseSalonAmenities(apiData.amenities);
+
+          const dynamicOffers = Array.isArray(apiData.offers) ? apiData.offers : [];
 
           const dynRating = typeof apiData.rating === "number" ? apiData.rating : (parseFloat(apiData.rating) || 5.0);
           const dynReviewsCount = typeof apiData.reviews_count === "number" ? apiData.reviews_count : (parseInt(apiData.reviews_count, 10) || 0);
-          const dynReviews = Array.isArray(apiData.reviews) && apiData.reviews.length > 0
-            ? apiData.reviews
-            : (Array.isArray(apiData.reviews) ? [] : DEFAULT_SALON_DATA.reviews);
+          const dynReviews = Array.isArray(apiData.reviews) ? apiData.reviews : [];
+
+          let dynamicPriceTier = "₹₹ Moderate";
+          if (serviceList.length > 0) {
+            const avgPrice = serviceList.reduce((acc, s) => acc + (Number(s.price) || 0), 0) / serviceList.length;
+            if (avgPrice < 400) dynamicPriceTier = "₹ Affordable";
+            else if (avgPrice < 1500) dynamicPriceTier = "₹₹ Moderate";
+            else dynamicPriceTier = "₹₹₹ Luxury";
+          }
 
           setSalon({
             id: apiData.id || id,
-            name: apiData.name || DEFAULT_SALON_DATA.name,
-            tagline: apiData.tagline || DEFAULT_SALON_DATA.tagline,
+            name: apiData.name || "Exclusive Salon",
+            tagline: apiData.tagline || (apiData.category ? `${apiData.category} Studio` : ""),
             rating: dynRating,
             reviewsCount: dynReviewsCount,
-            priceTier: "₹₹₹ Luxury",
+            priceTier: dynamicPriceTier,
             status: dynamicStatus,
-            address: apiData.address || DEFAULT_SALON_DATA.address,
-            city: apiData.city || DEFAULT_SALON_DATA.city,
-            state: apiData.state || DEFAULT_SALON_DATA.state,
-            pincode: apiData.pincode || DEFAULT_SALON_DATA.pincode,
-            landmark: apiData.landmark || DEFAULT_SALON_DATA.landmark,
-            phone: apiData.phone || DEFAULT_SALON_DATA.phone,
-            email: apiData.email || DEFAULT_SALON_DATA.email,
-            isVerified: true,
+            address: apiData.address || "",
+            city: apiData.city || "",
+            state: apiData.state || "",
+            pincode: apiData.pincode || "",
+            landmark: apiData.landmark || "",
+            phone: apiData.phone || "",
+            email: apiData.email || "",
+            isVerified: apiData.approval_status === "APPROVED",
             images: parsedImages,
             services: serviceList,
             stylists: stylistList,
-            amenities: DEFAULT_SALON_DATA.amenities,
-            offers: DEFAULT_SALON_DATA.offers,
+            amenities: dynamicAmenities,
+            offers: dynamicOffers,
             reviews: dynReviews,
             ratingBreakdown: apiData.rating_breakdown || null,
             openingHours: dynamicOpeningHours,
             offDays: Array.isArray(apiData.off_days) ? apiData.off_days : [],
           });
 
-          
           if (serviceList.length > 0) {
             setSelectedServices([serviceList[0]]);
           }
         }
       } catch (err) {
-        
-        setSalon({
-          ...DEFAULT_SALON_DATA,
-          id: id || 1,
-        });
+        console.error("Failed to load salon details for ID:", id, err);
+        if (err.response?.status === 404) {
+          setNotFound(true);
+        } else {
+          setFetchError(
+            err.response?.data?.error ||
+            err.response?.data?.message ||
+            err.message ||
+            "Unable to connect to the salon service. Please ensure the backend is running."
+          );
+        }
+        setSalon(null);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
-    }
+    }, [id]);
 
+  useEffect(() => {
     fetchSalonDetails();
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+  }, [fetchSalonDetails]);
 
   // Toast Helper
   const showToast = (msg) => {
@@ -792,12 +587,58 @@ export default function SalonDetail() {
   };
 
   
+  const totalDurationMinutes = useMemo(() => {
+    return selectedServices.reduce((sum, s) => {
+      let mins = 45;
+      if (typeof s.duration === "number") {
+        mins = s.duration;
+      } else if (typeof s.duration === "string") {
+        const durStr = s.duration.toLowerCase();
+        const hrMatch = durStr.match(/(\d+)\s*(?:hr|hour|hrs|hours)/);
+        const minMatch = durStr.match(/(\d+)\s*(?:min|minute|mins|minutes|m\b)/);
+
+        if (hrMatch || minMatch) {
+          const hours = hrMatch ? parseInt(hrMatch[1], 10) : 0;
+          const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+          mins = hours * 60 + minutes;
+        } else {
+          const m = durStr.match(/\d+/);
+          if (m) mins = parseInt(m[0], 10);
+        }
+      }
+      return sum + (mins > 0 ? mins : 45);
+    }, 0);
+  }, [selectedServices]);
+
   const handleToggleService = (service) => {
-    setSelectedServices([service]);
-    showToast(`Selected "${service.name}" (${service.duration})!`);
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === service.id);
+      if (exists) {
+        if (prev.length <= 1) {
+          showToast("At least one service must be selected.");
+          return prev;
+        }
+        showToast(`Removed "${service.name}".`);
+        return prev.filter((s) => s.id !== service.id);
+      } else {
+        showToast(`Added "${service.name}" (${service.duration})!`);
+        return [...prev, service];
+      }
+    });
   };
 
- 
+  const handleRemoveService = (serviceId) => {
+    setSelectedServices((prev) => {
+      if (prev.length <= 1) {
+        showToast("At least one service must be selected.");
+        return prev;
+      }
+      const s = prev.find((x) => x.id === serviceId);
+      if (s) showToast(`Removed "${s.name}".`);
+      return prev.filter((x) => x.id !== serviceId);
+    });
+  };
+
   const billSummary = useMemo(() => {
     const subtotal = selectedServices.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
     const taxRate = 0.05; // 5% GST
@@ -805,10 +646,15 @@ export default function SalonDetail() {
     
     let discount = 0;
     if (appliedCoupon) {
-      if (appliedCoupon.discountRate) {
-        discount = Math.round(subtotal * appliedCoupon.discountRate);
-      } else if (appliedCoupon.discountFixed) {
-        discount = Math.min(subtotal, appliedCoupon.discountFixed);
+      const minSpend = Number(appliedCoupon.minSpend || appliedCoupon.min_spend || 0);
+      if (subtotal >= minSpend) {
+        if (appliedCoupon.discountRate) {
+          discount = Math.round(subtotal * appliedCoupon.discountRate);
+        } else if (appliedCoupon.discountFixed) {
+          discount = Math.min(subtotal, appliedCoupon.discountFixed);
+        } else if (appliedCoupon.discount) {
+          discount = Math.min(subtotal, appliedCoupon.discount);
+        }
       }
     }
 
@@ -819,52 +665,126 @@ export default function SalonDetail() {
       taxes,
       discount,
       total,
+      totalDurationMinutes,
     };
-  }, [selectedServices, appliedCoupon]);
+  }, [selectedServices, appliedCoupon, totalDurationMinutes]);
 
-  
+  // Invalidate coupon if subtotal falls below required minSpend
+  useEffect(() => {
+    if (appliedCoupon) {
+      const minSpend = Number(appliedCoupon.minSpend || appliedCoupon.min_spend || 0);
+      if (billSummary.subtotal < minSpend) {
+        setAppliedCoupon(null);
+        showToast(`Coupon ${appliedCoupon.code} removed: minimum spend of ₹${minSpend} required.`);
+      }
+    }
+  }, [billSummary.subtotal, appliedCoupon]);
+
   const handleApplyCoupon = (coupon) => {
-    if (billSummary.subtotal < coupon.minSpend) {
-      showToast(`Add items worth ₹${coupon.minSpend} to apply ${coupon.code}`);
+    const minSpend = Number(coupon.minSpend || coupon.min_spend || 0);
+    if (billSummary.subtotal < minSpend) {
+      showToast(`Add items worth ₹${minSpend} to apply ${coupon.code}`);
       return;
     }
     setAppliedCoupon(coupon);
     showToast(`Coupon ${coupon.code} applied successfully! 🎉`);
   };
 
-  
+  // Synchronize favorites state with server or local storage
+  useEffect(() => {
+    if (!salon?.id) return;
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      api
+        .get("/accounts/customer/favorites/")
+        .then((res) => {
+          const list = res.data?.favorites || [];
+          const exists = list.some((f) => String(f.id) === String(salon.id));
+          setIsSaved(exists);
+        })
+        .catch(() => {
+          try {
+            const stored = JSON.parse(localStorage.getItem("guest_saved_salons") || "[]");
+            setIsSaved(stored.includes(salon.id));
+          } catch {
+            // ignore
+          }
+        });
+    } else {
+      try {
+        const stored = JSON.parse(localStorage.getItem("guest_saved_salons") || "[]");
+        setIsSaved(stored.includes(salon.id));
+      } catch {
+        // ignore
+      }
+    }
+  }, [salon?.id]);
+
   const handleShare = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      showToast("Salon link copied to clipboard! 📋");
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(window.location.href)
+        .then(() => {
+          showToast("Salon link copied to clipboard! 📋");
+        })
+        .catch(() => {
+          showToast("Share URL: " + window.location.href);
+        });
     } else {
       showToast("Share URL: " + window.location.href);
     }
   };
 
-  
-  const handleSaveToggle = () => {
-    setIsSaved(!isSaved);
-    showToast(!isSaved ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
+  const handleSaveToggle = async () => {
+    const token = localStorage.getItem("access_token");
+    if (token && salon?.id) {
+      try {
+        const res = await api.post("/accounts/customer/toggle-favorite/", {
+          salon_id: salon.id,
+        });
+        const isFav = Boolean(res.data?.is_favorite);
+        setIsSaved(isFav);
+        showToast(isFav ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
+        return;
+      } catch (err) {
+        console.error("Failed to toggle favorite on backend:", err);
+      }
+    }
+
+    const nextSaved = !isSaved;
+    setIsSaved(nextSaved);
+    try {
+      const stored = JSON.parse(localStorage.getItem("guest_saved_salons") || "[]");
+      const updated = nextSaved
+        ? Array.from(new Set([...stored, salon?.id]))
+        : stored.filter((x) => x !== salon?.id);
+      localStorage.setItem("guest_saved_salons", JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    showToast(nextSaved ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
   };
 
   
   const availableCategories = useMemo(() => {
-    const cats = new Set(salon.services.map((s) => s.category || "General"));
+    const list = salon?.services || [];
+    const cats = new Set(list.map((s) => s.category || "General"));
     return ["All", ...Array.from(cats)];
-  }, [salon.services]);
+  }, [salon?.services]);
 
   const categoryCounts = useMemo(() => {
-    const counts = { All: salon.services.length };
-    salon.services.forEach((s) => {
+    const list = salon?.services || [];
+    const counts = { All: list.length };
+    list.forEach((s) => {
       const cat = s.category || "General";
       counts[cat] = (counts[cat] || 0) + 1;
     });
     return counts;
-  }, [salon.services]);
+  }, [salon?.services]);
 
   const filteredServices = useMemo(() => {
-    return salon.services.filter((s) => {
+    const list = salon?.services || [];
+    return list.filter((s) => {
       const catMatch =
         selectedServiceCategory === "All" ||
         (s.category || "General") === selectedServiceCategory;
@@ -876,7 +796,7 @@ export default function SalonDetail() {
         (s.category && s.category.toLowerCase().includes(q));
       return catMatch && searchMatch;
     });
-  }, [salon.services, selectedServiceCategory, serviceSearchQuery]);
+  }, [salon?.services, selectedServiceCategory, serviceSearchQuery]);
 
   const slotCounts = useMemo(() => {
     let morning = 0;
@@ -906,9 +826,10 @@ export default function SalonDetail() {
   }, [dynamicSlots, slotTimeFilter]);
 
   const filteredReviews = useMemo(() => {
-    if (!reviewFilterRating) return salon.reviews;
-    return salon.reviews.filter((r) => Number(r.rating) === Number(reviewFilterRating));
-  }, [salon.reviews, reviewFilterRating]);
+    const list = salon?.reviews || [];
+    if (!reviewFilterRating) return list;
+    return list.filter((r) => Number(r.rating) === Number(reviewFilterRating));
+  }, [salon?.reviews, reviewFilterRating]);
 
   const bookingCompletion = useMemo(() => {
     let completed = 0;
@@ -935,18 +856,162 @@ export default function SalonDetail() {
     }, 50);
   };
 
+  if (loading && !salon) {
+    return (
+      <div className="salon-detail-page">
+        <CustomerHeader />
+        <div
+          className="salon-detail-loading-wrap"
+          style={{
+            minHeight: "65vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "16px",
+            textAlign: "center",
+            padding: "40px 20px",
+          }}
+        >
+          <div
+            className="salon-detail-spinner"
+            style={{
+              width: "48px",
+              height: "48px",
+              border: "4px solid rgba(16, 185, 129, 0.15)",
+              borderTopColor: "#10b981",
+              borderRadius: "50%",
+              animation: "spin 0.9s linear infinite",
+            }}
+          />
+          <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+            Loading Salon Details…
+          </h3>
+          <p style={{ color: "#64748b", fontSize: "0.95rem", margin: 0 }}>
+            Fetching verified treatments, specialists, and available appointment slots.
+          </p>
+        </div>
+        <CustomerFooter />
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="salon-detail-page">
+        <CustomerHeader />
+        <div
+          className="salon-detail-not-found"
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: "60px 20px",
+          }}
+        >
+          <div style={{ fontSize: "3.5rem", marginBottom: "16px" }}>🔍</div>
+          <h2 style={{ fontSize: "1.85rem", fontWeight: "700", color: "#1e293b", marginBottom: "8px" }}>
+            Salon Not Found
+          </h2>
+          <p style={{ color: "#64748b", maxWidth: "480px", marginBottom: "28px", lineHeight: "1.6" }}>
+            The requested salon could not be located. It may have been unpublished, relocated, or the link may be invalid.
+          </p>
+          <Link
+            to="/customer/salons"
+            style={{
+              display: "inline-block",
+              background: "#10b981",
+              color: "#ffffff",
+              padding: "12px 28px",
+              borderRadius: "8px",
+              fontWeight: "600",
+              textDecoration: "none",
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+            }}
+          >
+            ← Explore Available Salons
+          </Link>
+        </div>
+        <CustomerFooter />
+      </div>
+    );
+  }
+
+  if (fetchError || (!loading && !salon)) {
+    return (
+      <div className="salon-detail-page">
+        <CustomerHeader />
+        <div
+          className="salon-detail-not-found"
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: "60px 20px",
+          }}
+        >
+          <div style={{ fontSize: "3.5rem", marginBottom: "16px" }}>⚠️</div>
+          <h2 style={{ fontSize: "1.85rem", fontWeight: "700", color: "#1e293b", marginBottom: "8px" }}>
+            Unable to Load Salon Details
+          </h2>
+          <p style={{ color: "#64748b", maxWidth: "480px", marginBottom: "28px", lineHeight: "1.6" }}>
+            {fetchError || "Something went wrong while connecting to the salon server."}
+          </p>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+            <button
+              onClick={() => fetchSalonDetails()}
+              style={{
+                display: "inline-block",
+                background: "#047857",
+                color: "#ffffff",
+                padding: "12px 28px",
+                borderRadius: "8px",
+                fontWeight: "600",
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(4, 120, 87, 0.3)",
+              }}
+            >
+              🔄 Try Again
+            </button>
+            <Link
+              to="/customer/salons"
+              style={{
+                display: "inline-block",
+                background: "#f1f5f9",
+                color: "#334155",
+                padding: "12px 28px",
+                borderRadius: "8px",
+                fontWeight: "600",
+                textDecoration: "none",
+                border: "1px solid #cbd5e1",
+              }}
+            >
+              ← Explore Other Salons
+            </Link>
+          </div>
+        </div>
+        <CustomerFooter />
+      </div>
+    );
+  }
+
   return (
     <div className="salon-detail-page">
       <CustomerHeader />
 
-      
       {toastMessage && (
         <div className="salon-detail-toast" role="status">
           <span>{toastMessage}</span>
         </div>
       )}
 
-     
       <section className="salon-detail-topbar">
         <div className="salon-detail-container topbar-flex">
           <nav className="detail-breadcrumbs" aria-label="Breadcrumb">
@@ -979,10 +1044,9 @@ export default function SalonDetail() {
         </div>
       </section>
 
-      
       <section className="salon-gallery-section">
         <div className="salon-detail-container">
-          <div className="salon-gallery-mosaic">
+          <div className={`salon-gallery-mosaic ${salon.images.length === 1 ? "is-single-photo" : ""}`}>
             {/* Left Big Hero Image */}
             <div
               className="gallery-hero-main"
@@ -993,7 +1057,7 @@ export default function SalonDetail() {
             >
               <img src={salon.images[0]} alt={`${salon.name} Main View`} />
               <div className="gallery-badge-featured">
-                <span>✦ Featured Luxury Partner</span>
+                <span>✦ Verified Partner</span>
               </div>
               <button
                 type="button"
@@ -1010,30 +1074,32 @@ export default function SalonDetail() {
               </button>
             </div>
 
-            {/* Right 4 Thumbnail Grid */}
-            <div className="gallery-thumbnails-grid">
-              {salon.images.slice(1, 5).map((imgUrl, idx) => {
-                const isLastThumb = idx === 3;
-                return (
-                  <div
-                    key={idx}
-                    className={`gallery-thumb-item ${isLastThumb ? "has-overlay" : ""}`}
-                    onClick={() => {
-                      setActivePhotoIdx(idx + 1);
-                      setIsGalleryOpen(true);
-                    }}
-                  >
-                    <img src={imgUrl} alt={`${salon.name} view ${idx + 2}`} />
-                    {isLastThumb && (
-                      <div className="gallery-more-overlay">
-                        <span>+{salon.images.length - 4} More</span>
-                        <small>Photos</small>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {/* Right Thumbnail Grid (only if more than 1 image) */}
+            {salon.images.length > 1 && (
+              <div className="gallery-thumbnails-grid">
+                {salon.images.slice(1, 5).map((imgUrl, idx) => {
+                  const isLastThumb = idx === 3;
+                  return (
+                    <div
+                      key={idx}
+                      className={`gallery-thumb-item ${isLastThumb && salon.images.length > 5 ? "has-overlay" : ""}`}
+                      onClick={() => {
+                        setActivePhotoIdx(idx + 1);
+                        setIsGalleryOpen(true);
+                      }}
+                    >
+                      <img src={imgUrl} alt={`${salon.name} view ${idx + 2}`} />
+                      {isLastThumb && salon.images.length > 5 && (
+                        <div className="gallery-more-overlay">
+                          <span>+{salon.images.length - 4} More</span>
+                          <small>Photos</small>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -1054,13 +1120,13 @@ export default function SalonDetail() {
               )}
             </div>
 
-            <p className="salon-tagline">{salon.tagline}</p>
+            {salon.tagline && <p className="salon-tagline">{salon.tagline}</p>}
 
             <div className="headline-meta-row">
               <div className="meta-pill rating-pill">
                 <span className="star-icon">★</span>
-                <span className="score-val">{salon.rating}</span>
-                <span className="review-count">({salon.reviewsCount} reviews)</span>
+                <span className="score-val">{salon.reviewsCount > 0 ? salon.rating : "New"}</span>
+                <span className="review-count">({salon.reviewsCount} review{salon.reviewsCount === 1 ? "" : "s"})</span>
               </div>
 
               <div className={`meta-pill status-pill ${salon.status?.toLowerCase().includes("closed") ? "status-closed" : ""}`} style={salon.status?.toLowerCase().includes("closed") ? { borderColor: "#fca5a5", background: "#fef2f2" } : {}}>
@@ -1073,7 +1139,7 @@ export default function SalonDetail() {
               </div>
 
               <div className="meta-pill location-pill">
-                <span>📍 {salon.landmark ? `${salon.landmark}, ` : ""}{salon.address}, {salon.city}</span>
+                <span>📍 {[salon.landmark, salon.address, salon.city, salon.state].filter(Boolean).join(", ") || "Location details on booking"}</span>
                 <a
                   href={`https://maps.google.com/?q=${encodeURIComponent(`${salon.name} ${salon.address} ${salon.city}`)}`}
                   target="_blank"
@@ -1145,7 +1211,7 @@ export default function SalonDetail() {
               >
                 <div>
                   <div className="section-title-wrap">
-                    <h2 className="section-title">Signature Services & Treatments</h2>
+                    <h2 className="section-title">Services & Treatments</h2>
                     <span className="section-badge-pill">{filteredServices.length} Available</span>
                   </div>
                   <p className="section-subtitle">
@@ -1182,7 +1248,7 @@ export default function SalonDetail() {
                       </svg>
                       <input
                         type="text"
-                        placeholder="Search treatments (e.g. Balayage, Keratin, Facial, Haircut)..."
+                        placeholder="Search treatments by name or category..."
                         value={serviceSearchQuery}
                         onChange={(e) => setServiceSearchQuery(e.target.value)}
                         className="service-search-input"
@@ -1217,19 +1283,25 @@ export default function SalonDetail() {
                   {/* Services List or Empty State */}
                   {filteredServices.length === 0 ? (
                     <div className="empty-search-state">
-                      <span className="empty-search-icon">🔍</span>
-                      <h4>No services match "{serviceSearchQuery}"</h4>
-                      <p>Try searching for a different keyword or reset filters to see all available treatments.</p>
-                      <button
-                        type="button"
-                        className="reset-search-btn"
-                        onClick={() => {
-                          setServiceSearchQuery("");
-                          setSelectedServiceCategory("All");
-                        }}
-                      >
-                        Reset All Filters
-                      </button>
+                      <span className="empty-search-icon">✨</span>
+                      <h4>{salon.services.length === 0 ? "No services listed yet" : `No services match "${serviceSearchQuery || selectedServiceCategory}"`}</h4>
+                      <p>
+                        {salon.services.length === 0
+                          ? "This salon has not published their services list yet. Please check back later."
+                          : "Try searching for a different keyword or reset filters to see all available treatments."}
+                      </p>
+                      {salon.services.length > 0 && (
+                        <button
+                          type="button"
+                          className="reset-search-btn"
+                          onClick={() => {
+                            setServiceSearchQuery("");
+                            setSelectedServiceCategory("All");
+                          }}
+                        >
+                          Reset All Filters
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="services-card-list">
@@ -1297,7 +1369,7 @@ export default function SalonDetail() {
               >
                 <div>
                   <div className="section-title-wrap">
-                    <h2 className="section-title">Master Stylists & Specialists</h2>
+                    <h2 className="section-title">Stylists & Specialists</h2>
                     <span className="section-badge-pill">{salon.stylists.length} Specialists</span>
                   </div>
                   <p className="section-subtitle">
@@ -1326,8 +1398,17 @@ export default function SalonDetail() {
 
               {openSections.stylists && (
                 <div className="section-collapsible-body">
-                  <div className="stylists-grid">
-                    {salon.stylists.map((stylist) => {
+                  {salon.stylists.length === 0 ? (
+                    <div className="reviews-empty-state" style={{ padding: "36px 16px" }}>
+                      <div className="reviews-empty-icon">💇</div>
+                      <h4 className="reviews-empty-title">Specialists Assigned at Check-in</h4>
+                      <p className="reviews-empty-desc">
+                        Dedicated specialists at this salon will be allocated to your service automatically when you arrive.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="stylists-grid">
+                      {salon.stylists.map((stylist) => {
                       const isSelected = selectedStylist?.id === stylist.id;
                       const currentIsoDate = dateSlots[selectedDateIdx]?.isoDate;
                       const matchedEligible = eligibleWorkers.find((ew) => String(ew.id) === String(stylist.id));
@@ -1352,28 +1433,28 @@ export default function SalonDetail() {
                           <div className="stylist-info">
                             <h4 className="stylist-name">{stylist.name}</h4>
                             <p className="stylist-role">{stylist.role}</p>
-                            <p className="stylist-exp">{stylist.experience} • {stylist.reviewsCount} reviews</p>
+                            <p className="stylist-exp">{stylist.experience ? `${stylist.experience} • ` : ""}{stylist.reviewsCount} review{stylist.reviewsCount === 1 ? "" : "s"}</p>
                             <p className="stylist-specialty">{stylist.specialty}</p>
 
                             {/* Service Capability & Advance Booking Status */}
-                            <div style={{ marginTop: "6px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <div className="stylist-status-stack">
                               {!doesSelectedService ? (
-                                <span style={{ fontSize: "0.72rem", color: "#b45309", background: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span className="stylist-status-chip stylist-status-chip--not-performed">
                                   ✕ Does not perform {selectedServices[0]?.name}
                                 </span>
                               ) : (
-                                <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span className="stylist-status-chip stylist-status-chip--performed">
                                   ✓ Performs {selectedServices[0]?.name}
                                 </span>
                               )}
 
                               {doesSelectedService && (
                                 hasAdvanceBookings ? (
-                                  <span style={{ fontSize: "0.72rem", color: "#0369a1", background: "#e0f2fe", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  <span className="stylist-status-chip stylist-status-chip--advance-booked">
                                     📌 {advanceBookingsCount} advance booking{advanceBookingsCount > 1 ? "s" : ""} on {dateSlots[selectedDateIdx]?.dayName}
                                   </span>
                                 ) : (
-                                  <span style={{ fontSize: "0.72rem", color: "#15803d", background: "#f0fdf4", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                  <span className="stylist-status-chip stylist-status-chip--clear">
                                     ✓ No advance bookings on this date
                                   </span>
                                 )
@@ -1381,47 +1462,18 @@ export default function SalonDetail() {
                             </div>
 
                             {isStylistOnLeave ? (
-                              <div style={{
-                                background: "#fef2f2",
-                                color: "#dc2626",
-                                border: "1px solid #fecaca",
-                                borderRadius: "6px",
-                                padding: "6px 10px",
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                textAlign: "center",
-                                marginTop: "8px"
-                              }}>
+                              <div className="stylist-notice-box stylist-notice-box--leave">
                                 🔒 On Leave on Selected Date
                               </div>
                             ) : isFullyBooked ? (
-                              <div style={{
-                                background: "#fffbeb",
-                                color: "#b45309",
-                                border: "1px solid #fde68a",
-                                borderRadius: "6px",
-                                padding: "6px 10px",
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                textAlign: "center",
-                                marginTop: "8px"
-                              }}>
+                              <div className="stylist-notice-box stylist-notice-box--booked">
                                 ⚠️ Fully Booked on Selected Date
                               </div>
                             ) : !doesSelectedService ? (
                               <button
                                 type="button"
                                 disabled
-                                style={{
-                                  width: "100%",
-                                  padding: "8px",
-                                  borderRadius: "6px",
-                                  border: "1px solid #e2e8f0",
-                                  background: "#f1f5f9",
-                                  color: "#94a3b8",
-                                  fontSize: "0.82rem",
-                                  cursor: "not-allowed"
-                                }}
+                                className="stylist-disabled-btn"
                               >
                                 Service Not Provided
                               </button>
@@ -1431,8 +1483,8 @@ export default function SalonDetail() {
                                 className={`stylist-select-btn ${isSelected ? "selected-btn" : ""}`}
                                 onClick={() => {
                                   if (isSelected) {
-                                    setSelectedStylist(null);
-                                    showToast("Deselected stylist. Please select a specialist or Auto-Assign.");
+                                    setSelectedStylist("auto");
+                                    showToast("Deselected stylist. Switched back to Auto-Assign.");
                                   } else {
                                     setSelectedStylist(matchedEligible || stylist);
                                     showToast(`Selected stylist: ${stylist.name}!`);
@@ -1447,6 +1499,7 @@ export default function SalonDetail() {
                       );
                     })}
                   </div>
+                )}
                 </div>
               )}
             </section>
@@ -1488,17 +1541,27 @@ export default function SalonDetail() {
 
               {openSections.amenities && (
                 <div className="section-collapsible-body">
-                  <div className="amenities-grid">
-                    {salon.amenities.map((item, idx) => (
-                      <div key={idx} className="amenity-item-card">
-                        <span className="amenity-icon">{item.icon}</span>
-                        <div className="amenity-texts">
-                          <h4 className="amenity-title">{item.title}</h4>
-                          <p className="amenity-desc">{item.desc}</p>
+                  {salon.amenities.length === 0 ? (
+                    <div className="reviews-empty-state" style={{ padding: "32px 16px" }}>
+                      <div className="reviews-empty-icon">🌿</div>
+                      <h4 className="reviews-empty-title">Amenities Information Coming Soon</h4>
+                      <p className="reviews-empty-desc">
+                        This salon has not listed specific facilities or amenities yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="amenities-grid">
+                      {salon.amenities.map((item, idx) => (
+                        <div key={idx} className="amenity-item-card">
+                          <span className="amenity-icon">{item.icon}</span>
+                          <div className="amenity-texts">
+                            <h4 className="amenity-title">{item.title}</h4>
+                            <p className="amenity-desc">{item.desc}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1540,30 +1603,40 @@ export default function SalonDetail() {
 
               {openSections.offers && (
                 <div className="section-collapsible-body">
-                  <div className="offers-cards-grid">
-                    {salon.offers.map((offer) => {
-                      const isCurrentApplied = appliedCoupon?.code === offer.code;
-                      return (
-                        <div key={offer.code} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
-                          <div className="coupon-left">
-                            <div className="coupon-badge">CODE: {offer.code}</div>
-                            <h4 className="coupon-title">{offer.title}</h4>
-                            <p className="coupon-desc">{offer.desc}</p>
+                  {salon.offers.length === 0 ? (
+                    <div className="reviews-empty-state" style={{ padding: "32px 16px" }}>
+                      <div className="reviews-empty-icon">🏷️</div>
+                      <h4 className="reviews-empty-title">No Active Offers Right Now</h4>
+                      <p className="reviews-empty-desc">
+                        There are currently no active promotional coupons available for this salon. Regular competitive rates apply.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="offers-cards-grid">
+                      {salon.offers.map((offer) => {
+                        const isCurrentApplied = appliedCoupon?.code === offer.code;
+                        return (
+                          <div key={offer.code} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
+                            <div className="coupon-left">
+                              <div className="coupon-badge">CODE: {offer.code}</div>
+                              <h4 className="coupon-title">{offer.title}</h4>
+                              <p className="coupon-desc">{offer.desc}</p>
+                            </div>
+                            <div className="coupon-right">
+                              <button
+                                type="button"
+                                className="coupon-apply-btn"
+                                disabled={isCurrentApplied}
+                                onClick={() => handleApplyCoupon(offer)}
+                              >
+                                {isCurrentApplied ? "✓ Applied" : "Apply Code"}
+                              </button>
+                            </div>
                           </div>
-                          <div className="coupon-right">
-                            <button
-                              type="button"
-                              className="coupon-apply-btn"
-                              disabled={isCurrentApplied}
-                              onClick={() => handleApplyCoupon(offer)}
-                            >
-                              {isCurrentApplied ? "✓ Applied" : "Apply Code"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1577,7 +1650,7 @@ export default function SalonDetail() {
                 <div>
                   <div className="section-title-wrap">
                     <h2 className="section-title">Client Reviews & Experiences</h2>
-                    <span className="section-badge-pill">{salon.reviewsCount} Reviews ({salon.rating}★)</span>
+                    <span className="section-badge-pill">{salon.reviewsCount > 0 ? `${salon.reviewsCount} Reviews (${salon.rating}★)` : "0 Reviews"}</span>
                   </div>
                   <p className="section-subtitle">
                     Real, verified feedback from customers who visited this location.
@@ -1608,9 +1681,13 @@ export default function SalonDetail() {
                   {/* Overall Ratings Summary Card */}
                   <div className="rating-overview-card">
                     <div className="overview-score-box">
-                      <span className="big-score">{salon.rating}</span>
+                      <span className="big-score">{salon.reviewsCount > 0 ? salon.rating : "—"}</span>
                       <div className="stars-gold">★★★★★</div>
-                      <span className="total-reviews-label">Based on {salon.reviewsCount} verified visits</span>
+                      <span className="total-reviews-label">
+                        {salon.reviewsCount > 0
+                          ? `Based on ${salon.reviewsCount} verified visit${salon.reviewsCount === 1 ? "" : "s"}`
+                          : "No verified reviews yet"}
+                      </span>
                       {reviewFilterRating > 0 && (
                         <button
                           type="button"
@@ -1624,7 +1701,7 @@ export default function SalonDetail() {
 
                     <div className="overview-bars-box">
                       {[5, 4, 3, 2, 1].map((star) => {
-                        const pct = salon.ratingBreakdown?.[star]?.percentage ?? (star === 5 ? 88 : star === 4 ? 9 : star === 3 ? 2 : star === 2 ? 1 : 0);
+                        const pct = salon.ratingBreakdown?.[star]?.percentage ?? 0;
                         const isSelectedStar = reviewFilterRating === star;
                         return (
                           <div
@@ -1632,7 +1709,6 @@ export default function SalonDetail() {
                             className={`rating-bar-row ${isSelectedStar ? "rating-bar-selected" : ""}`}
                             onClick={() => setReviewFilterRating((prev) => (prev === star ? 0 : star))}
                             title={`Filter by ${star} Star reviews (click to toggle)`}
-                            style={{ cursor: "pointer" }}
                           >
                             <span className="star-bar-label">{star} Star{star > 1 ? "s" : ""}</span>
                             <div className="progress-track">
@@ -1663,12 +1739,12 @@ export default function SalonDetail() {
 
                   {/* Reviews List */}
                   {filteredReviews.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "32px 16px", color: "#64748b", background: "#f8fafc", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
-                      <div style={{ fontSize: "2rem", marginBottom: "8px" }}>⭐</div>
-                      <h4 style={{ margin: "0 0 4px", color: "#1e293b", fontSize: "0.95rem", fontWeight: 700 }}>
+                    <div className="reviews-empty-state">
+                      <div className="reviews-empty-icon">⭐</div>
+                      <h4 className="reviews-empty-title">
                         {reviewFilterRating > 0 ? `No ${reviewFilterRating}-Star Reviews Found` : "No Reviews Yet"}
                       </h4>
-                      <p style={{ margin: "0 0 12px", fontSize: "0.82rem" }}>
+                      <p className="reviews-empty-desc">
                         {reviewFilterRating > 0
                           ? "There are currently no reviews matching this specific star rating."
                           : "Be the first verified client to review this salon after completing an appointment!"}
@@ -1694,7 +1770,6 @@ export default function SalonDetail() {
                                   src={rev.avatar}
                                   alt={rev.author}
                                   className="reviewer-avatar"
-                                  style={{ objectFit: "cover" }}
                                 />
                               ) : (
                                 <div className="reviewer-avatar">{rev.initial}</div>
@@ -1705,7 +1780,9 @@ export default function SalonDetail() {
                               </div>
                             </div>
                             <div className="review-meta">
-                              <div className="review-stars">{"★".repeat(rev.rating)}</div>
+                              <div className="review-stars">
+                                {"★".repeat(Math.max(0, Math.min(5, Math.round(Number(rev.rating) || 0))))}
+                              </div>
                               <span className="review-date">{rev.date}</span>
                             </div>
                           </div>
@@ -1727,10 +1804,12 @@ export default function SalonDetail() {
                 <div>
                   <div className="section-title-wrap">
                     <h2 className="section-title">Location & Operating Hours</h2>
-                    <span className="section-badge-pill">Kowdiar, Trivandrum</span>
+                    <span className="section-badge-pill">{salon.city || "Location"}, {salon.state || "India"}</span>
                   </div>
                   <p className="section-subtitle">
-                    Easily accessible with valet parking in the heart of Kowdiar.
+                    {salon.landmark
+                      ? `Located near ${salon.landmark}, ${salon.city}.`
+                      : `Easily accessible in ${salon.city}, ${salon.state}.`}
                   </p>
                 </div>
 
@@ -1758,14 +1837,20 @@ export default function SalonDetail() {
                   <div className="location-details-grid">
                     <div className="hours-card">
                       <h4 className="card-subheading">Operating Hours</h4>
-                      <ul className="hours-list">
-                        {salon.openingHours.map((slot) => (
-                          <li key={slot.day} className={`hours-item ${slot.isToday ? "today-highlight" : ""}`}>
-                            <span className="day-name">{slot.day} {slot.isToday && <span className="today-pill">Today</span>}</span>
-                            <span className="hours-val" style={slot.isOpen === false || slot.hours?.includes("Holiday") ? { color: "#dc2626", fontWeight: "600" } : {}}>{slot.hours}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {salon.openingHours.length === 0 ? (
+                        <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "12px 0" }}>
+                          Operating hours not specified. Please contact the salon directly.
+                        </p>
+                      ) : (
+                        <ul className="hours-list">
+                          {salon.openingHours.map((slot) => (
+                            <li key={slot.day} className={`hours-item ${slot.isToday ? "today-highlight" : ""}`}>
+                              <span className="day-name">{slot.day} {slot.isToday && <span className="today-pill">Today</span>}</span>
+                              <span className="hours-val" style={slot.isOpen === false || slot.hours?.includes("Holiday") ? { color: "#dc2626", fontWeight: "600" } : {}}>{slot.hours}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
 
                     <div className="address-contact-card">
@@ -1774,11 +1859,11 @@ export default function SalonDetail() {
                         <p className="salon-full-address">
                           <strong>{salon.name}</strong><br />
                           {salon.landmark && <>{salon.landmark}<br /></>}
-                          {salon.address}, {salon.city}, {salon.state} – {salon.pincode}
+                          {[salon.address, salon.city, salon.state].filter(Boolean).join(", ")}{salon.pincode ? ` – ${salon.pincode}` : ""}
                         </p>
                         <div className="contact-methods">
-                          <p>📞 Phone: <a href={`tel:${salon.phone}`}>{salon.phone}</a></p>
-                          <p>✉️ Email: <a href={`mailto:${salon.email}`}>{salon.email}</a></p>
+                          {salon.phone && <p>📞 Phone: <a href={`tel:${salon.phone}`}>{salon.phone}</a></p>}
+                          {salon.email && <p>✉️ Email: <a href={`mailto:${salon.email}`}>{salon.email}</a></p>}
                         </div>
 
                         <a
@@ -1812,13 +1897,13 @@ export default function SalonDetail() {
                 <div>
                   <h3 className="booking-card-title">Book Appointment</h3>
                   <div className="booking-card-sub">
-                    <span style={{ color: "#f59e0b", fontWeight: 700 }}>★ {salon.rating || 4.8}</span>
+                    <span className="booking-card-rating">★ {salon.reviewsCount > 0 ? salon.rating : "New"}</span>
                     <span>•</span>
                     <span>{salon.name}</span>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div className="booking-card-header-actions">
                   <span className="booking-instant-badge">⚡ Instant</span>
                   <button
                     type="button"
@@ -1890,14 +1975,12 @@ export default function SalonDetail() {
                     >
                       <div className="step-header-left">
                         <span className="step-num-badge badge-done">1</span>
-                        <span className="step-title-text">Treatment / Service</span>
+                        <span className="step-title-text">Treatments / Services</span>
                       </div>
                       <div className="step-header-right">
-                        {selectedServices[0] && (
-                          <span className="step-summary-pill" title={selectedServices[0].name}>
-                            {selectedServices[0].name}
-                          </span>
-                        )}
+                        <span className="step-summary-pill" title={`${selectedServices.length} Selected`}>
+                          {selectedServices.length} Selected ({totalDurationMinutes}m)
+                        </span>
                         <span className={`step-accordion-chevron ${openBookingSteps.service ? "is-expanded" : "is-collapsed"}`}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                             <polyline points="6 9 12 15 18 9" />
@@ -1908,65 +1991,90 @@ export default function SalonDetail() {
 
                     {openBookingSteps.service && (
                       <div className="step-accordion-body">
-                  {selectedServices.length === 0 ? (
-                    <div className="empty-services-prompt">
-                      <p>No service selected yet.</p>
-                      <small>Please choose a service from the menu on the left.</small>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="selected-service-row">
-                        <div className="selected-service-info">
-                          <strong className="selected-srv-name">{selectedServices[0].name}</strong>
-                          <span className="selected-srv-dur">⏱ {selectedServices[0].duration}</span>
-                        </div>
-                        <div className="selected-service-price-wrap">
-                          <span className="selected-srv-price">
-                            ₹{selectedServices[0].price.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      </div>
+                        {selectedServices.length === 0 ? (
+                          <div className="empty-services-prompt">
+                            <p>No service selected yet.</p>
+                            <small>Please choose one or more services from the menu on the left.</small>
+                          </div>
+                        ) : (
+                          <div>
+                            {/* Selected Services Stack */}
+                            <div className="selected-services-stack" style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "10px" }}>
+                              {selectedServices.map((svc) => (
+                                <div key={svc.id} className="selected-service-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                                  <div className="selected-service-info" style={{ flex: 1, minWidth: 0, paddingRight: "8px" }}>
+                                    <strong className="selected-srv-name" style={{ fontSize: "0.85rem", color: "#0f172a", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {svc.name}
+                                    </strong>
+                                    <span className="selected-srv-dur" style={{ fontSize: "0.75rem", color: "#64748b" }}>⏱ {svc.duration}</span>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <span className="selected-srv-price" style={{ fontWeight: 700, color: "#047857", fontSize: "0.86rem" }}>
+                                      ₹{Number(svc.price).toLocaleString("en-IN")}
+                                    </span>
+                                    {selectedServices.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveService(svc.id)}
+                                        title={`Remove ${svc.name}`}
+                                        style={{
+                                          background: "none",
+                                          border: "none",
+                                          color: "#94a3b8",
+                                          fontSize: "14px",
+                                          cursor: "pointer",
+                                          padding: "2px 6px",
+                                          borderRadius: "4px",
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
+                                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                                      >
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
 
-                      {salon.services.length > 1 && (
-                        <div style={{ marginTop: "8px" }}>
-                          <label style={{ display: "block", fontSize: "0.72rem", color: "#64748b", marginBottom: "4px", fontWeight: 600 }}>
-                            Switch Service:
-                          </label>
-                          <select
-                            className="service-switcher-select"
-                            style={{
-                              width: "100%",
-                              padding: "7px 10px",
-                              fontSize: "0.82rem",
-                              borderRadius: "8px",
-                              border: "1.5px solid #e2e8f0",
-                              background: "#ffffff",
-                              color: "#1e293b",
-                              outline: "none",
-                              cursor: "pointer"
-                            }}
-                            value={selectedServices[0]?.id || ""}
-                            onChange={(e) => {
-                              const found = salon.services.find((s) => String(s.id) === String(e.target.value));
-                              if (found) {
-                                setSelectedServices([found]);
-                                showToast(`Selected "${found.name}" (${found.duration})`);
-                              }
-                            }}
-                          >
-                            {salon.services.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name} ({s.duration}) — ₹{s.price}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                            {/* Summary banner */}
+                            <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "8px", padding: "6px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.78rem", color: "#065f46", marginBottom: "10px" }}>
+                              <span>✨ <strong>{selectedServices.length} Treatment{selectedServices.length > 1 ? "s" : ""}</strong></span>
+                              <span>⏱ Total: <strong>{totalDurationMinutes} mins</strong></span>
+                            </div>
+
+                            {/* Add More Service Switcher / Selector */}
+                            {salon.services.some((s) => !selectedServices.some((sel) => sel.id === s.id)) && (
+                              <div className="service-switcher-wrapper">
+                                <label className="service-switcher-label">
+                                  + Add Another Treatment
+                                </label>
+                                <select
+                                  className="service-switcher-select"
+                                  value=""
+                                  onChange={(e) => {
+                                    const found = salon.services.find((s) => String(s.id) === String(e.target.value));
+                                    if (found) {
+                                      handleToggleService(found);
+                                    }
+                                  }}
+                                >
+                                  <option value="" disabled>Choose treatment to add…</option>
+                                  {salon.services
+                                    .filter((s) => !selectedServices.some((sel) => sel.id === s.id))
+                                    .map((s) => (
+                                      <option key={s.id} value={s.id}>
+                                        + {s.name} ({s.duration}) — ₹{s.price}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
             {/* STEP 2: Select Date */}
             <div className="booking-step-block step-block-active">
@@ -2008,7 +2116,7 @@ export default function SalonDetail() {
                         <span className="date-number">{d.dateNum}</span>
                         <span className="date-month">{d.monthStr}</span>
                         {d.isOffDay && (
-                          <span style={{ fontSize: "9px", background: "#fef2f2", color: "#dc2626", borderRadius: "4px", padding: "1px 4px", marginTop: "2px", fontWeight: "700" }}>
+                          <span className="date-closed-badge">
                             CLOSED
                           </span>
                         )}
@@ -2016,15 +2124,7 @@ export default function SalonDetail() {
                     ))}
                   </div>
                   {dateSlots[selectedDateIdx]?.isOffDay && (
-                    <div style={{
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      borderRadius: "8px",
-                      padding: "8px 12px",
-                      fontSize: "0.8rem",
-                      color: "#991b1b",
-                      fontWeight: 600,
-                    }}>
+                    <div className="booking-alert-banner booking-alert-banner--danger">
                       🔒 Salon is closed on this date ({dateSlots[selectedDateIdx]?.offDayReason || "Scheduled Closure"}). Please select another date.
                     </div>
                   )}
@@ -2045,9 +2145,11 @@ export default function SalonDetail() {
                     <span className="step-title-text">Select Stylist</span>
                   </div>
                   <div className="step-header-right">
-                    <span className="step-summary-pill" style={!selectedStylist ? { background: "#fef3c7", color: "#92400e", fontWeight: 700 } : {}}>
+                    <span className={`step-summary-pill ${!selectedStylist ? "step-summary-pill--warning" : ""}`}>
                       {selectedStylist === "auto"
-                        ? "Auto-Assign"
+                        ? selectedSlotObj?.assigned_worker?.name
+                          ? `Auto (${selectedSlotObj.assigned_worker.name})`
+                          : "Auto-Assign"
                         : selectedStylist && typeof selectedStylist === "object"
                         ? selectedStylist.name
                         : "Select a Stylist"}
@@ -2065,10 +2167,10 @@ export default function SalonDetail() {
                   {/* Selected Stylist Banner */}
                   <div className="selected-stylist-banner">
                     {selectedStylist && typeof selectedStylist === "object" ? (
-                      <div className="stylist-assigned-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div className="stylist-assigned-row stylist-assigned-column">
+                        <div className="stylist-assigned-main">
                           <img src={selectedStylist.image} alt={selectedStylist.name} className="assigned-avatar" />
-                          <div className="assigned-text" style={{ flex: 1 }}>
+                          <div className="assigned-text">
                             <span className="assigned-name">{selectedStylist.name}</span>
                             <span className="assigned-role">{selectedStylist.role}</span>
                           </div>
@@ -2076,27 +2178,17 @@ export default function SalonDetail() {
                             type="button"
                             className="change-stylist-link"
                             onClick={() => {
-                              setSelectedStylist(null);
+                              setSelectedStylist("auto");
                               setSelectedTimeSlot("");
                               setSelectedSlotObj(null);
+                              setOpenBookingSteps((prev) => ({ ...prev, stylist: true }));
                             }}
                           >
                             Change
                           </button>
                         </div>
 
-                        <div style={{
-                          padding: "6px 10px",
-                          borderRadius: "6px",
-                          fontSize: "0.76rem",
-                          background: selectedStylist.has_advance_bookings ? "#eff6ff" : "#f0fdf4",
-                          border: selectedStylist.has_advance_bookings ? "1px solid #bfdbfe" : "1px solid #bbf7d0",
-                          color: selectedStylist.has_advance_bookings ? "#1e40af" : "#15803d",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          flexWrap: "wrap"
-                        }}>
+                        <div className={`assigned-advance-info ${selectedStylist.has_advance_bookings ? "assigned-advance-info--booked" : "assigned-advance-info--available"}`}>
                           {selectedStylist.has_advance_bookings ? (
                             <>
                               <strong>📌 {selectedStylist.advance_bookings_count} Advance Booking{selectedStylist.advance_bookings_count > 1 ? "s" : ""}:</strong>
@@ -2108,8 +2200,8 @@ export default function SalonDetail() {
                         </div>
                       </div>
                     ) : selectedStylist === "auto" ? (
-                      <div className="stylist-assigned-row" style={{ justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div className="stylist-assigned-row">
+                        <div className="stylist-assigned-main">
                           <div className="assigned-avatar-placeholder">✦</div>
                           <div className="assigned-text">
                             <span className="assigned-name">Auto-Assign Active</span>
@@ -2120,9 +2212,8 @@ export default function SalonDetail() {
                           type="button"
                           className="change-stylist-link"
                           onClick={() => {
-                            setSelectedStylist(null);
-                            setSelectedTimeSlot("");
-                            setSelectedSlotObj(null);
+                            setOpenBookingSteps((prev) => ({ ...prev, stylist: true }));
+                            showToast("Choose a specialist from the list below.");
                           }}
                         >
                           Change
@@ -2130,9 +2221,9 @@ export default function SalonDetail() {
                       </div>
                     ) : (
                       <div className="stylist-assigned-row">
-                        <div className="assigned-avatar-placeholder" style={{ background: "#fef3c7", color: "#b45309" }}>!</div>
+                        <div className="assigned-avatar-placeholder assigned-avatar-placeholder--warning">!</div>
                         <div className="assigned-text">
-                          <span className="assigned-name" style={{ color: "#92400e" }}>No Stylist Selected</span>
+                          <span className="assigned-name assigned-name--warning">No Stylist Selected</span>
                           <span className="assigned-role">Please choose a specialist below or select Auto-Assign</span>
                         </div>
                       </div>
@@ -2141,11 +2232,11 @@ export default function SalonDetail() {
 
                   {/* Eligible Stylists Quick List */}
                   {eligibleWorkersLoading ? (
-                    <div style={{ fontSize: "0.78rem", color: "#64748b", padding: "8px 0" }}>
+                    <div className="sidebar-loading-text">
                       Loading available stylists for this date…
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div className="side-stylists-list">
                       {/* Auto-Assign Option */}
                       <div
                         className={`side-stylist-card ${selectedStylist === "auto" ? "side-stylist-card--selected" : ""}`}
@@ -2155,19 +2246,12 @@ export default function SalonDetail() {
                           setSelectedSlotObj(null);
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontWeight: 700, color: selectedStylist === "auto" ? "#059669" : "#334155", fontSize: "0.8rem" }}>
+                        <div className="stylist-assigned-main">
+                          <span className="side-stylist-auto-title">
                             ✦ Auto-Assign (Any Available Specialist)
                           </span>
                         </div>
-                        <span style={{
-                          fontSize: "0.68rem",
-                          color: selectedStylist === "auto" ? "#059669" : "#64748b",
-                          fontWeight: 700,
-                          background: selectedStylist === "auto" ? "#d1fae5" : "#f1f5f9",
-                          padding: "2px 8px",
-                          borderRadius: "4px"
-                        }}>
+                        <span className={`side-stylist-badge ${selectedStylist === "auto" ? "side-stylist-badge--active" : "side-stylist-badge--idle"}`}>
                           {selectedStylist === "auto" ? "✓ Selected" : "Auto-Assign"}
                         </span>
                       </div>
@@ -2189,37 +2273,37 @@ export default function SalonDetail() {
                               }
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                              <img src={st.image} alt={st.name} style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: "0.82rem", color: "#1e293b" }}>{st.name}</div>
-                                <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{st.role}</div>
+                            <div className="stylist-assigned-main">
+                              <img src={st.image} alt={st.name} className="side-stylist-avatar" />
+                              <div className="side-stylist-info">
+                                <div className="side-stylist-name">{st.name}</div>
+                                <div className="side-stylist-role">{st.role}</div>
                               </div>
                             </div>
 
-                            <div style={{ textAlign: "right" }}>
+                            <div className="side-stylist-status-col">
                               {isChosen ? (
-                                <span style={{ background: "#059669", color: "#ffffff", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span className="side-stylist-badge side-stylist-badge--selected">
                                   ✓ Selected
                                 </span>
                               ) : st.is_on_leave ? (
-                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span className="side-stylist-badge side-stylist-badge--leave">
                                   On Leave
                                 </span>
                               ) : st.is_weekly_off ? (
-                                <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span className="side-stylist-badge side-stylist-badge--off">
                                   Weekly Off
                                 </span>
                               ) : st.is_fully_booked ? (
-                                <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                <span className="side-stylist-badge side-stylist-badge--booked">
                                   Fully Booked
                                 </span>
                               ) : st.has_advance_bookings ? (
-                                <span style={{ background: "#e0f2fe", color: "#0369a1", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span className="side-stylist-badge side-stylist-badge--advance">
                                   📌 {st.advance_bookings_count} Booked
                                 </span>
                               ) : (
-                                <span style={{ background: "#dcfce7", color: "#15803d", fontSize: "0.68rem", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
+                                <span className="side-stylist-badge side-stylist-badge--available">
                                   ✓ Available ({st.available_slots_count} slots)
                                 </span>
                               )}
@@ -2262,116 +2346,67 @@ export default function SalonDetail() {
               {openBookingSteps.slots && (
                 <div className="step-accordion-body">
                   {!selectedStylist ? (
-                    <div style={{
-                      background: "#f8fafc",
-                      border: "1.5px dashed #cbd5e1",
-                      borderRadius: "12px",
-                      padding: "16px",
-                      textAlign: "center",
-                      color: "#64748b"
-                    }}>
-                      <div style={{ fontSize: "1.4rem", marginBottom: "4px" }}>✂️</div>
-                      <div style={{ fontWeight: 700, fontSize: "0.86rem", color: "#1e293b", marginBottom: "4px" }}>
+                    <div className="slots-unselected-prompt">
+                      <div className="slots-unselected-icon">✂️</div>
+                      <div className="slots-unselected-title">
                         Select a Stylist to View Available Slots
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                      <div className="slots-unselected-desc">
                         Choose a specialist from the list above or select Auto-Assign to view real-time available time slots.
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize: "0.74rem", color: "#64748b" }}>
-                        Showing slots for: <strong style={{ color: "#059669" }}>{selectedStylist === "auto" ? "Any Available Specialist (Auto-Assign)" : selectedStylist.name}</strong>
+                      <div className="slots-showing-subtitle">
+                        Showing slots for:{" "}
+                        <strong className="slots-showing-name">
+                          {selectedStylist === "auto"
+                            ? selectedSlotObj?.assigned_worker?.name
+                              ? `Auto-Assign: ${selectedSlotObj.assigned_worker.name}`
+                              : "Any Available Specialist (Auto-Assign)"
+                            : selectedStylist.name}
+                        </strong>
                       </div>
 
                       {dateSlots[selectedDateIdx]?.isOffDay ? (
-                        <div style={{
-                          background: "#fef2f2",
-                          border: "1px solid #fecaca",
-                          borderRadius: "10px",
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#991b1b"
-                        }}>
-                          <div style={{ fontWeight: "700", marginBottom: "2px", fontSize: "0.88rem" }}>
+                        <div className="booking-alert-banner booking-alert-banner--danger">
+                          <div className="booking-alert-banner-title">
                             🔒 Salon Closed on this Date
                           </div>
-                          <div style={{ fontSize: "0.8rem", color: "#b91c1c" }}>
+                          <div>
                             {dateSlots[selectedDateIdx]?.offDayReason || "Salon is closed on this date"}. Please select another date.
                           </div>
                         </div>
                       ) : slotClosedReason ? (
-                        <div style={{
-                          background: "#fef2f2",
-                          border: "1px solid #fecaca",
-                          borderRadius: "10px",
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#991b1b",
-                          fontSize: "0.84rem",
-                          fontWeight: 600,
-                        }}>
+                        <div className="booking-alert-banner booking-alert-banner--danger">
                           🔒 Salon Closed: {slotClosedReason}
                         </div>
                       ) : slotWorkerUnavailableReason ? (
-                        <div style={{
-                          background: "#fffbeb",
-                          border: "1px solid #fde68a",
-                          borderRadius: "10px",
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#92400e",
-                          fontSize: "0.84rem"
-                        }}>
-                          <div style={{ fontWeight: 700, marginBottom: "4px" }}>⚠️ Specialist Unavailable</div>
+                        <div className="booking-alert-banner booking-alert-banner--warning">
+                          <div className="booking-alert-banner-title">⚠️ Specialist Unavailable</div>
                           <div>{slotWorkerUnavailableReason}</div>
-                          <button
-                            type="button"
-                            style={{
-                              marginTop: "8px",
-                              background: "#d97706",
-                              color: "#ffffff",
-                              border: "none",
-                              borderRadius: "6px",
-                              padding: "4px 12px",
-                              fontSize: "0.75rem",
-                              cursor: "pointer",
-                              fontWeight: 700
-                            }}
-                            onClick={() => setSelectedStylist("auto")}
-                          >
-                            Switch to Auto-Assign
-                          </button>
+                          {selectedStylist !== "auto" && (
+                            <button
+                              type="button"
+                              className="btn-switch-auto-assign btn-switch-auto-assign--warning"
+                              onClick={() => setSelectedStylist("auto")}
+                            >
+                              Switch to Auto-Assign
+                            </button>
+                          )}
                         </div>
                       ) : slotsLoading ? (
-                        <div style={{ padding: "16px", textAlign: "center", color: "#6b7280", fontSize: "0.84rem" }}>
+                        <div className="sidebar-loading-text">
                           Loading available slots…
                         </div>
                       ) : dynamicSlots.length === 0 ? (
-                        <div style={{
-                          background: "#fffbeb",
-                          border: "1px solid #fde68a",
-                          borderRadius: "10px",
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#92400e",
-                          fontSize: "0.84rem"
-                        }}>
+                        <div className="booking-alert-banner booking-alert-banner--warning">
                           No time slots available for this stylist on this date.
                           {selectedStylist !== "auto" && (
-                            <div style={{ marginTop: "8px" }}>
+                            <div className="btn-switch-auto-assign-wrap">
                               <button
                                 type="button"
-                                style={{
-                                  background: "#059669",
-                                  color: "#ffffff",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  padding: "4px 12px",
-                                  fontSize: "0.75rem",
-                                  cursor: "pointer",
-                                  fontWeight: 700
-                                }}
+                                className="btn-switch-auto-assign"
                                 onClick={() => setSelectedStylist("auto")}
                               >
                                 Try Auto-Assign
@@ -2436,13 +2471,67 @@ export default function SalonDetail() {
                                       <span className="slot-end-time">until {s.end_time_display}</span>
                                     )}
                                     {!s.available && (
-                                      <span style={{ fontSize: "0.66rem", opacity: 0.85, fontWeight: 500, display: "block" }}>
+                                      <span className="slot-unavailable-reason">
                                         - {s.reason === "Break" ? "Break" : "Booked"}
                                       </span>
                                     )}
                                   </button>
                                 );
                               })}
+                            </div>
+                          )}
+
+                          {/* Auto-Assigned Specialist Info Banner */}
+                          {selectedSlotObj && (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "12px",
+                                padding: "12px 14px",
+                                background: "#ecfdf5",
+                                border: "1px solid #a7f3d0",
+                                borderRadius: "8px",
+                                marginTop: "16px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "38px",
+                                  height: "38px",
+                                  borderRadius: "50%",
+                                  overflow: "hidden",
+                                  background: "#047857",
+                                  color: "#ffffff",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontWeight: "bold",
+                                  fontSize: "1.1rem",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {selectedSlotObj.assigned_worker?.profile_photo ? (
+                                  <img
+                                    src={selectedSlotObj.assigned_worker.profile_photo}
+                                    alt={selectedSlotObj.assigned_worker.name}
+                                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                  />
+                                ) : (
+                                  <span>✦</span>
+                                )}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.5px", color: "#065f46", fontWeight: 700 }}>
+                                  {selectedStylist === "auto" ? "✦ Auto-Assigned Specialist" : "Selected Specialist"}
+                                </div>
+                                <div style={{ fontSize: "0.92rem", fontWeight: 700, color: "#064e3b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {selectedSlotObj.assigned_worker?.name || (typeof selectedStylist === "object" ? selectedStylist.name : "Salon Specialist")}
+                                  {selectedSlotObj.assigned_worker?.station && (
+                                    <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "#047857" }}> • {selectedSlotObj.assigned_worker.station}</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2455,9 +2544,15 @@ export default function SalonDetail() {
 
             {/* STEP 5: Pricing Breakdown */}
             <div className="bill-breakdown-card">
-              <div className="bill-row">
-                <span>Item Subtotal</span>
-                <span>₹{billSummary.subtotal.toLocaleString("en-IN")}</span>
+              {selectedServices.map((svc) => (
+                <div key={svc.id} className="bill-row" style={{ fontSize: "0.82rem", color: "#334155" }}>
+                  <span>{svc.name} <small style={{ color: "#64748b" }}>({svc.duration})</small></span>
+                  <span style={{ fontWeight: 600 }}>₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                </div>
+              ))}
+              <div className="bill-row" style={{ borderTop: "1px dashed #e2e8f0", paddingTop: "6px", marginTop: "4px" }}>
+                <span>Subtotal ({selectedServices.length} treatment{selectedServices.length > 1 ? "s" : ""})</span>
+                <span style={{ fontWeight: 600 }}>₹{billSummary.subtotal.toLocaleString("en-IN")}</span>
               </div>
               <div className="bill-row">
                 <span>GST & Hygiene Safety (5%)</span>
@@ -2480,34 +2575,12 @@ export default function SalonDetail() {
             </div>
 
             {bookingError && (
-              <div
-                style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  borderRadius: "8px",
-                  padding: "10px 12px",
-                  marginBottom: "12px",
-                  color: "#b91c1c",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                }}
-              >
+              <div className="booking-error-banner">
                 <span>⚠️ {bookingError}</span>
                 <button
                   type="button"
                   onClick={() => setBookingError("")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#b91c1c",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                    lineHeight: 1,
-                  }}
+                  className="booking-error-dismiss-btn"
                   title="Dismiss"
                 >
                   ✕
@@ -2531,17 +2604,19 @@ export default function SalonDetail() {
               }
               onClick={() => {
                 setBookingError("");
-                const svc = selectedServices[0];
                 const dateObj = dateSlots[selectedDateIdx];
                 const params = new URLSearchParams();
-                if (svc?.id) params.set("service_id", svc.id);
+                if (selectedServices.length > 0) {
+                  params.set("service_ids", selectedServices.map((s) => s.id).join(","));
+                  params.set("service_id", selectedServices[0].id);
+                }
                 if (dateObj?.isoDate) params.set("date", dateObj.isoDate);
                 else if (dateObj?.fullDateStr) params.set("date", dateObj.fullDateStr);
 
                 const workerId =
                   selectedStylist && typeof selectedStylist === "object"
                     ? selectedStylist.id
-                    : selectedStylist;
+                    : selectedSlotObj?.assigned_worker?.id || "auto";
                 if (workerId) params.set("worker_id", workerId);
 
                 const slotTime =
@@ -2559,7 +2634,9 @@ export default function SalonDetail() {
               }}
             >
               <span>
-                {dateSlots[selectedDateIdx]?.isOffDay
+                {selectedServices.length === 0
+                  ? "Select a Treatment"
+                  : dateSlots[selectedDateIdx]?.isOffDay
                   ? "Salon Closed on Selected Date"
                   : slotClosedReason
                   ? "Salon Closed"
@@ -2573,7 +2650,7 @@ export default function SalonDetail() {
                   ? "Select a Time Slot"
                   : "Review & Confirm Booking"}
               </span>
-              {!dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
+              {selectedServices.length > 0 && !dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
                 <span className="cta-arrow">→</span>
               )}
             </button>
@@ -2665,7 +2742,13 @@ export default function SalonDetail() {
               }
             }}
           >
-            <span>{bookingCompletion === 4 ? "Book Now ⚡" : "Select Slot →"}</span>
+            <span>
+              {bookingCompletion === 4
+                ? "Book Now ⚡"
+                : selectedServices.length === 0
+                ? "Select Treatment →"
+                : "Select Slot →"}
+            </span>
           </button>
         </div>
       </aside>
