@@ -807,15 +807,674 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Success screen ───────────────────────────────────────────── */
+/* ── Success / Confirmation screen (Modern Luxury Receipt) ────────── */
 .bk-success-wrap {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
+  justify-content: flex-start;
+  padding: 36px 20px 60px;
+  background-color: var(--bk-cream, #fbfbf9);
 }
 
+.bk-confirm-container {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Stepper breadcrumb */
+.bk-confirm-breadcrumbs {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--bk-light, #9ca3af);
+  letter-spacing: 0.5px;
+  margin-bottom: 24px;
+}
+
+.bk-confirm-breadcrumb-active {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Check badge */
+.bk-confirm-check-outer {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #d1fae5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.bk-confirm-check-inner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #2d5040;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Headline */
+.bk-confirm-title {
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-size: 2.15rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  letter-spacing: -0.5px;
+  text-align: center;
+}
+
+.bk-confirm-title-check {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.bk-confirm-sub {
+  color: #4b5563;
+  font-size: 0.94rem;
+  text-align: center;
+  margin: 0 0 16px;
+  max-width: 580px;
+  line-height: 1.45;
+}
+
+/* Copy Booking ID Pill */
+.bk-confirm-id-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  padding: 7px 18px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 28px;
+}
+
+.bk-confirm-id-pill:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.bk-confirm-id-pill.copied {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+/* Main 2-Column Card */
+.bk-confirm-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px -10px rgba(0, 0, 0, 0.05);
+  padding: 30px 32px;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 32px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+/* Left Sub-Column */
+.bk-confirm-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.bk-confirm-card-toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bk-confirm-tag-confirmed {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bk-confirm-tag-rating {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.bk-confirm-salon-name {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 6px 0 3px;
+  letter-spacing: -0.3px;
+}
+
+.bk-confirm-salon-addr {
+  font-size: 0.84rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+}
+
+/* Reserved Service & Dedicated Specialist Grid */
+.bk-confirm-features-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 12px 0 4px;
+}
+
+.bk-confirm-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.bk-confirm-feature-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.bk-confirm-worker-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.bk-confirm-feature-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bk-confirm-feature-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.bk-confirm-feature-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bk-confirm-feature-sub {
+  font-size: 0.76rem;
+  color: #6b7280;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Info Cards Sub-Row */
+.bk-confirm-boxes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.bk-confirm-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bk-confirm-box-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.bk-confirm-box-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bk-confirm-box-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.bk-confirm-box-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.bk-confirm-box-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+/* Invoice footer */
+.bk-confirm-invoice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.78rem;
+}
+
+.bk-confirm-invoice-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+}
+
+.bk-confirm-invoice-link {
+  color: #1b4332;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.bk-confirm-invoice-link:hover {
+  text-decoration: underline;
+}
+
+/* Right Sub-Column */
+.bk-confirm-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bk-confirm-photo-card {
+  position: relative;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.bk-confirm-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bk-confirm-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, 0.8) 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.bk-confirm-photo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 8px;
+}
+
+.bk-confirm-photo-branch {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bk-confirm-photo-snippet {
+  font-size: 0.72rem;
+  color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bk-confirm-photo-mapbtn {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  backdrop-filter: blur(4px);
+  transition: all 0.15s ease;
+}
+
+.bk-confirm-photo-mapbtn:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Actions Stack */
+.bk-confirm-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.bk-confirm-btn-primary {
+  width: 100%;
+  background: #2d5040;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(45, 80, 64, 0.25);
+  transition: all 0.18s ease;
+}
+
+.bk-confirm-btn-primary:hover {
+  background: #1b4332;
+  box-shadow: 0 6px 16px rgba(45, 80, 64, 0.35);
+  transform: translateY(-1px);
+}
+
+.bk-confirm-btn-secondary {
+  width: 100%;
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.bk-confirm-btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+/* Need Assistance Row */
+.bk-confirm-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.bk-confirm-help-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.bk-confirm-help-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.bk-confirm-help-phone {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+.bk-confirm-help-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bk-confirm-help-iconbtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.15s ease;
+}
+
+.bk-confirm-help-iconbtn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+/* Bottom 3-Column Highlights Grid */
+.bk-confirm-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.bk-confirm-highlight-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.bk-confirm-highlight-iconbox {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.bk-confirm-highlight-iconbox.mint {
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+  color: #059669;
+}
+
+.bk-confirm-highlight-iconbox.amber {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #d97706;
+}
+
+.bk-confirm-highlight-iconbox.teal {
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  color: #0d9488;
+}
+
+.bk-confirm-highlight-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px;
+}
+
+.bk-confirm-highlight-desc {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Bottom Return Links */
+.bk-confirm-return-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.bk-confirm-return-link {
+  color: #2d6a4f;
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease;
+  margin-bottom: 8px;
+}
+
+.bk-confirm-return-link:hover {
+  color: #1b4332;
+  text-decoration: underline;
+}
+
+.bk-confirm-guarantee-note {
+  font-size: 0.76rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 860px) {
+  .bk-confirm-card {
+    grid-template-columns: 1fr;
+    padding: 20px;
+    gap: 24px;
+  }
+
+  .bk-confirm-highlights-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .bk-confirm-title {
+    font-size: 1.75rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .bk-confirm-features-grid,
+  .bk-confirm-boxes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print Styles for official receipt */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  header, footer, nav,
+  .bk-confirm-breadcrumbs,
+  .bk-confirm-actions-stack,
+  .bk-confirm-help-btns,
+  .bk-confirm-return-footer,
+  .bk-confirm-photo-mapbtn {
+    display: none !important;
+  }
+  .bk-success-wrap {
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+  .bk-confirm-card {
+    border: 1px solid #000000 !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Legacy fallback styles for .bk-success-* if referenced elsewhere */
 .bk-success-card {
   background: var(--bk-surface);
   border-radius: var(--bk-radius-lg);
@@ -825,58 +1484,6 @@
   text-align: center;
   box-shadow: var(--bk-shadow-lg);
   border: 1px solid var(--bk-border);
-}
-
-.bk-success-icon {
-  width: 72px;
-  height: 72px;
-  background: var(--bk-emerald-600);
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  margin: 0 auto 20px;
-}
-
-.bk-success-card h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--bk-emerald-900);
-  margin-bottom: 8px;
-}
-
-.bk-success-sub {
-  color: var(--bk-muted);
-  font-size: 0.95rem;
-  margin-bottom: 28px;
-}
-
-.bk-success-details {
-  background: var(--bk-emerald-50);
-  border-radius: var(--bk-radius-md);
-  padding: 16px;
-  margin-bottom: 28px;
-  text-align: left;
-}
-
-.bk-detail-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.88rem;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--bk-emerald-100);
-}
-
-.bk-detail-row:last-child { border-bottom: none; }
-.bk-detail-row span { color: var(--bk-muted); }
-.bk-detail-row strong { color: var(--bk-text); }
-
-.bk-success-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 /* ── My Bookings ──────────────────────────────────────────────── */

@@ -1954,23 +1954,23 @@ export default function SalonDetail() {
                 className="booking-card-header collapsible-header"
                 onClick={() => toggleSection("booking")}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div className="booking-card-header-icon-box">📅</div>
                   <div>
-                    <h3 className="booking-card-title">Book Appointment</h3>
-                    <div className="booking-card-sub">
-                      <span className="booking-card-rating">★ {salon.reviewsCount > 0 ? salon.rating : "New"}</span>
-                      <span>•</span>
-                      <span>{salon.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
+                      <h2 className="section-title">Book Appointment</h2>
+                      <span className="section-badge-pill" style={{ background: "#dcfce7", color: "#166534" }}>⚡ Instant</span>
                     </div>
+                    <p className="section-subtitle">
+                      ★ {salon.reviewsCount > 0 ? salon.rating : "New"} ({salon.reviewsCount} reviews) • {salon.name}
+                    </p>
                   </div>
                 </div>
 
                 <div className="booking-card-header-actions">
-                  <span className="booking-instant-badge">⚡ Instant</span>
                   <button
                     type="button"
-                    className={`section-toggle-btn booking-toggle-arrow ${openSections.booking ? "is-expanded" : "is-collapsed"}`}
+                    className={`section-toggle-btn ${openSections.booking ? "is-expanded" : "is-collapsed"}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSection("booking");
@@ -1978,6 +1978,7 @@ export default function SalonDetail() {
                     aria-expanded={openSections.booking}
                     title={openSections.booking ? "Collapse Book Appointment" : "Expand Book Appointment"}
                   >
+                    <span className="toggle-btn-text">{openSections.booking ? "Collapse" : "Open"}</span>
                     <span className="toggle-arrow-circle">
                       <svg className="toggle-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="6 9 12 15 18 9" />
@@ -2010,27 +2011,6 @@ export default function SalonDetail() {
                     className="booking-progress-bar-fill"
                     style={{ width: `${(bookingCompletion / 4) * 100}%` }}
                   />
-                </div>
-
-                {/* 4 Interactive Quick Step Chips */}
-                <div className="booking-quick-step-chips">
-                  {[
-                    { key: "service", label: "1. Treatment", done: selectedServices.length > 0 },
-                    { key: "date", label: "2. Date", done: dateSlots[selectedDateIdx] && !dateSlots[selectedDateIdx].isOffDay },
-                    { key: "stylist", label: "3. Specialist", done: !!selectedStylist },
-                    { key: "slots", label: "4. Slot", done: !!selectedTimeSlot },
-                  ].map((step) => (
-                    <button
-                      key={step.key}
-                      type="button"
-                      className={`booking-quick-chip ${step.done ? "is-done" : ""} ${openBookingSteps[step.key] ? "is-active" : ""}`}
-                      onClick={() => toggleBookingStep(step.key)}
-                      title={`Toggle ${step.label}`}
-                    >
-                      <span>{step.done ? "✓" : "○"}</span>
-                      <span>{step.label}</span>
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -2143,7 +2123,7 @@ export default function SalonDetail() {
                                     }
                                   }}
                                 >
-                                  <option value="" disabled>Choose treatment to add…</option>
+                                  <option value="" disabled>Choose service to add…</option>
                                   {salon.services
                                     .filter((s) => !selectedServices.some((sel) => sel.id === s.id))
                                     .map((s) => (
@@ -2658,7 +2638,7 @@ export default function SalonDetail() {
               </div>
 
               {/* Advance Booking Policy Notice */}
-              <div className="bill-advance-notice">
+              {/* <div className="bill-advance-notice">
                 <div className="bill-advance-row">
                   <span className="advance-label">💵 Advance Booking Token:</span>
                   <span className="advance-amount">₹100</span>
@@ -2666,7 +2646,7 @@ export default function SalonDetail() {
                 <div className="advance-subtext">
                   ₹100 advance deducted from total • Remaining ₹{Math.max(0, billSummary.total - 100).toLocaleString("en-IN")} payable at salon after service.
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {bookingError && (

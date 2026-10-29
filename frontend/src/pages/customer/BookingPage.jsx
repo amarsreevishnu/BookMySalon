@@ -46,6 +46,52 @@ function formatFullDateDisplay(isoStr) {
   }
 }
 
+function formatConfirmedDate(isoStr) {
+  if (!isoStr) return "";
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+function getCancellationNotice(bookingDate, startTimeStr) {
+  if (!bookingDate || !startTimeStr) return "up to 2 hours prior to start";
+  try {
+    const [h, m] = startTimeStr.split(":").map(Number);
+    const d = new Date(bookingDate);
+    d.setHours(h - 2, m, 0, 0);
+    const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `until ${timeStr} on ${dateStr} (up to 2 hours prior to start)`;
+  } catch {
+    return "up to 2 hours prior to start";
+  }
+}
+
+function getGoogleCalendarUrl(booking, currentSalon) {
+  if (!booking) return "#";
+  const dateClean = (booking.booking_date || "").replace(/-/g, "");
+  const startTimeClean = (booking.start_time || "10:00:00").replace(/:/g, "").slice(0, 4);
+  const endTimeClean = (booking.end_time || "11:00:00").replace(/:/g, "").slice(0, 4);
+  const dates = `${dateClean}T${startTimeClean}00/${dateClean}T${endTimeClean}00`;
+  const title = encodeURIComponent(`Appointment at ${currentSalon?.name || "BookMySalon"}`);
+  const details = encodeURIComponent(
+    `Service: ${booking.service_display_name || booking.service_name || "Salon Treatment"}\nSpecialist: ${booking.worker_name || "Assigned Specialist"}\nBooking Ref: #SAL${booking.id}`
+  );
+  const location = encodeURIComponent(
+    `${currentSalon?.name || ""}, ${currentSalon?.landmark ? currentSalon.landmark + ", " : ""}${currentSalon?.address || ""}, ${currentSalon?.city || ""}`
+  );
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+}
+
 function buildNextDays(n = 30) {
   const days = [];
   const today = new Date();
@@ -85,8 +131,6 @@ function loadRazorpayScript() {
   });
 }
 
-const STEPS = ["Service", "Date", "Stylist", "Time", "Confirm"];
-
 export default function BookingPage() {
   const { id: salonId } = useParams();
   const [searchParams] = useSearchParams();
@@ -105,8 +149,8 @@ export default function BookingPage() {
   const [closedInfo, setClosedInfo] = useState(null);
   const [workerUnavailableInfo, setWorkerUnavailableInfo] = useState(null);
 
-  /* selections */
-  const [step, setStep] = useState(0);
+  /* selections (Step 4 is Review Your Booking, Step 5 is Success Receipt) */
+  const [step, setStep] = useState(4);
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedWorker, setSelectedWorker] = useState(null); // worker id, "any", or null
@@ -135,6 +179,7 @@ export default function BookingPage() {
   /* submit & results */
   const [submitting, setSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
+  const [copiedBookingId, setCopiedBookingId] = useState(false);
   const [error, setError] = useState("");
 
   const days = buildNextDays(30);
@@ -242,14 +287,13 @@ export default function BookingPage() {
         }
 
         const preTime = searchParams.get("time");
-        if ((preServiceIds || preServiceId) && preDate) {
-          if (preWorkerId && preTime) {
-            setStep(3); // will auto-fetch slots and advance to 4
-          } else if (preWorkerId) {
-            setStep(3);
-          } else {
-            setStep(2);
-          }
+        if (preTime) {
+          const normTime = preTime.trim();
+          setSelectedSlot({
+            time: normTime,
+            time_display: fmt12(normTime) || normTime,
+            available: true,
+          });
         }
       } catch (e) {
         console.error(e);
@@ -279,10 +323,8 @@ export default function BookingPage() {
   const fetchSlots = useCallback(async () => {
     if (selectedServices.length === 0 || !selectedDate || !selectedWorker) return;
     setSlotsLoading(true);
-    setSlots([]);
     setClosedInfo(null);
     setWorkerUnavailableInfo(null);
-    setSelectedSlot(null);
     try {
       const params = {
         salon_id: salonId,
@@ -302,32 +344,33 @@ export default function BookingPage() {
         const loadedSlots = r.data.slots || [];
         setSlots(loadedSlots);
 
-        // Pre-select time if provided via URL
+        // Pre-select or enrich time slot if provided via URL
         const preTime = searchParams.get("time");
-        if (preTime && !selectedSlot) {
+        if (preTime) {
           const norm = preTime.trim().toLowerCase();
           const found = loadedSlots.find(
             (s) =>
               s.time.toLowerCase() === norm ||
-              s.time_display.toLowerCase() === norm ||
+              s.time_display?.toLowerCase() === norm ||
               fmt12(s.time).toLowerCase() === norm
           );
           if (found) {
             setSelectedSlot(found);
-            setStep(4); // Advance directly to Review Your Booking page!
           }
         }
       }
     } catch (e) {
-      setClosedInfo({ reason: "Unable to load slots. Please try again." });
+      console.error("Error loading slots:", e);
     } finally {
       setSlotsLoading(false);
     }
-  }, [selectedServices, selectedDate, selectedWorker, salonId, searchParams, selectedSlot]);
+  }, [selectedServices, selectedDate, selectedWorker, salonId, searchParams]);
 
   useEffect(() => {
-    if (step === 3) fetchSlots();
-  }, [step, fetchSlots]);
+    if (selectedDate && selectedWorker) {
+      fetchSlots();
+    }
+  }, [selectedDate, selectedWorker, fetchSlots]);
 
   /* ── Prefill user info if logged in ─── */
   useEffect(() => {
@@ -545,414 +588,428 @@ export default function BookingPage() {
 
   /* ── STEP 5: Success Receipt Screen ─── */
   if (step === 5 && bookingResult) {
+    const bookingIdCode = `#SAL${bookingResult.id}`;
+    const salonName = salon?.name || bookingResult.salon_name || "Exclusive Salon";
+    const salonRating = salon?.rating || "4.9";
+    const salonReviews = salon?.reviews_count || salon?.reviewsCount || "128";
+    const salonAddress = [salon?.landmark, salon?.address, salon?.city].filter(Boolean).join(", ") || "100 ft Road, Indiranagar, Bengaluru";
+    
+    // Service name & details
+    const serviceTitle = bookingResult.service_display_name || bookingResult.service_name || selectedServices[0]?.name || "Classic Haircut & Styling";
+    const durationMins = totalDurationMinutes || bookingResult.duration_minutes || (selectedServices[0]?.duration ? parseInt(selectedServices[0].duration, 10) : 30) || 30;
+    const serviceCategory = selectedServices[0]?.category || "Styling & Botanical Scalp Wash";
+    const serviceSubDesc = `${durationMins} mins • ${serviceCategory}`;
+
+    // Dedicated Specialist
+    const matchedWorker = (workers || []).find((w) => String(w.id) === String(bookingResult.worker || selectedWorker));
+    const workerName = bookingResult.worker_name || matchedWorker?.name || selectedSlot?.assigned_worker?.name || "Rahul Kumar";
+    const workerRole = matchedWorker?.specialization || "Master Hair Specialist";
+    const workerRating = matchedWorker?.rating || "4.98";
+    const workerAvatar = bookingResult.worker_photo
+      ? resolveImageUrl(bookingResult.worker_photo)
+      : (matchedWorker?.profile_photo
+          ? resolveImageUrl(matchedWorker.profile_photo)
+          : `https://ui-avatars.com/api/?name=${encodeURIComponent(workerName)}&background=047857&color=ffffff&size=100`);
+
+    // Date & Time
+    const dateFormatted = formatConfirmedDate(bookingResult.booking_date);
+    const timeFormatted = `${fmt12(bookingResult.start_time)} IST`;
+
+    // Payment calculations & breakdown
+    const totalAmount = Number(bookingResult.total_amount != null ? bookingResult.total_amount : bookingResult.service_price || 0);
+    const advancePaid = Number(bookingResult.advance_amount || (isTokenOnly ? 100 : totalAmount));
+    const isAdvanceOnly = Boolean(bookingResult.is_advance_paid && !bookingResult.is_fully_paid);
+    const remainingAmount = Number(bookingResult.remaining_amount || Math.max(0, totalAmount - advancePaid));
+
+    const paymentValText = bookingResult.payment_method === "ONLINE"
+      ? (isAdvanceOnly ? `Paid Advance: ₹${advancePaid.toLocaleString("en-IN")}` : `Paid Online: ₹${totalAmount.toLocaleString("en-IN")}`)
+      : `Pay at Salon: ₹${totalAmount.toLocaleString("en-IN")}`;
+
+    const paymentSubText = bookingResult.payment_method === "ONLINE"
+      ? (isAdvanceOnly ? `Advance Paid • ₹${remainingAmount.toLocaleString("en-IN")} at salon` : "Total Paid in Full")
+      : "Pay at counter after service";
+
+    // Salon cover photo & map
+    const salonCover = resolveImageUrl(salon?.cover_image || salon?.images?.[0]) || "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80";
+    const branchName = salon?.landmark || `${salon?.city || "Indiranagar"} Branch`;
+    const branchAddressSnippet = salon?.address || "100ft Road, Indiranagar";
+    const mapUrl = `https://maps.google.com/?q=${encodeURIComponent(`${salonName} ${salonAddress}`)}`;
+    const googleCalUrl = getGoogleCalendarUrl(bookingResult, salon);
+
+    // Support phone & links
+    const supportPhone = salon?.phone || "+91 80 1234 5678";
+    const cleanPhone = supportPhone.replace(/[^\d]/g, "");
+    const waUrl = `https://wa.me/${cleanPhone || "918012345678"}?text=${encodeURIComponent(`Hello, I have an appointment with ${salonName} (Booking ID: ${bookingIdCode}).`)}`;
+
+    const cancellationDeadlineText = getCancellationNotice(bookingResult.booking_date, bookingResult.start_time);
+
     return (
       <div className="bk-page">
         <CustomerHeader />
-        <div className="bk-success-wrap">
-          <div className="bk-success-card">
-            <div className="bk-success-icon">✓</div>
-            <h2>Appointment Confirmed!</h2>
-            <p className="bk-success-sub">
-              Your curated appointment at <strong>{salon?.name}</strong> is completely confirmed.
+        <main className="bk-success-wrap">
+          <div className="bk-confirm-container">
+            {/* Top Stepper Breadcrumb */}
+            <div className="bk-confirm-breadcrumbs">
+              Service Selection • Summary • Payment • Confirmed
+              Service Selection • Summary • Payment • <span className="bk-confirm-breadcrumb-active">Confirmed</span>
+            </div>
+
+            {/* Checkmark Circle Icon */}
+            <div className="bk-confirm-check-outer" aria-hidden="true">
+              <div className="bk-confirm-check-inner">✓</div>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="bk-confirm-title">
+              Booking Confirmed!
+              <span className="bk-confirm-title-check">✓</span> Booking Confirmed!
+            </h1>
+
+            {/* Subtitle */}
+            <p className="bk-confirm-sub">
+              Your appointment is locked in with <strong>{salonName}</strong>. Confirmation sent via SMS & WhatsApp.
             </p>
-            <div className="bk-success-details">
-              <div className="bk-detail-row">
-                <span>📅 Date</span>
-                <strong>{bookingResult.booking_date}</strong>
+
+            {/* Copyable Booking ID Pill */}
+            <button
+              type="button"
+              className={`bk-confirm-id-pill ${copiedBookingId ? "copied" : ""}`}
+              onClick={() => {
+                if (navigator?.clipboard?.writeText) {
+                  navigator.clipboard.writeText(bookingIdCode).then(() => {
+                    setCopiedBookingId(true);
+                    setTimeout(() => setCopiedBookingId(false), 2200);
+                  });
+                }
+              }}
+              title="Click to copy booking ID"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span>Booking ID: <strong>{bookingIdCode}</strong> ({copiedBookingId ? "Copied! ✓" : "Tap to copy"})</span>
+            </button>
+
+            {/* Main Two-Column Card */}
+            <div className="bk-confirm-card">
+              {/* Left Sub-Column */}
+              <div className="bk-confirm-left">
+                <div>
+                  <div className="bk-confirm-card-toprow">
+                    <span className="bk-confirm-tag-confirmed">CONFIRMED APPOINTMENT</span>
+                    <span className="bk-confirm-tag-rating">★ {salonRating} ({salonReviews})</span>
+                  </div>
+
+                  <h2 className="bk-confirm-salon-name">{salonName}</h2>
+                  <p className="bk-confirm-salon-addr">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span>{salonAddress}</span>
+                  </p>
+                </div>
+
+                {/* Reserved Service & Dedicated Specialist Grid */}
+                <div className="bk-confirm-features-grid">
+                  <div className="bk-confirm-feature-item">
+                    <div className="bk-confirm-feature-icon-box" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="6" cy="6" r="3" />
+                        <circle cx="6" cy="18" r="3" />
+                        <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                        <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                        <line x1="8.12" y1="8.12" x2="12" y2="12" />
+                      </svg>
+                    </div>
+                    <div className="bk-confirm-feature-info">
+                      <span className="bk-confirm-feature-label">RESERVED SERVICE</span>
+                      <strong className="bk-confirm-feature-title" title={serviceTitle}>{serviceTitle}</strong>
+                      <span className="bk-confirm-feature-sub">{serviceSubDesc}</span>
+                    </div>
+                  </div>
+
+                  <div className="bk-confirm-feature-item">
+                    <img
+                      src={workerAvatar}
+                      alt={workerName}
+                      className="bk-confirm-worker-avatar"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(workerName)}&background=047857&color=ffffff&size=100`;
+                      }}
+                    />
+                    <div className="bk-confirm-feature-info">
+                      <span className="bk-confirm-feature-label">DEDICATED SPECIALIST</span>
+                      <strong className="bk-confirm-feature-title">{workerName}</strong>
+                      <span className="bk-confirm-feature-sub">{workerRole} • ★ {workerRating}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date & Time + Payment Status */}
+                <div className="bk-confirm-boxes-grid">
+                  <div className="bk-confirm-box">
+                    <div className="bk-confirm-box-icon" aria-hidden="true">
+                      📅
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                    </div>
+                    <div className="bk-confirm-box-content">
+                      <span className="bk-confirm-box-label">Date & Time</span>
+                      <span className="bk-confirm-box-val">{dateFormatted}</span>
+                      <span className="bk-confirm-box-sub">{timeFormatted}</span>
+                    </div>
+                  </div>
+
+                  <div className="bk-confirm-box">
+                    <div className="bk-confirm-box-icon" aria-hidden="true">
+                      💳
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 11 12 14 22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                      </svg>
+                    </div>
+                    <div className="bk-confirm-box-content">
+                      <span className="bk-confirm-box-label">Payment Status</span>
+                      <span className="bk-confirm-box-val">{paymentValText}</span>
+                      <span className="bk-confirm-box-sub">{paymentSubText}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* GST Tax Invoice Line */}
+                <div className="bk-confirm-invoice-row">
+                  <div className="bk-confirm-invoice-left">
+                    <span>🧾</span>
+                    <span>Official GST Tax Invoice #{String(bookingResult.id || 1042).padStart(6, "0")}</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    <span>Official GST Tax Invoice #INV-{String(bookingResult.id || 889312).padStart(6, "0")}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="bk-confirm-invoice-link"
+                    onClick={() => window.print()}
+                    title="Print or save PDF receipt"
+                  >
+                    Download PDF ↗
+                  </button>
+                </div>
               </div>
-              <div className="bk-detail-row">
-                <span>🕐 Time</span>
-                <strong>
-                  {fmt12(bookingResult.start_time)} → {fmt12(bookingResult.end_time)}
-                </strong>
-              </div>
-              <div className="bk-detail-row">
-                <span>✂ Service(s)</span>
-                <strong>{bookingResult.service_display_name || bookingResult.service_name}</strong>
-              </div>
-              <div className="bk-detail-row">
-                <span>👤 Specialist</span>
-                <strong>{bookingResult.worker_name || "Any Available Specialist"}</strong>
-              </div>
-              <div className="bk-detail-row">
-                <span>💰 Total Amount</span>
-                <strong>₹{Number(bookingResult.total_amount != null ? bookingResult.total_amount : bookingResult.service_price).toLocaleString("en-IN")}</strong>
-              </div>
-              <div className="bk-detail-row">
-                <span>💳 Payment Status</span>
-                <strong style={{ color: bookingResult.payment_method === "ONLINE" ? "#047857" : "#b45309" }}>
-                  {bookingResult.payment_method === "ONLINE"
-                    ? "Paid Online via Razorpay ✓"
-                    : "Pay at Salon Counter"}
-                </strong>
-              </div>
-              <div className="bk-detail-row">
-                <span>🔖 Booking Reference</span>
-                <strong>BMS-{bookingResult.id}</strong>
+
+              {/* Right Sub-Column */}
+              <div className="bk-confirm-right">
+                {/* Salon Photo Card with Map Pill */}
+                <div className="bk-confirm-photo-card">
+                  <img
+                    src={salonCover}
+                    alt={salonName}
+                    className="bk-confirm-photo-img"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80";
+                    }}
+                  />
+                  <div className="bk-confirm-photo-overlay">
+                    <div className="bk-confirm-photo-text">
+                      <span className="bk-confirm-photo-branch">{branchName}</span>
+                      <span className="bk-confirm-photo-snippet">{branchAddressSnippet}</span>
+                    </div>
+                    <a
+                      href={mapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bk-confirm-photo-mapbtn"
+                      title="Open in Google Maps"
+                    >
+                      <span>↗ Map</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Action Buttons Stack */}
+                <div className="bk-confirm-actions-stack">
+                  <button
+                    type="button"
+                    className="bk-confirm-btn-primary"
+                    onClick={() => navigate("/customer/my-bookings")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    <span>View Booking</span>
+                  </button>
+
+                  <a
+                    href={mapUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bk-confirm-btn-secondary"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                    </svg>
+                    <span>Get Directions</span>
+                  </a>
+
+                  <a
+                    href={googleCalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bk-confirm-btn-secondary"
+                    title="Add appointment to Google Calendar"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>Add to Calendar (Google / Apple)</span>
+                  </a>
+                </div>
+
+                {/* Need Assistance Row */}
+                <div className="bk-confirm-help-row">
+                  <div className="bk-confirm-help-left">
+                    <span className="bk-confirm-help-label">Need assistance?</span>
+                    <a href={`tel:${cleanPhone}`} className="bk-confirm-help-phone">{supportPhone}</a>
+                  </div>
+                  <div className="bk-confirm-help-btns">
+                    <a href={`tel:${cleanPhone}`} className="bk-confirm-help-iconbtn" title="Call Salon Helpline">
+                      📞
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                    </a>
+                    <a href={waUrl} target="_blank" rel="noreferrer" className="bk-confirm-help-iconbtn" title="Chat on WhatsApp">
+                      💬
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="bk-success-actions">
-              <button className="bk-btn-primary" onClick={() => navigate("/customer/my-bookings")}>
-                View My Bookings
+
+            {/* Bottom 3 Highlights Grid */}
+            <div className="bk-confirm-highlights-grid">
+              <div className="bk-confirm-highlight-card">
+                <div className="bk-confirm-highlight-iconbox mint" aria-hidden="true">
+                  🌿
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z" />
+                    <path d="M8 12c2-3 6-3 8 0" />
+                    <line x1="12" y1="9" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <h3 className="bk-confirm-highlight-title">Arrival Experience</h3>
+                <p className="bk-confirm-highlight-desc">
+                  Please arrive 10 minutes prior to unwind with a complimentary herbal welcome tea while your sanitized styling suite is prepared.
+                </p>
+              </div>
+
+              <div className="bk-confirm-highlight-card">
+                <div className="bk-confirm-highlight-iconbox amber" aria-hidden="true">
+                  🕒
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </div>
+                <h3 className="bk-confirm-highlight-title">Cancellation Policy</h3>
+                <p className="bk-confirm-highlight-desc">
+                  Free cancellation or rescheduling is available {cancellationDeadlineText}.
+                </p>
+              </div>
+
+              <div className="bk-confirm-highlight-card">
+                <div className="bk-confirm-highlight-iconbox teal" aria-hidden="true">
+                  🛡️
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+                <h3 className="bk-confirm-highlight-title">Clean & Pure Standards</h3>
+                <p className="bk-confirm-highlight-desc">
+                  Hospital-grade autoclave tool sterilization and botanical aromatherapies are standard for every styling appointment.
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Return & Assurance */}
+            <div className="bk-confirm-return-footer">
+              <button
+                type="button"
+                className="bk-confirm-return-link"
+                onClick={() => navigate("/customer/home")}
+              >
+                ← Back to Home or Explore More Services
               </button>
-              <button className="bk-btn-outline" onClick={() => navigate(`/customer/salons/${salonId}`)}>
-                Back to Salon Page
-              </button>
+              <p className="bk-confirm-guarantee-note">
+                BookMySalon guarantees seamless appointment scheduling across premier city salons.
+              </p>
             </div>
           </div>
-        </div>
+        </main>
         <CustomerFooter />
       </div>
     );
   }
 
-  /* ── STEPS 0 to 4 ─── */
+  /* ── Review Your Booking Screen ─── */
   return (
     <div className="bk-page">
       <CustomerHeader />
 
-      <div className="bk-container" style={step === 4 ? { maxWidth: "1160px" } : {}}>
-        {/* Step indicator header if not in review mode */}
-        {step < 4 && salon && (
-          <div className="bk-salon-banner">
-            <h1 className="bk-salon-name">{salon.name}</h1>
-            <p className="bk-salon-city">
-              {salon.city}
-              {salon.state ? `, ${salon.state}` : ""}
+      <div className="bk-container" style={{ maxWidth: "1160px" }}>
+        {!selectedService || !selectedSlot || !selectedDate ? (
+          <div className="bk-review-empty-card" style={{ textAlign: "center", padding: "80px 20px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", margin: "40px auto", maxWidth: "600px" }}>
+            <div style={{ fontSize: "3rem", marginBottom: "16px" }}>📅</div>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>
+              No Appointment Selected
+            </h2>
+            <p style={{ color: "#64748b", fontSize: "0.95rem", maxWidth: "480px", margin: "0 auto 24px" }}>
+              Please select your treatment, date, and time slot on the salon details page before reviewing your booking.
             </p>
+            <button
+              type="button"
+              className="bk-btn-primary"
+              onClick={() => navigate(`/customer/salons/${salonId}`)}
+              style={{ padding: "12px 28px", borderRadius: "10px", fontWeight: 700, margin: "0 auto", display: "inline-block" }}
+            >
+              ← Go to Salon Page
+            </button>
           </div>
-        )}
-
-        {/* Stepper for steps 0 to 3 */}
-        {step < 4 && (
-          <div className="bk-stepper">
-            {STEPS.map((label, i) => (
-              <div
-                key={label}
-                className={`bk-step ${i < step ? "bk-step--done" : ""} ${i === step ? "bk-step--active" : ""}`}
-              >
-                <div className="bk-step-circle">{i < step ? "✓" : i + 1}</div>
-                <span className="bk-step-label">{label}</span>
-                {i < STEPS.length - 1 && <div className="bk-step-line" />}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="bk-body">
-          {/* ── STEP 0: Service Selection ─── */}
-          {step === 0 && (
-            <div className="bk-panel">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-                <div>
-                  <h2 className="bk-panel-title" style={{ margin: 0 }}>Select Services & Treatments</h2>
-                  <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "#64748b" }}>
-                    Select one or more services to curate your custom salon session.
-                  </p>
-                </div>
-                {selectedServices.length > 0 && (
-                  <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", padding: "6px 14px", borderRadius: "999px", fontSize: "0.82rem", color: "#065f46", fontWeight: 600 }}>
-                    ✨ {selectedServices.length} Selected • ₹{serviceSubtotal.toLocaleString("en-IN")} • {totalDurationMinutes} mins
-                  </div>
-                )}
-              </div>
-
-              {services.length === 0 ? (
-                <p className="bk-empty">No services available for this salon.</p>
-              ) : (
-                <div className="bk-services-grid">
-                  {services.map((svc) => {
-                    const isSelected = selectedServices.some((s) => s.id === svc.id);
-                    return (
-                      <div
-                        key={svc.id}
-                        className={`bk-service-card ${isSelected ? "bk-service-card--selected" : ""}`}
-                        onClick={() => handleToggleService(svc)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <div className="bk-svc-category">{svc.category || "Service"}</div>
-                        <div className="bk-svc-name">{svc.name}</div>
-                        <div className="bk-svc-meta">
-                          <span className="bk-svc-duration">⏱ {svc.duration} min</span>
-                          <span className="bk-svc-price">₹{Number(svc.price).toLocaleString("en-IN")}</span>
-                        </div>
-                        {svc.description && <p className="bk-svc-desc">{svc.description}</p>}
-                        {isSelected && (
-                          <div className="bk-svc-check">✓ Added to Booking</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="bk-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.85rem", color: "#475569" }}>
-                  {selectedServices.length} treatment{selectedServices.length > 1 ? "s" : ""} chosen ({totalDurationMinutes} mins)
-                </span>
-                <button
-                  className="bk-btn-primary"
-                  disabled={selectedServices.length === 0}
-                  onClick={() => setStep(1)}
-                >
-                  Continue to Date Selection →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 1: Date Selection ─── */}
-          {step === 1 && (
-            <div className="bk-panel">
-              <h2 className="bk-panel-title">Choose a Date</h2>
-              <div className="bk-date-grid">
-                {days.map((d) => {
-                  const off = isOffDay(d.iso);
-                  const selected = selectedDate === d.iso;
-                  return (
-                    <div
-                      key={d.iso}
-                      className={`bk-date-card ${selected ? "bk-date-card--selected" : ""} ${off ? "bk-date-card--closed" : ""}`}
-                      onClick={() => {
-                        if (!off) {
-                          setSelectedDate(d.iso);
-                          setSelectedSlot(null);
-                        }
-                      }}
-                    >
-                      <span className="bk-date-day">{d.dayShort}</span>
-                      <span className="bk-date-num">{d.dateNum}</span>
-                      <span className="bk-date-month">{d.monthShort}</span>
-                      {off && (
-                        <span className="bk-date-closed-tag" title={offDayReason(d.iso)}>
-                          Closed
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {selectedDate && isOffDay(selectedDate) && (
-                <div className="bk-alert bk-alert--warning">
-                  🚫 Salon is closed on this date — {offDayReason(selectedDate)}
-                </div>
-              )}
-              <div className="bk-footer">
-                <button className="bk-btn-outline" onClick={() => setStep(0)}>
-                  ← Back
-                </button>
-                <button
-                  className="bk-btn-primary"
-                  disabled={!selectedDate || isOffDay(selectedDate)}
-                  onClick={() => setStep(2)}
-                >
-                  Continue →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 2: Stylist Selection ─── */}
-          {step === 2 && (
-            <div className="bk-panel">
-              <h2 className="bk-panel-title">Choose a Stylist</h2>
-              <div className="bk-slot-meta">
-                <span>📅 {selectedDate}</span>
-                <span>✂ {selectedService?.name}</span>
-                <span>⏱ {selectedService?.duration} min</span>
-              </div>
-              <div className="bk-workers-grid">
-                {/* Auto-assign option */}
-                <div
-                  className={`bk-worker-card bk-worker-card--any ${selectedWorker === "any" ? "bk-worker-card--selected" : ""}`}
-                  onClick={() => setSelectedWorker("any")}
-                >
-                  <div className="bk-worker-avatar bk-worker-avatar--any">✦</div>
-                  <div className="bk-worker-info">
-                    <div className="bk-worker-name">Auto-Assign (Any Available Stylist)</div>
-                    <div className="bk-worker-spec">
-                      Shows all time slots where at least one eligible specialist is free
-                    </div>
-                  </div>
-                  {selectedWorker === "any" && <div className="bk-worker-check">✓</div>}
-                </div>
-
-                {workers.map((w) => {
-                  const isUnavailable =
-                    w.is_on_leave || w.is_weekly_off || w.is_fully_booked || w.is_available === false;
-                  return (
-                    <div
-                      key={w.id}
-                      className={`bk-worker-card ${String(selectedWorker) === String(w.id) ? "bk-worker-card--selected" : ""}`}
-                      style={isUnavailable ? { opacity: 0.5, cursor: "not-allowed" } : {}}
-                      onClick={() => {
-                        if (!isUnavailable) setSelectedWorker(String(w.id));
-                      }}
-                    >
-                      {w.profile_photo ? (
-                        <img
-                          src={resolveImageUrl(w.profile_photo)}
-                          alt={w.name}
-                          className="bk-worker-avatar"
-                        />
-                      ) : (
-                        <div className="bk-worker-avatar bk-worker-avatar--initials">
-                          {w.name[0]}
-                        </div>
-                      )}
-                      <div className="bk-worker-info">
-                        <div className="bk-worker-name">{w.name}</div>
-                        <div className="bk-worker-spec">{w.specialization || "Senior Stylist"}</div>
-                        {isUnavailable ? (
-                          <div style={{ color: "#dc2626", fontSize: "0.75rem", fontWeight: 600 }}>
-                            {w.is_on_leave
-                              ? "On Leave"
-                              : w.is_weekly_off
-                              ? "Weekly Off"
-                              : "Fully Booked"}
-                          </div>
-                        ) : (
-                          <div style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 600 }}>
-                            ✓ Available ({w.available_slots_count || "Open"} slots)
-                          </div>
-                        )}
-                      </div>
-                      {String(selectedWorker) === String(w.id) && (
-                        <div className="bk-worker-check">✓</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="bk-footer">
-                <button className="bk-btn-outline" onClick={() => setStep(1)}>
-                  ← Back
-                </button>
-                <button
-                  className="bk-btn-primary"
-                  disabled={!selectedWorker}
-                  onClick={() => setStep(3)}
-                >
-                  {selectedWorker ? "Continue to Time Slots →" : "Please Select a Stylist"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 3: Time Slot Selection ─── */}
-          {step === 3 && (
-            <div className="bk-panel">
-              <h2 className="bk-panel-title">Pick a Time</h2>
-              <div className="bk-slot-meta">
-                <span>📅 {selectedDate}</span>
-                <span>✂ {selectedService?.name}</span>
-                <span>⏱ {selectedService?.duration} min</span>
-                <span>👤 {workerLabel()}</span>
-              </div>
-
-              {slotsLoading && (
-                <div className="bk-slots-loading">
-                  <div className="bk-spinner" /> Loading available slots…
-                </div>
-              )}
-
-              {!slotsLoading && closedInfo && (
-                <div className="bk-alert bk-alert--error">
-                  🚫 {closedInfo.reason}
-                  <button className="bk-link-btn" onClick={() => setStep(1)}>
-                    Choose another date
-                  </button>
-                </div>
-              )}
-
-              {!slotsLoading && !closedInfo && workerUnavailableInfo && (
-                <div className="bk-alert bk-alert--warning">
-                  ⚠️ {workerUnavailableInfo.reason}
-                  <div style={{ marginTop: "6px", display: "flex", gap: "10px" }}>
-                    <button
-                      className="bk-link-btn"
-                      onClick={() => {
-                        setSelectedWorker(null);
-                        setStep(2);
-                      }}
-                    >
-                      Choose another stylist
-                    </button>
-                    <button
-                      className="bk-link-btn"
-                      onClick={() => {
-                        setSelectedWorker("any");
-                      }}
-                    >
-                      Switch to Auto-Assign
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!slotsLoading && !closedInfo && !workerUnavailableInfo && slots.length === 0 && (
-                <div className="bk-alert bk-alert--warning">
-                  No slots available for this stylist on this date.
-                  <div style={{ marginTop: "6px" }}>
-                    <button
-                      className="bk-link-btn"
-                      onClick={() => {
-                        setSelectedWorker(null);
-                        setStep(2);
-                      }}
-                    >
-                      Choose another stylist or Auto-Assign
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!slotsLoading && !closedInfo && slots.length > 0 && (
-                <div className="bk-slots-grid">
-                  {slots.map((s) => (
-                    <button
-                      key={s.time}
-                      className={`bk-slot-btn ${selectedSlot?.time === s.time ? "bk-slot-btn--selected" : ""} ${!s.available ? "bk-slot-btn--unavailable" : ""}`}
-                      disabled={!s.available}
-                      onClick={() => setSelectedSlot(s)}
-                    >
-                      <span className="bk-slot-time">{s.time_display}</span>
-                      <span className="bk-slot-end">→ {s.end_time_display}</span>
-                      {!s.available && (
-                        <span className="bk-slot-booked-tag">
-                          Unavailable{s.reason === "Break" ? " — break" : ""}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="bk-footer">
-                <button className="bk-btn-outline" onClick={() => setStep(2)}>
-                  ← Back
-                </button>
-                <button
-                  className="bk-btn-primary"
-                  disabled={!selectedSlot}
-                  onClick={() => setStep(4)}
-                >
-                  Continue to Confirm →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 4: Review Your Booking (Matching Reference Image 1) ─── */}
-          {step === 4 && selectedService && selectedSlot && (
-            <div className="bk-review-wrap">
+        ) : (
+          <div className="bk-review-wrap">
               {/* Breadcrumbs Navigation */}
               <div className="bk-breadcrumbs-nav">
-                <span className="bk-breadcrumb-step" onClick={() => setStep(0)} style={{ cursor: "pointer" }}>
-                  <span className="bk-breadcrumb-num">1</span> Service Selection
+                <span
+                  className="bk-breadcrumb-step"
+                  onClick={() => navigate(`/customer/salons/${salonId}`)}
+                  style={{ cursor: "pointer" }}
+                  title="Return to Salon Page"
+                >
+                  <span className="bk-breadcrumb-num">1</span> Salon & Services
                 </span>
                 <span className="bk-breadcrumb-sep">/</span>
                 <span className="bk-breadcrumb-step bk-breadcrumb-step--active">
-                  <span className="bk-breadcrumb-num">2</span> Booking Summary
+                  <span className="bk-breadcrumb-num">2</span> Review Booking
                   <span className="bk-breadcrumb-dot">•</span>
                 </span>
                 <span className="bk-breadcrumb-sep">/</span>
@@ -965,7 +1022,7 @@ export default function BookingPage() {
               <div className="bk-review-header">
                 <h1 className="bk-review-title">Review Your Booking</h1>
                 <p className="bk-review-subtitle">
-                  Step 2 of 3: Please review your curated session and salon details before moving to secure checkout.
+                  Please review your selected session and salon details before moving to secure checkout.
                 </p>
               </div>
 
@@ -1100,7 +1157,8 @@ export default function BookingPage() {
                       <button
                         type="button"
                         className="bk-stylist-change-btn"
-                        onClick={() => setStep(2)}
+                        onClick={() => navigate(`/customer/salons/${salonId}`)}
+                        title="Change specialist on salon page"
                       >
                         Change
                       </button>
@@ -1348,7 +1406,6 @@ export default function BookingPage() {
               </div>
             </div>
           )}
-        </div>
       </div>
 
       {/* ==========================================================================
