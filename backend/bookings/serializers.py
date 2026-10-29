@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Booking, SalonReview, WorkerReview
-from .pricing import calculate_pricing
+from .pricing import calculate_pricing, COUPON_RULES
 from salons.models import WorkerProfile, SalonOffDay, WorkerLeave
 from services.models import SalonService
 
@@ -31,7 +32,6 @@ class BookingCreateSerializer(serializers.Serializer):
         required=False,
     )
     voucher_code = serializers.CharField(required=False, allow_blank=True, default='')
-    discount_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0.00)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
     def to_internal_value(self, data):
@@ -81,10 +81,21 @@ class BookingCreateSerializer(serializers.Serializer):
         services_dict = {s.id: s for s in services}
         ordered_services = [services_dict[sid] for sid in svc_ids if sid in services_dict]
 
+        # Validate voucher code strictly against approved server rules
+        raw_code = (attrs.get('voucher_code') or '').strip().upper()
+        if raw_code:
+            if raw_code not in COUPON_RULES:
+                raise serializers.ValidationError({'voucher_code': f'Coupon code "{raw_code}" is invalid or expired.'})
+            rule = COUPON_RULES[raw_code]
+            est_subtotal = sum(Decimal(str(s.price or "0.00")) for s in ordered_services)
+            if est_subtotal < rule['min_spend']:
+                raise serializers.ValidationError({
+                    'voucher_code': f'Coupon "{raw_code}" requires a minimum booking subtotal of ₹{rule["min_spend"]}.'
+                })
+
         pricing = calculate_pricing(
             ordered_services,
-            voucher_code=attrs.get('voucher_code', ''),
-            custom_discount=attrs.get('discount_amount', 0.00),
+            voucher_code=raw_code,
         )
 
         total_duration = pricing['total_duration']
@@ -130,11 +141,12 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'client_name', 'client_phone', 'client_email',
             'service_name', 'service_display_name', 'service_price',
             'subtotal', 'tax_amount', 'discount_amount', 'voucher_code', 'total_amount',
+            'advance_amount', 'remaining_amount', 'is_advance_paid', 'is_fully_paid',
             'services_detail',
             'booking_date',
             'booking_time', 'start_time', 'end_time',
             'duration', 'duration_minutes',
-            'station', 'status', 'notes',
+            'station', 'status', 'notes', 'worker_remarks', 'service_started_at',
             'payment_method', 'payment_status', 'razorpay_order_id',
             'expires_at',
             'has_salon_review', 'salon_review',
@@ -232,6 +244,157 @@ class BookingReadSerializer(serializers.ModelSerializer):
 
     def get_can_review(self, obj):
         return obj.status == Booking.Status.COMPLETED
+
+
+class WorkerAppointmentSerializer(BookingReadSerializer):
+    booking_id_display = serializers.SerializerMethodField()
+    formatted_date = serializers.SerializerMethodField()
+    formatted_time = serializers.SerializerMethodField()
+    formatted_date_time = serializers.SerializerMethodField()
+    formatted_amount = serializers.SerializerMethodField()
+    duration_display = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    available_actions = serializers.SerializerMethodField()
+    customer_profile = serializers.SerializerMethodField()
+    elapsed_service_minutes = serializers.SerializerMethodField()
+    is_revenue_synced = serializers.SerializerMethodField()
+
+    class Meta(BookingReadSerializer.Meta):
+        fields = BookingReadSerializer.Meta.fields + [
+            'booking_id_display',
+            'formatted_date',
+            'formatted_time',
+            'formatted_date_time',
+            'formatted_amount',
+            'duration_display',
+            'status_display',
+            'available_actions',
+            'customer_profile',
+            'elapsed_service_minutes',
+            'is_revenue_synced',
+        ]
+
+    def get_booking_id_display(self, obj):
+        return f"#BK{obj.id}"
+
+    def get_formatted_date(self, obj):
+        if obj.booking_date:
+            return obj.booking_date.strftime("%b %d, %Y")
+        return ""
+
+    def get_formatted_time(self, obj):
+        if obj.start_time:
+            return obj.start_time.strftime("%I:%M %p")
+        return obj.booking_time or ""
+
+    def get_formatted_date_time(self, obj):
+        d_str = self.get_formatted_date(obj)
+        t_str = self.get_formatted_time(obj)
+        if d_str and t_str:
+            return f"{d_str} • {t_str}"
+        return d_str or t_str or ""
+
+    def get_formatted_amount(self, obj):
+        amt = obj.total_amount if obj.total_amount is not None else obj.service_price
+        try:
+            d = Decimal(str(amt))
+            if d == d.to_integral():
+                return f"₹{int(d)}"
+            return f"₹{d:.2f}"
+        except Exception:
+            return f"₹{amt}"
+
+    def get_duration_display(self, obj):
+        mins = self.get_duration_minutes(obj)
+        if mins:
+            return f"{mins} mins"
+        return obj.duration or "45 mins"
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+    def get_is_revenue_synced(self, obj):
+        if obj.status != Booking.Status.COMPLETED:
+            return True
+        try:
+            if obj.worker_id:
+                from payments.models import WorkerEarning
+                has_earning = WorkerEarning.objects.filter(booking_id=obj.id, status=WorkerEarning.Status.CREDITED).exists()
+                if not has_earning:
+                    return False
+            from payments.models import OwnerWalletTransaction
+            has_owner_tx = OwnerWalletTransaction.objects.filter(
+                booking_id=obj.id,
+                transaction_type__in=[
+                    OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
+                    OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED,
+                ],
+            ).exists()
+            return has_owner_tx
+        except Exception:
+            return True
+
+    def get_available_actions(self, obj):
+        st = obj.status
+        if st == Booking.Status.CONFIRMED:
+            return ["view", "start"]
+        elif st == Booking.Status.IN_PROGRESS:
+            return ["view", "complete"]
+        elif st == Booking.Status.COMPLETED:
+            if not self.get_is_revenue_synced(obj):
+                return ["view", "reconcile"]
+            return ["view"]
+        else:
+            return ["view"]
+
+    def get_customer_profile(self, obj):
+        from django.utils import timezone
+        name = obj.client_name
+        phone = obj.client_phone
+        email = obj.client_email
+        avatar = ""
+        total_visits = 1
+        member_since = ""
+
+        if obj.customer:
+            if not name:
+                name = obj.customer.get_full_name() or obj.customer.email.split("@")[0].title()
+            if not email:
+                email = obj.customer.email
+            if hasattr(obj.customer, "customer_profile") and obj.customer.customer_profile:
+                if not phone and obj.customer.customer_profile.phone_number:
+                    phone = obj.customer.customer_profile.phone_number
+                avatar = obj.customer.customer_profile.avatar or ""
+
+            try:
+                total_visits = Booking.objects.filter(
+                    customer=obj.customer,
+                    salon=obj.salon,
+                    status=Booking.Status.COMPLETED,
+                ).count()
+            except Exception:
+                total_visits = 1
+
+            if obj.customer.date_joined:
+                member_since = obj.customer.date_joined.strftime("%b %Y")
+
+        return {
+            "name": name or "Customer",
+            "phone": phone or "",
+            "email": email or "",
+            "avatar": avatar,
+            "total_visits": max(1, total_visits),
+            "member_since": member_since or "Recent Client",
+        }
+
+    def get_elapsed_service_minutes(self, obj):
+        from django.utils import timezone
+        if obj.service_started_at and obj.status == Booking.Status.IN_PROGRESS:
+            diff = timezone.now() - obj.service_started_at
+            return max(0, int(diff.total_seconds() / 60))
+        return 0
+
+
 
 
 

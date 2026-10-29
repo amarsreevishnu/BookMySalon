@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import "../../styles/workerManagement.css";
 
 export default function WorkerManagement() {
@@ -89,6 +90,7 @@ export default function WorkerManagement() {
             : [{ name: bw.specialization || "General Services", sub: "Primary Specialty", active: true }],
           is_active: bw.is_active,
           commission_tier: bw.commission_tier || "Tier 2 • Senior Specialist",
+          commission_rate: bw.commission_rate || 60,
           bio: bw.bio || "",
         }));
 
@@ -686,7 +688,7 @@ export default function WorkerManagement() {
                   </div>
                   <div className="wm-inspector-detail-row">
                     <span className="wm-inspector-detail-label">Commission Tier:</span>
-                    <span className="wm-inspector-detail-val">{selectedSpecialist.commission_tier}</span>
+                    <span className="wm-inspector-detail-val">{selectedSpecialist.commission_tier} ({selectedSpecialist.commission_rate || 60}% Commission Share)</span>
                   </div>
                 </div>
 
@@ -748,21 +750,8 @@ export default function WorkerManagement() {
         )}
       </main>
 
-      {/* --------------------------------------------------------------------
-          FOOTER
-          -------------------------------------------------------------------- */}
-      <footer className="wm-page-footer">
-        <div className="wm-page-footer-inner">
-          <div>
-            <strong>BookMySalon Partner</strong> • Staff Shift Allocation &amp; Commission Registry Engine
-          </div>
-          <div className="wm-footer-links">
-            <span className="wm-footer-link">
-              Active Salon: {salonInfo.name}
-            </span>
-          </div>
-        </div>
-      </footer>
+      {/* Sticky Salon Details Footer Label */}
+      <OwnerStickyFooter salonInfo={salonInfo} />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -984,6 +984,10 @@ class BookingCreateView(APIView):
                     discount_amount=discount_amount,
                     voucher_code=voucher_code,
                     total_amount=total_amount,
+                    advance_amount=Decimal("0.00"),
+                    remaining_amount=total_amount,
+                    is_advance_paid=False,
+                    is_fully_paid=False,
                     booking_date=booking_date,
                     booking_time=start_time.strftime('%H:%M'),  
                     start_time=start_time,
@@ -1236,6 +1240,10 @@ class BookingReserveView(APIView):
                     discount_amount=discount_amount,
                     voucher_code=voucher_code,
                     total_amount=total_amount,
+                    advance_amount=Decimal("0.00"),
+                    remaining_amount=total_amount,
+                    is_advance_paid=False,
+                    is_fully_paid=False,
                     booking_date=booking_date,
                     booking_time=start_time.strftime('%H:%M'),
                     start_time=start_time,
@@ -1278,8 +1286,8 @@ class BookingReserveView(APIView):
 
 class BookingConfirmPaymentView(APIView):
    
-    authentication_classes = [OptionalJWTAuthentication]
-    permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         from payments.views import ConfirmPaymentView
@@ -1289,16 +1297,22 @@ class BookingConfirmPaymentView(APIView):
 
 class BookingReleaseView(APIView):
 
-    authentication_classes = [OptionalJWTAuthentication]
-    permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         try:
             with transaction.atomic():
-                try:
-                    booking = Booking.objects.select_for_update().get(pk=pk)
-                except Booking.DoesNotExist:
-                    return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+                query = Booking.objects.select_for_update().filter(pk=pk)
+                if not request.user.is_staff:
+                    query = query.filter(customer=request.user)
+
+                booking = query.first()
+                if not booking:
+                    return Response(
+                        {'error': 'Booking not found or you do not have permission to access it.'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
 
                 if booking.status == Booking.Status.PENDING:
                     booking.status = Booking.Status.CANCELLED
@@ -1374,8 +1388,27 @@ class BookingCancelView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status = Booking.Status.CANCELLED
-        booking.save(update_fields=['status', 'updated_at'])
+        try:
+            with transaction.atomic():
+                booking.status = Booking.Status.CANCELLED
+                booking.save(update_fields=['status', 'updated_at'])
+
+                # Auto-process cancellation refund in Owner Revenue ledger
+                from payments.services import process_booking_cancellation_and_refund
+                process_booking_cancellation_and_refund(
+                    booking,
+                    reason="Customer cancelled booking",
+                    processed_by=request.user,
+                )
+        except Exception as ref_err:
+            logger.error("Refund processing error on cancellation for booking %s: %s", pk, ref_err, exc_info=True)
+            return Response(
+                {
+                    "error": f"Failed to cancel booking: refund processing error ({str(ref_err)})",
+                    "detail": str(ref_err),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         try:
             from notifications.services import notify_booking_cancelled
@@ -1492,7 +1525,39 @@ class BookingStatusUpdateView(APIView):
             update_fields.append("booking_time")
             rescheduled = True
 
-        booking.save(update_fields=update_fields)
+        try:
+            with transaction.atomic():
+                booking.save(update_fields=update_fields)
+
+                # Sync financial ledger for Owner Revenue Management
+                if new_status == Booking.Status.COMPLETED:
+                    from payments.services import record_service_completion_and_final_payment
+                    record_service_completion_and_final_payment(
+                        booking=booking,
+                        completed_by_user=request.user,
+                    )
+                elif new_status == Booking.Status.CANCELLED and old_status != Booking.Status.CANCELLED:
+                    from payments.services import process_booking_cancellation_and_refund
+                    process_booking_cancellation_and_refund(
+                        booking=booking,
+                        reason="Booking cancelled by salon manager",
+                        processed_by=request.user,
+                    )
+        except Exception as fin_err:
+            logger.error(
+                "Financial ledger sync error in BookingStatusUpdateView for booking %s: %s",
+                pk,
+                fin_err,
+                exc_info=True,
+            )
+            return Response(
+                {
+                    "error": f"Failed to update booking status: financial ledger sync error ({str(fin_err)})",
+                    "detail": str(fin_err),
+                    "retry_allowed": True,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         # Trigger notifications
         try:

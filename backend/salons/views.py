@@ -1,8 +1,13 @@
 import json
+import logging
+import math
 import re
 import secrets
 import string
+
+logger = logging.getLogger(__name__)
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Q, Count, Sum, Avg
 from django.http import JsonResponse
 from django.utils import timezone
@@ -847,6 +852,24 @@ class OwnerDashboardView(APIView):
             ).aggregate(total=Sum("service_price"))
             total_revenue = revenue_agg["total"] or 0
 
+            wallet_data = None
+            try:
+                from payments.models import OwnerWallet
+                wallet = OwnerWallet.get_or_create_for_salon(salon)
+                if wallet.total_completed_services > 0 or wallet.total_collected > 0:
+                    total_revenue = wallet.total_completed_services or wallet.total_collected
+                wallet_data = {
+                    "balance": str(wallet.balance),
+                    "total_collected": str(wallet.total_collected),
+                    "total_advances": str(wallet.total_advances),
+                    "total_completed_services": str(wallet.total_completed_services),
+                    "total_worker_payout": str(wallet.total_worker_payout),
+                    "total_refunded": str(wallet.total_refunded),
+                }
+                
+            except Exception:
+                pass
+
             today_qs = (
                 salon_bookings
                 .filter(booking_date=today)
@@ -1073,6 +1096,7 @@ class OwnerDashboardView(APIView):
                 ],
             },
             "popular_services": popular_services,
+            "wallet": wallet_data,
         }
         return Response(data)
 
@@ -1496,13 +1520,17 @@ class WorkerDashboardView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        # Enforce automatic No-Show rule: if scheduled time has passed and customer did not arrive, mark as NO_SHOW
+        from bookings.services import auto_update_no_show_bookings
+        auto_update_no_show_bookings(worker=worker)
+
         bookings_qs = (
             Booking.objects
             .filter(Q(worker=worker) | (Q(salon=worker.salon) & Q(worker__isnull=True)))
             .select_related("salon", "service", "customer")
             .order_by("booking_date", "start_time", "booking_time")
         )
-
+        
         today = timezone.localdate()
         total_count = bookings_qs.count()
         today_count = bookings_qs.filter(booking_date=today).count()
@@ -1597,29 +1625,74 @@ class WorkerBookingStatusUpdateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        update_fields = ["updated_at"]
-        if new_status:
-            booking.status = new_status
-            update_fields.append("status")
+        if is_worker and not (is_owner or is_admin):
+            # Let workers update service progress, but keep payment verification and refunds under owner/admin
+            new_payment_status = None
 
-        if new_payment_status:
-            valid_pay_statuses = [choice[0] for choice in Booking.PaymentStatus.choices]
-            if new_payment_status in valid_pay_statuses:
-                booking.payment_status = new_payment_status
-                update_fields.append("payment_status")
-        elif new_status == Booking.Status.COMPLETED and booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON:
-            booking.payment_status = Booking.PaymentStatus.PAID
-            update_fields.append("payment_status")
+        try:
+            with transaction.atomic():
+                update_fields = ["updated_at"]
+                old_status = booking.status
+                if new_status:
+                    booking.status = new_status
+                    update_fields.append("status")
+                    if new_status == Booking.Status.IN_PROGRESS and not booking.service_started_at:
+                        booking.service_started_at = timezone.now()
+                        update_fields.append("service_started_at")
 
-        if is_worker and worker_profile and booking.worker is None and booking.salon == worker_profile.salon:
-            booking.worker = worker_profile
-            if worker_profile.station:
-                booking.station = worker_profile.station
-                update_fields.append("station")
-            update_fields.append("worker")
+                # Worker consultation remarks
+                worker_remarks = request.data.get("worker_remarks")
+                if worker_remarks is not None:
+                    booking.worker_remarks = str(worker_remarks).strip()
+                    update_fields.append("worker_remarks")
 
-        old_status = booking.status
-        booking.save(update_fields=update_fields)
+                if new_payment_status:
+                    valid_pay_statuses = [choice[0] for choice in Booking.PaymentStatus.choices]
+                    if new_payment_status in valid_pay_statuses:
+                        booking.payment_status = new_payment_status
+                        update_fields.append("payment_status")
+                elif new_status == Booking.Status.COMPLETED and booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON:
+                    booking.payment_status = Booking.PaymentStatus.PAID
+                    update_fields.append("payment_status")
+
+                if is_worker and worker_profile and booking.worker is None and booking.salon == worker_profile.salon:
+                    booking.worker = worker_profile
+                    if worker_profile.station:
+                        booking.station = worker_profile.station
+                        update_fields.append("station")
+                    update_fields.append("worker")
+
+                booking.save(update_fields=update_fields)
+
+                # Financial ledger sync
+                if new_status == Booking.Status.COMPLETED:
+                    from payments.services import record_service_completion_and_final_payment
+                    record_service_completion_and_final_payment(
+                        booking=booking,
+                        completed_by_user=request.user,
+                    )
+                elif new_status == Booking.Status.CANCELLED and old_status != Booking.Status.CANCELLED:
+                    from payments.services import process_booking_cancellation_and_refund
+                    process_booking_cancellation_and_refund(
+                        booking=booking,
+                        reason="Booking cancelled by staff",
+                        processed_by=request.user,
+                    )
+        except Exception as fin_err:
+            logger.error(
+                "Financial ledger sync error in WorkerBookingStatusUpdateView for booking %s: %s",
+                pk,
+                fin_err,
+                exc_info=True,
+            )
+            return Response(
+                {
+                    "error": f"Failed to update booking status: financial ledger sync error ({str(fin_err)})",
+                    "detail": str(fin_err),
+                    "retry_allowed": True,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         try:
             from notifications.services import notify_booking_cancelled, notify_refund_completed
@@ -1630,13 +1703,293 @@ class WorkerBookingStatusUpdateView(APIView):
         except Exception:
             pass
 
+        from bookings.serializers import WorkerAppointmentSerializer
         return Response({
             "message": f"Booking status updated to {booking.status}.",
-            "booking": BookingSerializer(booking).data,
+            "booking": WorkerAppointmentSerializer(booking, context={"request": request}).data,
         })
 
     def post(self, request, pk):
         return self.patch(request, pk)
+
+
+class WorkerAppointmentsListView(APIView):
+    """
+    Dedicated table view of appointments assigned to the authenticated salon worker.
+    - Workers only see appointments assigned to them.
+    - Automatic No-Show rule: if customer scheduled start time has passed and customer did not arrive,
+      backend automatically marks booking as NO_SHOW.
+    - Supports search (by booking ID, customer name, customer phone, service name).
+    - Supports date filters (all, today, tomorrow, week, custom date, start_date/end_date).
+    - Supports status filters (all, confirmed, in_progress, completed, cancelled, no_show).
+    - Returns dynamic available actions per booking status according to specs.
+    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        user = request.user
+        worker = getattr(user, "worker_profile", None)
+        if not worker and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+            worker_id = request.query_params.get("worker_id")
+            if worker_id:
+                worker = WorkerProfile.objects.filter(pk=worker_id).first()
+            else:
+                worker = WorkerProfile.objects.first()
+
+        if not worker:
+            return Response(
+                {"error": "Access denied. Only registered salon specialists can access worker appointments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 1. Enforce automatic No-Show rule: if scheduled time has passed and customer did not arrive, mark as NO_SHOW
+        from bookings.services import auto_update_no_show_bookings
+        auto_update_no_show_bookings(worker=worker)
+
+        # 2. Query strictly assigned bookings
+        bookings_qs = (
+            Booking.objects.filter(worker=worker)
+            .select_related("salon", "service", "customer")
+            .prefetch_related("services")
+        )
+
+        # 3. Status filter
+        status_filter = request.query_params.get("status", "").strip().upper()
+        if status_filter and status_filter != "ALL":
+            bookings_qs = bookings_qs.filter(status=status_filter)
+
+        # 4. Date filter
+        date_filter = request.query_params.get("date", "").strip().lower()
+        today = timezone.localdate()
+        if date_filter == "today":
+            bookings_qs = bookings_qs.filter(booking_date=today)
+        elif date_filter == "tomorrow":
+            bookings_qs = bookings_qs.filter(booking_date=today + timedelta(days=1))
+        elif date_filter == "week":
+            bookings_qs = bookings_qs.filter(booking_date__gte=today, booking_date__lte=today + timedelta(days=7))
+        elif date_filter and date_filter != "all":
+            try:
+                from datetime import datetime as dt
+                parsed_d = dt.strptime(date_filter, "%Y-%m-%d").date()
+                bookings_qs = bookings_qs.filter(booking_date=parsed_d)
+            except ValueError:
+                pass
+
+        start_date = request.query_params.get("start_date", "").strip()
+        end_date = request.query_params.get("end_date", "").strip()
+        if start_date:
+            try:
+                from datetime import datetime as dt
+                s_d = dt.strptime(start_date, "%Y-%m-%d").date()
+                bookings_qs = bookings_qs.filter(booking_date__gte=s_d)
+            except ValueError:
+                pass
+        if end_date:
+            try:
+                from datetime import datetime as dt
+                e_d = dt.strptime(end_date, "%Y-%m-%d").date()
+                bookings_qs = bookings_qs.filter(booking_date__lte=e_d)
+            except ValueError:
+                pass
+
+        # 5. Search filter (booking ID, customer name, customer phone, service name)
+        search = request.query_params.get("search", "").strip()
+        if search:
+            clean_search = search.replace("#", "").replace("BK", "").replace("bk", "").strip()
+            q_filter = (
+                Q(client_name__icontains=search)
+                | Q(client_phone__icontains=search)
+                | Q(service_name__icontains=search)
+            )
+            if clean_search.isdigit():
+                q_filter |= Q(id=int(clean_search))
+            bookings_qs = bookings_qs.filter(q_filter)
+
+        # 6. Ordering (default: chronological upcoming first if today/future, otherwise descending)
+        ordering = request.query_params.get("ordering", "-booking_date")
+        if ordering == "date_asc":
+            bookings_qs = bookings_qs.order_by("booking_date", "start_time", "booking_time")
+        elif ordering == "date_desc":
+            bookings_qs = bookings_qs.order_by("-booking_date", "-start_time", "-booking_time")
+        else:
+            bookings_qs = bookings_qs.order_by("-booking_date", "start_time", "booking_time")
+
+        # 7. Summary counts for UI badges
+        base_qs = Booking.objects.filter(worker=worker)
+        counts = {
+            "all": base_qs.count(),
+            "today": base_qs.filter(booking_date=today).count(),
+            "confirmed": base_qs.filter(status=Booking.Status.CONFIRMED).count(),
+            "in_progress": base_qs.filter(status=Booking.Status.IN_PROGRESS).count(),
+            "completed": base_qs.filter(status=Booking.Status.COMPLETED).count(),
+            "cancelled": base_qs.filter(status=Booking.Status.CANCELLED).count(),
+            "no_show": base_qs.filter(status=Booking.Status.NO_SHOW).count(),
+        }
+
+        # 8. Pagination
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        try:
+            page_num = int(request.query_params.get("page", 1))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = int(request.query_params.get("page_size", 10))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        page_size = min(max(page_size, 1), 100)
+        paginator = Paginator(bookings_qs, page_size)
+
+        try:
+            page_obj = paginator.page(page_num)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages) if paginator.num_pages > 0 else []
+
+        from bookings.serializers import WorkerAppointmentSerializer
+        serializer = WorkerAppointmentSerializer(page_obj, many=True, context={"request": request})
+
+        return Response({
+            "count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_num,
+            "page_size": page_size,
+            "counts": counts,
+            "results": serializer.data,
+        }, status=status.HTTP_200_OK)
+
+
+class WorkerAppointmentDetailView(APIView):
+    """
+    Returns detailed booking info for a specific appointment assigned to the worker.
+    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, pk):
+        user = request.user
+        worker = getattr(user, "worker_profile", None)
+        if not worker and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+            worker_id = request.query_params.get("worker_id")
+            if worker_id:
+                worker = WorkerProfile.objects.filter(pk=worker_id).first()
+            else:
+                worker = WorkerProfile.objects.first()
+
+        if not worker:
+            return Response(
+                {"error": "Access denied. Only registered salon specialists can access worker appointments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        booking = Booking.objects.filter(pk=pk).select_related("salon", "service", "customer").prefetch_related("services").first()
+        if not booking:
+            return Response({"error": "Appointment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_owner = getattr(user, "role", None) == "OWNER" and (
+            booking.salon.owner == user or get_owner_salon(user) == booking.salon
+        )
+        is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
+        if booking.worker != worker and not (is_owner or is_admin):
+            return Response(
+                {"error": "Access denied. You can only view appointments assigned to you."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Auto No-Show check for this specific booking
+        from bookings.services import auto_update_no_show_bookings
+        auto_update_no_show_bookings(Booking.objects.filter(pk=booking.pk))
+        booking.refresh_from_db()
+
+        from bookings.serializers import WorkerAppointmentSerializer
+        serializer = WorkerAppointmentSerializer(booking, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, pk):
+        user = request.user
+        worker = getattr(user, "worker_profile", None)
+        if not worker and (getattr(user, "role", None) in ["ADMIN", "OWNER"] or user.is_superuser or user.is_staff):
+            worker_id = request.query_params.get("worker_id")
+            if worker_id:
+                worker = WorkerProfile.objects.filter(pk=worker_id).first()
+            else:
+                worker = WorkerProfile.objects.first()
+
+        if not worker:
+            return Response(
+                {"error": "Access denied."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        booking = Booking.objects.filter(pk=pk).first()
+        if not booking:
+            return Response({"error": "Appointment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_owner = getattr(user, "role", None) == "OWNER" and (
+            booking.salon.owner == user or get_owner_salon(user) == booking.salon
+        )
+        is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
+        if booking.worker != worker and not (is_owner or is_admin):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        update_fields = ["updated_at"]
+        if "worker_remarks" in request.data:
+            booking.worker_remarks = str(request.data["worker_remarks"]).strip()
+            update_fields.append("worker_remarks")
+
+        new_status = request.data.get("status", "").upper()
+
+        try:
+            with transaction.atomic():
+                if new_status:
+                    if new_status in [Booking.Status.IN_PROGRESS, Booking.Status.COMPLETED]:
+                        booking.status = new_status
+                        update_fields.append("status")
+                        if new_status == Booking.Status.IN_PROGRESS and not booking.service_started_at:
+                            booking.service_started_at = timezone.now()
+                            update_fields.append("service_started_at")
+                        if new_status == Booking.Status.COMPLETED and booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON:
+                            booking.payment_status = Booking.PaymentStatus.PAID
+                            update_fields.append("payment_status")
+
+                        booking.save(update_fields=update_fields)
+
+                        if new_status == Booking.Status.COMPLETED:
+                            from payments.services import record_service_completion_and_final_payment
+                            record_service_completion_and_final_payment(
+                                booking=booking,
+                                completed_by_user=request.user,
+                            )
+                    else:
+                        booking.status = new_status
+                        update_fields.append("status")
+                        booking.save(update_fields=update_fields)
+                elif len(update_fields) > 1:
+                    booking.save(update_fields=update_fields)
+        except Exception as fin_err:
+            logger.error(
+                "Financial ledger sync error in WorkerAppointmentDetailView for booking %s: %s",
+                pk,
+                fin_err,
+                exc_info=True,
+            )
+            return Response(
+                {
+                    "error": f"Failed to complete appointment: financial ledger sync error ({str(fin_err)})",
+                    "detail": str(fin_err),
+                    "retry_allowed": True,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        from bookings.serializers import WorkerAppointmentSerializer
+        return Response({
+            "message": "Appointment updated successfully.",
+            "booking": WorkerAppointmentSerializer(booking, context={"request": request}).data,
+        }, status=status.HTTP_200_OK)
 
 
 
@@ -1648,10 +2001,17 @@ class CustomerSalonExploreView(APIView):
         search = request.query_params.get("search", "").strip().lower()
         location_param = request.query_params.get("location", "").strip().lower()
         category_param = request.query_params.get("category", "").strip().lower()
+        services_param = request.query_params.get("services", "").strip().lower()
         instant_slots = request.query_params.get("instant_slots", "").strip().lower() == "true"
         min_rating_param = request.query_params.get("min_rating", "")
         price_tier_param = request.query_params.get("price_tier", "") # 1, 2, 3
         atmosphere_param = request.query_params.get("atmosphere", "").strip().lower()
+        sort_by = request.query_params.get("sort_by", "").strip()
+        distance_radius = request.query_params.get("distance_radius", "").strip()
+        purity_param = request.query_params.get("purity", "").strip()
+        time_window = request.query_params.get("time_window", "").strip()
+        page_param = request.query_params.get("page", "1")
+        page_size_param = request.query_params.get("page_size", "8")
 
        
         db_salons = Salon.objects.filter(
@@ -1782,6 +2142,51 @@ class CustomerSalonExploreView(APIView):
                 "days": opening_hours_days
             }
 
+            # Compute real rating & review_count
+            avg_review_dict = SalonReview.objects.filter(salon=s).aggregate(avg=Avg('rating'))
+            avg_review_val = avg_review_dict['avg']
+            salon_rating = round(float(avg_review_val), 1) if avg_review_val is not None else None
+            review_count = SalonReview.objects.filter(salon=s).count()
+
+            # Compute dynamic price tier based on actual service prices
+            numeric_prices = []
+            for srv in services:
+                raw_p = srv.get("price", "")
+                clean_p = re.sub(r"[^\d.]", "", str(raw_p))
+                try:
+                    p_val = float(clean_p)
+                    if p_val > 0:
+                        numeric_prices.append(p_val)
+                except ValueError:
+                    pass
+
+            if numeric_prices:
+                min_p = min(numeric_prices)
+                if min_p < 500:
+                    salon_price_tier = 1
+                elif min_p <= 1500:
+                    salon_price_tier = 2
+                else:
+                    salon_price_tier = 3
+            else:
+                salon_price_tier = 1
+
+            # Compute dynamic atmosphere / gender category
+            salon_text = f"{s.name} {s.category or ''} {s.secondary_category or ''} {s.description or ''} {s.tagline or ''}".lower()
+            service_names = " ".join(srv.get("name", "") for srv in services).lower()
+
+            is_women = any(w in salon_text for w in ["women", "female", "ladies", "bridal"])
+            is_men = any(w in salon_text for w in ["men", "grooming", "barber", "beard", "gentlemen"]) or any(w in service_names for w in ["beard", "shave", "fade", "grooming"])
+
+            if "unisex" in salon_text:
+                gender_cat = "unisex"
+            elif is_women and not is_men:
+                gender_cat = "women-only"
+            elif is_men and not is_women:
+                gender_cat = "men's care"
+            else:
+                gender_cat = "unisex"
+
             registered_salons.append({
                 "id": s.id,
                 "name": s.name,
@@ -1795,13 +2200,13 @@ class CustomerSalonExploreView(APIView):
                     else "Kerala"
                 ),
                 "tags": tags,
-                "gender_category": "unisex",
-                "rating": round(float(SalonReview.objects.filter(salon=s).aggregate(avg=Avg('rating'))['avg']), 2) if SalonReview.objects.filter(salon=s).exists() else 4.9,
-                "review_count": SalonReview.objects.filter(salon=s).count(),
+                "gender_category": gender_cat,
+                "rating": salon_rating,
+                "review_count": review_count,
                 "has_instant_slot": True,
                 "instant_slot_text": "Instant slot available today • Verified Partner",
                 
-                "price_tier": 2,
+                "price_tier": salon_price_tier,
                 "services": services,
                 
                 "purity_note": s.description or "Certified clean & botanical hygiene standards",
@@ -1846,7 +2251,20 @@ class CustomerSalonExploreView(APIView):
         if atmosphere_param and atmosphere_param != "all salons" and atmosphere_param != "all":
             results = [
                 s for s in results
-                if atmosphere_param in s["gender_category"]
+                if atmosphere_param in s["gender_category"].lower()
+                or (atmosphere_param == "men's care" and (
+                    "men" in s["gender_category"].lower()
+                    or any(any(w in tag.lower() for w in ["men", "grooming", "barber", "beard"]) for tag in s["tags"])
+                    or any(any(w in srv["name"].lower() for w in ["beard", "shave", "grooming", "men"]) for srv in s["services"])
+                ))
+                or (atmosphere_param == "women-only" and (
+                    "women" in s["gender_category"].lower()
+                    or any(any(w in tag.lower() for w in ["women", "female", "ladies", "bridal"]) for tag in s["tags"])
+                ))
+                or (atmosphere_param == "unisex" and (
+                    "unisex" in s["gender_category"].lower()
+                    or not any(w in s["gender_category"].lower() for w in ["women", "men"])
+                ))
                 or any(atmosphere_param in tag.lower() for tag in s["tags"])
             ]
 
@@ -1856,22 +2274,108 @@ class CustomerSalonExploreView(APIView):
         if min_rating_param:
             try:
                 min_r = float(min_rating_param)
-                results = [s for s in results if s.get("rating", 0) >= min_r]
+                results = [
+                    s for s in results
+                    if s.get("review_count", 0) > 0 and s.get("rating") is not None and float(s.get("rating", 0)) >= min_r
+                ]
             except ValueError:
                 pass
 
         if price_tier_param:
             try:
                 p_tier = int(price_tier_param)
-                results = [s for s in results if s.get("price_tier") == p_tier]
+                results = [
+                    s for s in results
+                    if s.get("price_tier") == p_tier or any(
+                        (p_tier == 1 and p < 500) or
+                        (p_tier == 2 and 500 <= p <= 1500) or
+                        (p_tier == 3 and p > 1500)
+                        for p in [
+                            float(re.sub(r"[^\d.]", "", str(srv.get("price", ""))))
+                            for srv in s.get("services", [])
+                            if re.sub(r"[^\d.]", "", str(srv.get("price", "")))
+                        ]
+                    )
+                ]
             except ValueError:
                 pass
 
+        if location_param and location_param != "all locations" and location_param != "all":
+            results = [
+                s for s in results
+                if location_param in s["city"].lower() or location_param in s["address_line"].lower()
+            ]
+
+        if services_param:
+            req_srvs = [srv.strip().lower() for srv in services_param.split(",") if srv.strip()]
+            if req_srvs:
+                results = [
+                    s for s in results
+                    if any(
+                        req in (s.get("category") or "").lower()
+                        or any(req in tag.lower() for tag in s.get("tags", []))
+                        or any(req in srv.get("name", "").lower() or req in srv.get("category", "").lower() for srv in s.get("services", []))
+                        for req in req_srvs
+                    )
+                ]
+
+        if distance_radius and distance_radius.lower() != "any":
+            try:
+                max_d = float(distance_radius)
+                results = [s for s in results if float(s.get("distance_km", 1.5)) <= max_d]
+            except ValueError:
+                pass
+
+        if purity_param:
+            purities = [p.strip().lower() for p in purity_param.split(",") if p.strip()]
+            if purities:
+                results = [
+                    s for s in results
+                    if any(
+                        ("clean" in p and (s.get("is_clean_purity") or "clean" in s.get("purity_note", "").lower()))
+                        or ("promo" in p and (s.get("badge_type") == "partner" or s.get("has_instant_slot")))
+                        or ("scalp" in p and any("spa" in srv.get("name", "").lower() or "scalp" in srv.get("name", "").lower() for srv in s.get("services", [])))
+                        for p in purities
+                    )
+                ]
+
+        if sort_by == "Highest Rated":
+            results.sort(key=lambda s: float(s.get("rating") or 0), reverse=True)
+        elif sort_by == "Nearest Distance":
+            results.sort(key=lambda s: float(s.get("distance_km") or 999))
+
+        total_count = len(results)
+        try:
+            page = max(1, int(page_param))
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            page_size = max(1, int(page_size_param))
+        except (ValueError, TypeError):
+            page_size = 8
+
+        total_pages = max(1, math.ceil(total_count / page_size)) if total_count > 0 else 1
+        if page > total_pages and total_count > 0:
+            page = total_pages
+
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        paged_salons = results[start_index:end_index]
+
+        all_cities = []
+        for s in db_salons:
+            if s.city and s.city.strip() and s.city.strip() not in all_cities:
+                all_cities.append(s.city.strip())
+
         return Response(
             {
-                "salons": results,
-                "total_count": len(results),
-                "visible_count": len(results),
+                "salons": paged_salons,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "current_page": page,
+                "page_size": page_size,
+                "locations": ["All Locations"] + all_cities,
                 "location_default": "All Locations",
             },
             status=status.HTTP_200_OK,

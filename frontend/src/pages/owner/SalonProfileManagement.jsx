@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonProfileManagement.css";
 
@@ -517,10 +518,10 @@ export default function SalonProfileManagement() {
         <div className="sp-title-bar-inner">
           <div className="sp-breadcrumbs">
             <Link to="/owner/dashboard" className="sp-breadcrumb-link">
-              Owner Studio Hub
+              Dashboard
             </Link>
             <span className="sp-breadcrumb-sep">/</span>
-            <span className="sp-breadcrumb-current">Profile & Branding</span>
+            <span className="sp-breadcrumb-current">Salon Profile </span>
           </div>
 
           <div className="sp-title-row">
@@ -532,15 +533,9 @@ export default function SalonProfileManagement() {
             </div>
 
             <div className="sp-title-actions">
-              <div className="sp-save-status-indicator">
-                <span className={`sp-pulse-dot ${isDirty ? "dirty" : ""}`} />
-                <span>{isDirty ? "Unsaved edits" : lastSavedTime}</span>
-              </div>
+              
 
-              <Link to="/customer/salons" className="sp-btn-secondary" title="View live catalog">
-                <span>Live on Explore</span>
-                <span>↗</span>
-              </Link>
+              
 
               {isDirty && (
                 <button
@@ -1025,7 +1020,8 @@ export default function SalonProfileManagement() {
 
               <div className="sp-field">
                 <label className="sp-label" htmlFor="sp-email">
-                  Official Email Address
+                  <span>Official Email Address</span>
+                  <span style={{ fontSize: "0.72rem", color: "#166534" }}> 🔒 ✓ Verified  </span>
                 </label>
                 <div className="sp-input-with-icon">
                   <span className="sp-input-icon">✉️</span>
@@ -1034,8 +1030,8 @@ export default function SalonProfileManagement() {
                     type="email"
                     className="sp-input"
                     value={form.email}
-                    onChange={(e) => handleFieldChange("email", e.target.value)}
-                    placeholder="contact@abcsalon.in"
+                    disabled
+                    title="Registered email address cannot be changed."
                   />
                 </div>
               </div>
@@ -1478,6 +1474,9 @@ export default function SalonProfileManagement() {
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* Sticky Salon Details Footer Label */}
+      <OwnerStickyFooter salonInfo={form} />
     </div>
   );
 }

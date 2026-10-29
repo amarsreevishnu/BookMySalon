@@ -1,0 +1,202 @@
+/* ==========================================================================
+   BookMySalon — Sticky Salon Information Footer Label
+   Theme: Luxury Emerald (#2d5a43) & Cream
+   ========================================================================== */
+
+.studio-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--studio-border, #e3ebe6);
+  box-shadow: 0 -4px 20px rgba(45, 90, 67, 0.08);
+  padding: 10px 24px;
+  z-index: 95;
+  box-sizing: border-box;
+}
+
+.studio-sticky-footer-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.salon-footer-brand-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.salon-footer-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--studio-primary-light, #e8f2ec);
+  border: 1px solid rgba(45, 90, 67, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.salon-footer-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.salon-footer-title {
+  font-family: var(--studio-font-serif, "Playfair Display", Georgia, serif);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--studio-primary-dark, #1a3626);
+  line-height: 1.2;
+}
+
+.salon-footer-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--studio-text-subtle, #8a998f);
+  letter-spacing: 0.3px;
+}
+
+.salon-footer-details-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.salon-footer-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--studio-bg, #f6f9f7);
+  border: 1px solid var(--studio-border, #e3ebe6);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--studio-text-muted, #5a6b61);
+}
+
+.salon-footer-tag .tag-icon {
+  font-size: 12px;
+}
+
+.salon-footer-tag--live {
+  background: var(--studio-positive-bg, #eaf7ef);
+  border-color: rgba(30, 130, 76, 0.2);
+  color: var(--studio-positive, #1e824c);
+}
+
+.salon-footer-tag--live .live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--studio-positive, #1e824c);
+  animation: footerPulse 2s infinite;
+}
+
+@keyframes footerPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+}
+
+.salon-footer-tag--rating {
+  background: #fffdf5;
+  border-color: #fef08a;
+  color: #854d0e;
+}
+
+.salon-footer-tag--rating .star-icon {
+  color: #eab308;
+}
+
+.salon-footer-tag--rating .reviews-num {
+  color: var(--studio-text-subtle, #8a998f);
+  font-weight: 500;
+  font-size: 10.5px;
+}
+
+.salon-footer-actions-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.salon-footer-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--studio-primary, #2d5a43);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(45, 90, 67, 0.2);
+}
+
+.salon-footer-action-link:hover {
+  background: var(--studio-primary-hover, #234a36);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(45, 90, 67, 0.28);
+  color: #ffffff;
+}
+
+.salon-footer-action-link .arrow {
+  transition: transform 0.2s ease;
+}
+
+.salon-footer-action-link:hover .arrow {
+  transform: translateX(3px);
+}
+
+.sync-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--studio-positive, #1e824c);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--studio-positive, #1e824c);
+  animation: footerPulse 2s infinite;
+}
+
+@media (max-width: 900px) {
+  .salon-footer-details-section {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .studio-sticky-footer {
+    padding: 8px 16px;
+  }
+  .sync-status-indicator {
+    display: none;
+  }
+}
+

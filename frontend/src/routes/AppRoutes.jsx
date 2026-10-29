@@ -26,6 +26,7 @@ import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import WorkerLeave from "../pages/worker/WorkerLeave";
 import WorkerCalendar from "../pages/worker/WorkerCalendar";
 import WorkerProfile from "../pages/worker/WorkerProfile";
+import WorkerAppointmentDetail from "../pages/worker/WorkerAppointmentDetail";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
@@ -92,6 +93,9 @@ function AppRoutes() {
         <Route path="/worker/leave" element={<WorkerLeave />} />
         <Route path="/worker/leaves" element={<WorkerLeave />} />
         <Route path="/worker/profile" element={<WorkerProfile />} />
+        <Route path="/worker/revenue" element={<WorkerDashboard />} />
+        <Route path="/worker/appointments" element={<WorkerDashboard />} />
+        <Route path="/worker/appointments/:id" element={<WorkerAppointmentDetail />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

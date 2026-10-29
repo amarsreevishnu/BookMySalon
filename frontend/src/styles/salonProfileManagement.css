@@ -42,7 +42,7 @@
   padding: 24px 32px 20px;
   position: sticky;
   top: 60px;
-  z-index: 40;
+  z-index: 10;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
 }
 

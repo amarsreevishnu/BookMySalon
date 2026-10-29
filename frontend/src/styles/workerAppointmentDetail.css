@@ -1,0 +1,704 @@
+/* ==========================================================================
+   BookMySalon — Worker Appointment Details & Live Service Session Page
+   ========================================================================== */
+
+.worker-appt-detail-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeInApptDetail 0.3s ease-out;
+  padding-bottom: 60px;
+}
+
+@keyframes fadeInApptDetail {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Top Header / Live Session Bar                                              */
+/* -------------------------------------------------------------------------- */
+.worker-detail-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.worker-btn-back {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+  text-decoration: none;
+}
+
+.worker-btn-back:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.worker-detail-header-badges {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Live Session Timer Banner (When IN_PROGRESS) */
+.worker-live-session-banner {
+  background: linear-gradient(135deg, #092019 0%, #134234 50%, #1b5b48 100%);
+  border-radius: 18px;
+  padding: 24px 28px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 12px 28px rgba(15, 43, 36, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.worker-live-session-banner::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -5%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.worker-live-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.worker-timer-pulse-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  color: #34d399;
+}
+
+.worker-timer-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.worker-timer-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a7f3d0;
+}
+
+.worker-timer-clock {
+  font-size: 1.85rem;
+  font-weight: 800;
+  font-family: inherit;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.worker-live-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Main 2-Column Grid Layout                                                  */
+/* -------------------------------------------------------------------------- */
+.worker-detail-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 22px;
+}
+
+@media (max-width: 960px) {
+  .worker-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.worker-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cards Styling                                                              */
+/* -------------------------------------------------------------------------- */
+.worker-detail-card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.worker-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 14px;
+}
+
+.worker-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.worker-card-icon {
+  font-size: 1.2rem;
+}
+
+.worker-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Customer Profile Card Details                                              */
+/* -------------------------------------------------------------------------- */
+.worker-customer-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.worker-cust-avatar-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #ecfdf5;
+  border: 2px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.worker-cust-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.worker-cust-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.worker-cust-fullname {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.worker-cust-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.worker-client-loyalty-tag {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
+
+.worker-member-since-tag {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.worker-cust-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+@media (max-width: 540px) {
+  .worker-cust-contact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.worker-contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.worker-contact-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+}
+
+.worker-contact-val {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.worker-contact-val a {
+  color: #0f2b24;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.worker-contact-val a:hover {
+  text-decoration: underline;
+}
+
+.worker-cust-notes-box {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.worker-cust-notes-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #92400e;
+}
+
+.worker-cust-notes-text {
+  font-size: 0.88rem;
+  color: #78350f;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Service Details Card                                                       */
+/* -------------------------------------------------------------------------- */
+.worker-service-highlight-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.worker-service-main-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.worker-service-duration-badge {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.worker-service-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.worker-service-info-cell {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.worker-service-info-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.worker-service-info-val {
+  font-size: 0.92rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Financial Summary Card                                                     */
+/* -------------------------------------------------------------------------- */
+.worker-finance-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.worker-finance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.worker-finance-row.total {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.worker-commission-callout {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.worker-comm-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.worker-comm-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #15803d;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Worker Remarks & Treatment Notes (User Requested)                          */
+/* -------------------------------------------------------------------------- */
+.worker-remarks-card {
+  border-color: #cbd5e1;
+}
+
+.worker-remarks-textarea {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  line-height: 1.5;
+}
+
+.worker-remarks-textarea:focus {
+  background: #ffffff;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+
+.worker-remarks-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worker-remarks-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.btn-save-remarks {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-save-remarks:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Action Panel (Start / Complete / Completed Banner)                         */
+/* -------------------------------------------------------------------------- */
+.worker-action-panel-card {
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+
+.worker-action-panel-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.worker-action-panel-sub {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.btn-panel-action-start {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-panel-action-start:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-panel-action-complete {
+  background: linear-gradient(135deg, #092019 0%, #134234 50%, #1b5b48 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 28px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(15, 43, 36, 0.28);
+  transition: all 0.2s ease;
+}
+
+.btn-panel-action-complete:hover {
+  background: linear-gradient(135deg, #0f2b24 0%, #1b5b48 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(15, 43, 36, 0.35);
+}
+
+/* Completed Success Banner */
+.worker-completed-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.worker-completed-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.worker-completed-icon {
+  font-size: 2rem;
+  color: #059669;
+}
+
+.worker-completed-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #065f46;
+  margin: 0;
+}
+
+.worker-completed-sub {
+  font-size: 0.82rem;
+  color: #047857;
+  margin: 0;
+}
+
+/* Confirmation Modal */
+.worker-confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.worker-confirm-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+
+.worker-confirm-icon {
+  font-size: 2.8rem;
+}
+
+.worker-confirm-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.worker-confirm-desc {
+  font-size: 0.88rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.worker-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-confirm-cancel {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-confirm-proceed {
+  background: #0f2b24;
+  color: #ffffff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 43, 36, 0.25);
+}
+
+.btn-confirm-proceed:hover {
+  background: #164e3f;
+}
+

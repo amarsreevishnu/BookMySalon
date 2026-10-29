@@ -12,12 +12,11 @@ COUPON_RULES = {
 GST_RATE = Decimal("0.05")  # 5% GST & Hygiene Safety
 
 
-def calculate_pricing(services, voucher_code=None, custom_discount=None):
+def calculate_pricing(services, voucher_code=None):
     """
     Calculate item subtotal, total duration, taxes, discounts, and total amount.
     - services: iterable of SalonService instances (or dicts with 'price' and 'duration')
-    - voucher_code: optional coupon/voucher code string
-    - custom_discount: optional manual/gift voucher discount Decimal/float
+    - voucher_code: optional coupon/voucher code string validated strictly against COUPON_RULES
     """
     subtotal = Decimal("0.00")
     total_duration_minutes = 0
@@ -58,14 +57,6 @@ def calculate_pricing(services, voucher_code=None, custom_discount=None):
                 discount_amount = min(subtotal, calc_disc)
             else:
                 discount_amount = min(subtotal, rule["value"]).quantize(Decimal("0.01"))
-    elif custom_discount is not None:
-        try:
-            cust = Decimal(str(custom_discount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if cust > 0:
-                discount_amount = min(subtotal, cust)
-                valid_code = code or "VOUCHER"
-        except Exception:
-            pass
 
     # Final Total = subtotal + taxes - discounts (never negative)
     total_amount = max(Decimal("0.00"), subtotal + tax_amount - discount_amount).quantize(

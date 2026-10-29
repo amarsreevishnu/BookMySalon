@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import "../../styles/addWorker.css";
 
 const DAYS_OF_WEEK = [
@@ -1521,6 +1522,9 @@ export default function AddWorker() {
           </div>
         </div>
       )}
+
+      {/* Sticky Salon Details Footer Label */}
+      <OwnerStickyFooter />
     </div>
   );
 }

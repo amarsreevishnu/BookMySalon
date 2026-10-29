@@ -159,10 +159,21 @@ export default function SalonsExplore() {
   const [detailsModalSalon, setDetailsModalSalon] = useState(null);
 
   const [salonsList, setSalonsList] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [dbLocations, setDbLocations] = useState([]);
   const [servicesCatalog, setServicesCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  
+  // Debounced search query for smooth server-side filtering
+  const [debouncedQuery, setDebouncedQuery] = useState(treatmentQuery);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(treatmentQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [treatmentQuery]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -170,26 +181,61 @@ export default function SalonsExplore() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
+  // Fetch standard service categories once on mount
   useEffect(() => {
     let isMounted = true;
-    const fetchData = async () => {
+    const fetchCatalog = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        const servicesRes = await api.get("/services/public/categories/", config);
+        if (Array.isArray(servicesRes.data) && isMounted) {
+          setServicesCatalog(servicesRes.data);
+        }
+      } catch (svcErr) {
+        console.log("Services catalog fetch fallback", svcErr);
+      }
+    };
+    fetchCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fetch paginated and filtered salons from backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSalons = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem("access_token");
         const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-        const salonsRes = await api.get("/salons/explore/", config);
-        if (salonsRes.data && salonsRes.data.salons && isMounted) {
-          setSalonsList(salonsRes.data.salons);
-        }
+        const params = {
+          page: currentPage,
+          page_size: pageSize,
+        };
+        if (debouncedQuery.trim()) params.search = debouncedQuery.trim();
+        if (locationParam && locationParam !== "All Locations") params.location = locationParam;
+        const catParam = searchParams.get("category");
+        if (catParam && catParam.toLowerCase() !== "all") params.category = catParam;
+        if (atmosphere && atmosphere !== "All Salons") params.atmosphere = atmosphere;
+        if (instantSlots) params.instant_slots = "true";
+        if (minRating > 0) params.min_rating = minRating;
+        if (priceTier) params.price_tier = priceTier;
+        if (distanceRadius && distanceRadius !== "Any") params.distance_radius = distanceRadius;
+        if (selectedServices.length > 0) params.services = selectedServices.join(",");
+        if (selectedPurity.length > 0) params.purity = selectedPurity.join(",");
+        if (sortBy) params.sort_by = sortBy;
 
-        try {
-          const servicesRes = await api.get("/services/public/categories/", config);
-          if (Array.isArray(servicesRes.data) && isMounted) {
-            setServicesCatalog(servicesRes.data);
+        const salonsRes = await api.get("/salons/explore/", { ...config, params });
+        if (salonsRes.data && isMounted) {
+          setSalonsList(salonsRes.data.salons || []);
+          setTotalCount(salonsRes.data.total_count ?? (salonsRes.data.salons || []).length);
+          setTotalPages(salonsRes.data.total_pages || 1);
+          if (Array.isArray(salonsRes.data.locations) && salonsRes.data.locations.length > 0) {
+            setDbLocations(salonsRes.data.locations);
           }
-        } catch (svcErr) {
-          console.log("Services catalog fetch fallback", svcErr);
         }
       } catch (err) {
         console.log("Error loading salons for exploration", err);
@@ -197,168 +243,15 @@ export default function SalonsExplore() {
         if (isMounted) setLoading(false);
       }
     };
-    fetchData();
+
+    fetchSalons();
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  const availableLocations = useMemo(() => {
-    const locs = new Set();
-    salonsList.forEach((s) => {
-      if (s.city) locs.add(s.city);
-    });
-    return ["All Locations", ...Array.from(locs)];
-  }, [salonsList]);
-
-  const availableCategories = useMemo(() => {
-    const catSet = new Set();
-
-    servicesCatalog.forEach((cat) => {
-      if (cat.name) catSet.add(cat.name);
-    });
-
-    salonsList.forEach((s) => {
-      if (s.category) catSet.add(s.category);
-      if (s.tags && Array.isArray(s.tags)) {
-        s.tags.forEach((t) => catSet.add(t));
-      }
-    });
-
-    if (catSet.size === 0) {
-      return ["Hair", "Skin", "Spa", "Nails", "Beard"];
-    }
-    return Array.from(catSet);
-  }, [servicesCatalog, salonsList]);
-
-  const filteredSalons = useMemo(() => {
-    let list = salonsList.length > 0 ? [...salonsList] : [];
-
-
-    if (treatmentQuery.trim()) {
-      const q = treatmentQuery.toLowerCase();
-      list = list.filter(
-        (s) =>
-          (s.name && s.name.toLowerCase().includes(q)) ||
-          (s.address_line && s.address_line.toLowerCase().includes(q)) ||
-          (s.city && s.city.toLowerCase().includes(q)) ||
-          (s.services && Array.isArray(s.services) && s.services.some((srv) => srv.name && srv.name.toLowerCase().includes(q))) ||
-          (s.tags && Array.isArray(s.tags) && s.tags.some((t) => t.toLowerCase().includes(q)))
-      );
-    }
-
-    // Filter by location
-    if (locationParam !== "All Locations") {
-      const loc = locationParam.toLowerCase();
-      list = list.filter(
-        (s) =>
-          (s.city && s.city.toLowerCase().includes(loc)) ||
-          (s.address_line && s.address_line.toLowerCase().includes(loc))
-      );
-    }
-
-    // Filter by category URL parameter if present
-    const categoryUrlParam = searchParams.get("category");
-    if (categoryUrlParam && categoryUrlParam.toLowerCase() !== "all") {
-      const cat = categoryUrlParam.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.tags?.some((t) => t.toLowerCase().includes(cat)) ||
-          s.services?.some((srv) => srv.name?.toLowerCase().includes(cat) || (srv.category && srv.category.toLowerCase().includes(cat)))
-      );
-    }
-
-    // Filter by selected holistic services from sidebar (dynamic)
-    if (selectedServices.length > 0) {
-      list = list.filter((s) =>
-        selectedServices.some(
-          (sel) => {
-            const sLower = sel.toLowerCase();
-            return (
-              s.category?.toLowerCase().includes(sLower) ||
-              s.tags?.some((t) => t.toLowerCase().includes(sLower)) ||
-              s.services?.some((srv) => srv.name?.toLowerCase().includes(sLower) || (srv.category && srv.category.toLowerCase().includes(sLower)))
-            );
-          }
-        )
-      );
-    }
-
-    // Filter by atmosphere
-    if (atmosphere !== "All Salons") {
-      const atm = atmosphere.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.gender_category?.toLowerCase().includes(atm) ||
-          s.tags?.some((t) => t.toLowerCase().includes(atm))
-      );
-    }
-
-    // Filter by Instant Slots
-    if (instantSlots) {
-      list = list.filter((s) => s.has_instant_slot);
-    }
-
-    // Filter by Distance Radius (dynamic)
-    if (distanceRadius && distanceRadius !== "Any") {
-      const maxDist = parseFloat(distanceRadius);
-      if (!isNaN(maxDist)) {
-        list = list.filter((s) => (s.distance_km || 1.5) <= maxDist);
-      }
-    }
-
-    // Filter by Min Rating
-    if (minRating > 0) {
-      list = list.filter((s) => (s.rating || 0) >= minRating);
-    }
-
-    // Filter by Price Tier
-    if (priceTier) {
-      list = list.filter((s) => s.price_tier === priceTier);
-    }
-
-    
-    if (selectedPurity.length > 0) {
-      list = list.filter((s) => {
-        return selectedPurity.some((purity) => {
-          if (purity.includes("Clean") || purity.includes("Non-Toxic")) {
-            return s.is_clean_purity || (s.purity_note && s.purity_note.toLowerCase().includes("clean"));
-          }
-          if (purity.includes("Promo") || purity.includes("First Booking")) {
-            return s.badge_type === "partner" || s.badge?.includes("Partner") || s.has_instant_slot;
-          }
-          if (purity.includes("Scalp") || purity.includes("Ritual")) {
-            return s.services?.some((srv) => srv.name?.toLowerCase().includes("spa") || srv.name?.toLowerCase().includes("scalp"));
-          }
-          return true;
-        });
-      });
-    }
-
-    // Time window filter
-    if (timeWindow === "Morning") {
-      list = list.filter((s) => {
-        const info = getSalonOpeningHoursInfo(s, selectedDate);
-        return info.isOpen && (info.hoursText.includes("AM") || !s.opening_hours);
-      });
-    } else if (timeWindow === "Evening") {
-      list = list.filter((s) => {
-        const info = getSalonOpeningHoursInfo(s, selectedDate);
-        return info.isOpen && (info.hoursText.includes("PM") || !s.opening_hours);
-      });
-    }
-
-    // Sorting
-    if (sortBy === "Highest Rated") {
-      list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    } else if (sortBy === "Nearest Distance") {
-      list.sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
-    }
-
-    return list;
   }, [
-    salonsList,
-    treatmentQuery,
+    currentPage,
+    pageSize,
+    debouncedQuery,
     locationParam,
     searchParams,
     selectedServices,
@@ -368,15 +261,42 @@ export default function SalonsExplore() {
     minRating,
     priceTier,
     selectedPurity,
-    timeWindow,
     sortBy,
   ]);
 
-  // Reset pagination when search, filters, or page size changes
+  const availableLocations = useMemo(() => {
+    const locs = new Set();
+    if (dbLocations.length > 0) {
+      dbLocations.forEach((c) => locs.add(c));
+    }
+    salonsList.forEach((s) => {
+      if (s.city) locs.add(s.city);
+    });
+    return ["All Locations", ...Array.from(locs).filter((l) => l !== "All Locations")];
+  }, [dbLocations, salonsList]);
+
+  const availableCategories = useMemo(() => {
+    const catSet = new Set();
+    servicesCatalog.forEach((cat) => {
+      if (cat.name) catSet.add(cat.name);
+    });
+    salonsList.forEach((s) => {
+      if (s.category) catSet.add(s.category);
+      if (s.tags && Array.isArray(s.tags)) {
+        s.tags.forEach((t) => catSet.add(t));
+      }
+    });
+    if (catSet.size === 0) {
+      return ["Hair", "Skin", "Spa", "Nails", "Beard"];
+    }
+    return Array.from(catSet);
+  }, [servicesCatalog, salonsList]);
+
+  // Reset pagination when search or filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [
-    treatmentQuery,
+    debouncedQuery,
     locationParam,
     searchParams,
     selectedServices,
@@ -391,12 +311,14 @@ export default function SalonsExplore() {
     pageSize,
   ]);
 
+  // Salons list is now paginated from backend
+  const filteredSalons = salonsList;
+  const paginatedSalons = salonsList;
+
   // Pagination Calculations
-  const totalPages = Math.max(1, Math.ceil(filteredSalons.length / pageSize));
   const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
-  const startIndex = (validCurrentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, filteredSalons.length);
-  const paginatedSalons = filteredSalons.slice(startIndex, endIndex);
+  const startIndex = totalCount > 0 ? (validCurrentPage - 1) * pageSize : 0;
+  const endIndex = Math.min(startIndex + salonsList.length, totalCount);
 
  
   
@@ -465,6 +387,7 @@ export default function SalonsExplore() {
   // Reset all filters
   const handleClearAll = () => {
     setTreatmentQuery("");
+    setLocationParam("All Locations");
     setInstantSlots(false);
     setDistanceRadius("Any");
     setMinRating(0);
@@ -603,7 +526,7 @@ export default function SalonsExplore() {
           <button
             type="button"
             className="btn-search-salons"
-            onClick={() => setToastMessage(filteredSalons.length > 0 ? `Showing ${filteredSalons.length} open salon(s)` : "No salons found matching your search")}
+            onClick={() => setToastMessage(totalCount > 0 ? `Showing ${totalCount} open salon(s)` : "No salons found matching your search")}
           >
             <span>🔍</span>
             <span>Search Salons</span>
@@ -790,7 +713,7 @@ export default function SalonsExplore() {
             <div className="results-title-group">
               <div className="results-title-row">
                 <h1 className="results-main-title">
-                  {filteredSalons.length} Botanical {filteredSalons.length === 1 ? "Salon" : "Salons"}
+                  {totalCount} Botanical {totalCount === 1 ? "Salon" : "Salons"}
                 </h1>
                 <span className="results-live-badge">
                   <span className="results-live-dot" />
@@ -983,12 +906,12 @@ export default function SalonsExplore() {
           )}
 
           {/* Pagination Controls */}
-          {filteredSalons.length > 0 && (
+          {totalCount > 0 && (
             <div className="explore-pagination-row">
               <div className="pagination-info-group">
                 <span className="pagination-counter">
                   Showing <strong>{startIndex + 1}–{endIndex}</strong> of{" "}
-                  <strong>{filteredSalons.length}</strong> partner salons
+                  <strong>{totalCount}</strong> partner salons
                 </span>
 
                 <div className="pagination-per-page">

@@ -156,6 +156,7 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             "assigned_services",
             "shift_hours",
             "commission_tier",
+            "commission_rate",
             "id_card_type",
             "id_card_number",
             "id_card_photo",
@@ -220,6 +221,7 @@ class WorkerCreateSerializer(serializers.Serializer):
     assigned_services = serializers.ListField(required=False, default=list)
     shift_hours = serializers.DictField(required=False, default=dict)
     commission_tier = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    commission_rate = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=60.00)
     id_card_type = serializers.CharField(max_length=50, required=False, allow_blank=True)
     id_card_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
     id_card_photo = serializers.CharField(required=False, allow_blank=True, write_only=True)
@@ -264,6 +266,7 @@ class WorkerCreateSerializer(serializers.Serializer):
         assigned_services = validated_data.get("assigned_services", [])
         shift_hours = validated_data.get("shift_hours", {})
         commission_tier = validated_data.get("commission_tier", "").strip() or "Tier 2 • Senior Specialist"
+        commission_rate = validated_data.get("commission_rate", 60.00)
         profile_photo = validated_data.get("profile_photo", "")
 
         raw_password = validated_data.get("password", "").strip()
@@ -317,6 +320,7 @@ class WorkerCreateSerializer(serializers.Serializer):
                 assigned_services=assigned_services,
                 shift_hours=shift_hours,
                 commission_tier=commission_tier,
+                commission_rate=commission_rate,
                 id_card_type=id_card_type,
                 id_card_number=id_card_number,
                 id_card_photo=saved_id_card,

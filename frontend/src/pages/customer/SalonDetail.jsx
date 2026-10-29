@@ -206,6 +206,23 @@ export default function SalonDetail() {
     }));
   };
 
+  const scrollToBooking = (stepKey = null) => {
+    if (!openSections.booking) {
+      setOpenSections((prev) => ({ ...prev, booking: true }));
+    }
+    if (stepKey) {
+      setOpenBookingSteps((prev) => ({ ...prev, [stepKey]: true }));
+    }
+    setTimeout(() => {
+      const el = document.getElementById("booking-card-anchor");
+      if (el) {
+        const yOffset = -80;
+        const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+    }, 50);
+  };
+
   // Keyboard navigation for photo lightbox gallery
   useEffect(() => {
     if (!isGalleryOpen) return;
@@ -1023,6 +1040,16 @@ export default function SalonDetail() {
           </nav>
 
           <div className="detail-top-actions">
+            <button
+              type="button"
+              className="top-action-book-btn"
+              onClick={() => scrollToBooking()}
+              title="Book Appointment at this Salon"
+            >
+              <span>📅 Book Appointment</span>
+              <span className="top-action-book-arrow">→</span>
+            </button>
+
             <button className="top-action-btn" onClick={handleShare} title="Share Salon">
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -1130,7 +1157,7 @@ export default function SalonDetail() {
               </div>
 
               <div className={`meta-pill status-pill ${salon.status?.toLowerCase().includes("closed") ? "status-closed" : ""}`} style={salon.status?.toLowerCase().includes("closed") ? { borderColor: "#fca5a5", background: "#fef2f2" } : {}}>
-                <span className="status-dot" style={salon.status?.toLowerCase().includes("closed") ? { background: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.2)" } : {}}></span>
+                <span className={`status-dot ${!salon.status?.toLowerCase().includes("closed") ? "status-dot--pulse" : ""}`} style={salon.status?.toLowerCase().includes("closed") ? { background: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.2)" } : {}}></span>
                 <span style={salon.status?.toLowerCase().includes("closed") ? { color: "#dc2626", fontWeight: "600" } : {}}>{salon.status}</span>
               </div>
 
@@ -1149,6 +1176,17 @@ export default function SalonDetail() {
                   Get Directions ↗
                 </a>
               </div>
+
+              <button
+                type="button"
+                className="meta-pill-book-shortcut"
+                onClick={() => scrollToBooking()}
+                title="Jump directly to appointment slot booking"
+              >
+                <span className="live-sparkle">⚡</span>
+                <span>Book Appointment</span>
+                <span className="shortcut-arrow">→</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1157,42 +1195,60 @@ export default function SalonDetail() {
       {/* Sticky Quick-Jump Navigation Bar */}
       <nav className="detail-subnav-sticky" aria-label="Salon Sections">
         <div className="salon-detail-container subnav-inner">
-          <button
-            className={`subnav-tab ${activeTab === "services" ? "active" : ""}`}
-            onClick={() => handleTabClick("services", "services-section")}
-          >
-            Services ({salon.services.length})
-          </button>
-          <button
-            className={`subnav-tab ${activeTab === "stylists" ? "active" : ""}`}
-            onClick={() => handleTabClick("stylists", "stylists-section")}
-          >
-            Stylists & Team ({salon.stylists.length})
-          </button>
-          <button
-            className={`subnav-tab ${activeTab === "amenities" ? "active" : ""}`}
-            onClick={() => handleTabClick("amenities", "amenities-section")}
-          >
-            Amenities
-          </button>
-          <button
-            className={`subnav-tab ${activeTab === "offers" ? "active" : ""}`}
-            onClick={() => handleTabClick("offers", "offers-section")}
-          >
-            Exclusive Offers
-          </button>
-          <button
-            className={`subnav-tab ${activeTab === "reviews" ? "active" : ""}`}
-            onClick={() => handleTabClick("reviews", "reviews-section")}
-          >
-            Reviews ({salon.reviewsCount})
-          </button>
-          <button
-            className={`subnav-tab ${activeTab === "location" ? "active" : ""}`}
-            onClick={() => handleTabClick("location", "location-section")}
-          >
-            Location & Hours
-          </button>
+          <div className="subnav-tabs-group">
+            <button
+              className={`subnav-tab ${activeTab === "services" ? "active" : ""}`}
+              onClick={() => handleTabClick("services", "services-section")}
+            >
+              Services ({salon.services.length})
+            </button>
+            <button
+              className={`subnav-tab ${activeTab === "stylists" ? "active" : ""}`}
+              onClick={() => handleTabClick("stylists", "stylists-section")}
+            >
+              Stylists & Team ({salon.stylists.length})
+            </button>
+            <button
+              className={`subnav-tab ${activeTab === "amenities" ? "active" : ""}`}
+              onClick={() => handleTabClick("amenities", "amenities-section")}
+            >
+              Amenities
+            </button>
+            <button
+              className={`subnav-tab ${activeTab === "offers" ? "active" : ""}`}
+              onClick={() => handleTabClick("offers", "offers-section")}
+            >
+              Exclusive Offers
+            </button>
+            <button
+              className={`subnav-tab ${activeTab === "reviews" ? "active" : ""}`}
+              onClick={() => handleTabClick("reviews", "reviews-section")}
+            >
+              Reviews ({salon.reviewsCount})
+            </button>
+            <button
+              className={`subnav-tab ${activeTab === "location" ? "active" : ""}`}
+              onClick={() => handleTabClick("location", "location-section")}
+            >
+              Location & Hours
+            </button>
+          </div>
+
+          <div className="subnav-right-actions">
+            <button
+              type="button"
+              className="subnav-book-cta-btn"
+              onClick={() => scrollToBooking()}
+              title="Jump to Book Appointment"
+            >
+              <span>📅 Book Appointment</span>
+              {selectedServices.length > 0 && (
+                <span className="subnav-book-pill">
+                  {selectedServices.length} Svc • ₹{billSummary.total.toLocaleString("en-IN")}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -1487,7 +1543,8 @@ export default function SalonDetail() {
                                     showToast("Deselected stylist. Switched back to Auto-Assign.");
                                   } else {
                                     setSelectedStylist(matchedEligible || stylist);
-                                    showToast(`Selected stylist: ${stylist.name}!`);
+                                    showToast(`Selected stylist: ${stylist.name}! Pick your time slot.`);
+                                    scrollToBooking("slots");
                                   }
                                 }}
                               >
@@ -1627,7 +1684,10 @@ export default function SalonDetail() {
                                 type="button"
                                 className="coupon-apply-btn"
                                 disabled={isCurrentApplied}
-                                onClick={() => handleApplyCoupon(offer)}
+                                onClick={() => {
+                                  handleApplyCoupon(offer);
+                                  scrollToBooking();
+                                }}
                               >
                                 {isCurrentApplied ? "✓ Applied" : "Apply Code"}
                               </button>
@@ -1894,12 +1954,15 @@ export default function SalonDetail() {
                 className="booking-card-header collapsible-header"
                 onClick={() => toggleSection("booking")}
               >
-                <div>
-                  <h3 className="booking-card-title">Book Appointment</h3>
-                  <div className="booking-card-sub">
-                    <span className="booking-card-rating">★ {salon.reviewsCount > 0 ? salon.rating : "New"}</span>
-                    <span>•</span>
-                    <span>{salon.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div className="booking-card-header-icon-box">📅</div>
+                  <div>
+                    <h3 className="booking-card-title">Book Appointment</h3>
+                    <div className="booking-card-sub">
+                      <span className="booking-card-rating">★ {salon.reviewsCount > 0 ? salon.rating : "New"}</span>
+                      <span>•</span>
+                      <span>{salon.name}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1940,13 +2003,34 @@ export default function SalonDetail() {
                             : "Pick Time Slot"
                         }`}
                   </span>
-                  <span className="progress-pct-text">{bookingCompletion} / 4</span>
+                  <span className="progress-pct-text">{bookingCompletion} / 4 Done</span>
                 </div>
                 <div className="booking-progress-bar">
                   <div
                     className="booking-progress-bar-fill"
                     style={{ width: `${(bookingCompletion / 4) * 100}%` }}
                   />
+                </div>
+
+                {/* 4 Interactive Quick Step Chips */}
+                <div className="booking-quick-step-chips">
+                  {[
+                    { key: "service", label: "1. Treatment", done: selectedServices.length > 0 },
+                    { key: "date", label: "2. Date", done: dateSlots[selectedDateIdx] && !dateSlots[selectedDateIdx].isOffDay },
+                    { key: "stylist", label: "3. Specialist", done: !!selectedStylist },
+                    { key: "slots", label: "4. Slot", done: !!selectedTimeSlot },
+                  ].map((step) => (
+                    <button
+                      key={step.key}
+                      type="button"
+                      className={`booking-quick-chip ${step.done ? "is-done" : ""} ${openBookingSteps[step.key] ? "is-active" : ""}`}
+                      onClick={() => toggleBookingStep(step.key)}
+                      title={`Toggle ${step.label}`}
+                    >
+                      <span>{step.done ? "✓" : "○"}</span>
+                      <span>{step.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -2572,6 +2656,17 @@ export default function SalonDetail() {
                 <span>Total Amount</span>
                 <span className="total-price-tag">₹{billSummary.total.toLocaleString("en-IN")}</span>
               </div>
+
+              {/* Advance Booking Policy Notice */}
+              <div className="bill-advance-notice">
+                <div className="bill-advance-row">
+                  <span className="advance-label">💵 Advance Booking Token:</span>
+                  <span className="advance-amount">₹100</span>
+                </div>
+                <div className="advance-subtext">
+                  ₹100 advance deducted from total • Remaining ₹{Math.max(0, billSummary.total - 100).toLocaleString("en-IN")} payable at salon after service.
+                </div>
+              </div>
             </div>
 
             {bookingError && (
@@ -2591,7 +2686,7 @@ export default function SalonDetail() {
             {/* STEP 6: Primary Action CTA */}
             <button
               type="button"
-              className="proceed-booking-cta"
+              className={`proceed-booking-cta ${bookingCompletion === 4 ? "proceed-booking-cta--ready" : ""}`}
               disabled={
                 loading ||
                 selectedServices.length === 0 ||
@@ -2633,9 +2728,10 @@ export default function SalonDetail() {
                 navigate(`${basePath}?${params.toString()}`);
               }}
             >
-              <span>
+              <span className="proceed-cta-icon">{bookingCompletion === 4 ? "⚡" : "👉"}</span>
+              <span className="proceed-cta-text">
                 {selectedServices.length === 0
-                  ? "Select a Treatment"
+                  ? "Select a Treatment to Begin"
                   : dateSlots[selectedDateIdx]?.isOffDay
                   ? "Salon Closed on Selected Date"
                   : slotClosedReason
@@ -2643,16 +2739,14 @@ export default function SalonDetail() {
                   : slotWorkerUnavailableReason
                   ? "Specialist Unavailable"
                   : !selectedStylist
-                  ? "Select a Stylist"
+                  ? "Select a Stylist or Auto-Assign"
                   : slotsLoading
-                  ? "Loading Slots…"
+                  ? "Loading Available Slots…"
                   : !selectedTimeSlot
-                  ? "Select a Time Slot"
-                  : "Review & Confirm Booking"}
+                  ? "Pick a Time Slot"
+                  : `Proceed to Book Appointment (₹${billSummary.total.toLocaleString("en-IN")})`}
               </span>
-              {selectedServices.length > 0 && !dateSlots[selectedDateIdx]?.isOffDay && !slotClosedReason && !slotWorkerUnavailableReason && selectedStylist && !slotsLoading && selectedTimeSlot && (
-                <span className="cta-arrow">→</span>
-              )}
+              {bookingCompletion === 4 && <span className="cta-arrow">→</span>}
             </button>
 
             <div className="cancellation-policy-box">
@@ -2730,17 +2824,7 @@ export default function SalonDetail() {
           <button
             type="button"
             className="mobile-bar-action-btn"
-            onClick={() => {
-              if (!openSections.booking) {
-                setOpenSections((prev) => ({ ...prev, booking: true }));
-              }
-              const el = document.getElementById("booking-card-anchor");
-              if (el) {
-                const yOffset = -70;
-                const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
-                window.scrollTo({ top: y, behavior: "smooth" });
-              }
-            }}
+            onClick={() => scrollToBooking()}
           >
             <span>
               {bookingCompletion === 4

@@ -4,6 +4,8 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import WorkerHeader from "../../components/worker/WorkerHeader";
 import WorkerSalonBanner from "../../components/worker/WorkerSalonBanner";
+import WorkerRevenueTab from "../../components/worker/WorkerRevenueTab";
+import WorkerAppointmentsTab from "../../components/worker/WorkerAppointmentsTab";
 import "../../styles/workerDashboard.css";
 
 const formatLocalDate = (date) => {
@@ -45,11 +47,16 @@ export default function WorkerDashboard() {
   };
 
   useEffect(() => {
-    if (location.state?.view === "all") {
-      setActiveDateTab("all");
+    if (location.pathname === "/worker/revenue" || location.state?.view === "revenue") {
+      setActiveNavTab("revenue");
+    } else if (
+      location.pathname === "/worker/appointments" ||
+      location.state?.view === "appointments" ||
+      location.state?.view === "all"
+    ) {
       setActiveNavTab("appointments");
     }
-  }, [location.state]);
+  }, [location.pathname, location.state]);
 
   const [salonInfo, setSalonInfo] = useState({
     id: null,
@@ -71,6 +78,7 @@ export default function WorkerDashboard() {
     settled_earnings: 0,
   });
 
+
   const stylistProfile = useMemo(() => {
     const defaultName = "Specialist";
     const name =
@@ -81,10 +89,9 @@ export default function WorkerDashboard() {
       name,
       roleBadge: workerData?.specialization || "Senior Specialist",
       chair: workerData?.station || "Chair #01 Station",
-      shift: workerData?.shift_hours?.start
-        ? `Shift: ${workerData.shift_hours.start} - ${workerData.shift_hours.end}`
+      shift: workerData?.shift_hours?.time_in
+        ? `Shift: ${workerData.shift_hours.time_in} - ${workerData.shift_hours.time_out}`
         : "Shift: 10:00 AM - 07:00 PM",
-      stationStatus: "Prepped & Active",
       workloadNote: `Assigned Station at ${salonInfo.name}`,
       avatar:
         workerData?.profile_photo ||
@@ -112,6 +119,8 @@ export default function WorkerDashboard() {
           setLatestReview(res.data.latest_review);
         }
       }
+      console.log(res);
+      
     } catch (err) {
       console.warn("Using baseline stylist suite design data:", err?.message);
     }
@@ -349,10 +358,6 @@ export default function WorkerDashboard() {
     showToast(`Paging Reception Lounge: ${heroAppointment.clientName} called to ${stylistProfile.chair}.`);
   };
 
-  const handlePrintRunSheet = () => {
-    window.print();
-  };
-
   
   const filteredUpcoming = useMemo(() => {
     if (!searchQuery.trim()) return upcomingQueue;
@@ -406,7 +411,12 @@ export default function WorkerDashboard() {
         
         <WorkerSalonBanner salonInfo={salonInfo} />
 
-       
+        {activeNavTab === "revenue" ? (
+          <WorkerRevenueTab />
+        ) : activeNavTab === "appointments" ? (
+          <WorkerAppointmentsTab />
+        ) : (
+          <>
         <section className="wd-stylist-hero-card">
           <div className="wd-stylist-left">
             <div className="wd-avatar-wrapper">
@@ -449,8 +459,7 @@ export default function WorkerDashboard() {
                 <strong>{salonInfo.name}</strong>
                 <span>•</span>
                 <span>{stylistProfile.shift}</span>
-                <span>•</span>
-                <span className="wd-prepped-status">✓ {stylistProfile.stationStatus}</span>
+                
               </div>
               <div className="wd-workload-subtext">{stylistProfile.workloadNote}</div>
             </div>
@@ -477,7 +486,12 @@ export default function WorkerDashboard() {
         
         <section className="wd-kpi-grid">
           {/* Card 1: Today's Appointments */}
-          <div className="wd-kpi-card">
+          <div
+            className="wd-kpi-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setActiveNavTab("appointments")}
+            title="Click to view all appointments table"
+          >
             <div>
               <div className="wd-kpi-top-row">
                 <span className="wd-kpi-title">TODAY&apos;S APPOINTMENTS</span>
@@ -489,12 +503,17 @@ export default function WorkerDashboard() {
               </div>
             </div>
             <div className="wd-kpi-trend">
-              <span>🏛️</span> {salonInfo.name}
+              <span>📅</span> Manage Appointments &rarr;
             </div>
           </div>
 
           {/* Card 2: Settled Earnings */}
-          <div className="wd-kpi-card">
+          <div
+            className="wd-kpi-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setActiveNavTab("revenue")}
+            title="Click to view Revenue Hub & Transaction Ledger"
+          >
             <div>
               <div className="wd-kpi-top-row">
                 <span className="wd-kpi-title">SETTLED EARNINGS</span>
@@ -504,7 +523,7 @@ export default function WorkerDashboard() {
               <div className="wd-kpi-subtext">Completed &amp; paid sessions</div>
             </div>
             <div className="wd-kpi-trend">
-              <span>📈</span> {kpiStats.completed_bookings ?? completedList.length} Sessions Settled
+              <span>📈</span> View Revenue Hub &rarr;
             </div>
           </div>
 
@@ -1185,6 +1204,8 @@ export default function WorkerDashboard() {
             </div>
           </aside>
         </div>
+          </>
+        )}
       </main>
 
       {/*  FIXED STICKY BOTTOM ACTION BAR  */}
@@ -1204,13 +1225,7 @@ export default function WorkerDashboard() {
           </div>
 
           <div className="wd-sticky-actions">
-            <button
-              type="button"
-              className="btn-sticky-print"
-              onClick={handlePrintRunSheet}
-            >
-              <span>🖨️</span> Print Day Run Sheet
-            </button>
+            
             {heroAppointment && (
               <button
                 type="button"

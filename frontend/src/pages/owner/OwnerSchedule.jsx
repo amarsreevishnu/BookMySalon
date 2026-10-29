@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import "../../styles/ownerSchedule.css";
 
 export default function OwnerSchedule() {
@@ -396,6 +397,9 @@ export default function OwnerSchedule() {
           {toastMessage}
         </div>
       )}
+
+      {/* Sticky Salon Details Footer Label */}
+      <OwnerStickyFooter />
     </div>
   );
 }

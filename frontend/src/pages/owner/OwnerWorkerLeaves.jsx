@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
+import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import "../../styles/ownerWorkerLeaves.css";
 
 const LEAVE_TYPES = [
@@ -908,6 +909,9 @@ export default function OwnerWorkerLeaves() {
           {toastMessage}
         </div>
       )}
+
+      {/* Sticky Salon Details Footer Label */}
+      <OwnerStickyFooter />
     </div>
   );
 }

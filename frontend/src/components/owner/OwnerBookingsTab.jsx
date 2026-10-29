@@ -665,16 +665,35 @@ export default function OwnerBookingsTab({
                           style={{
                             display: "inline-block",
                             marginTop: "2px",
-                            fontSize: "10.5px",
+                            fontSize: "10px",
                             fontWeight: 700,
                             padding: "2px 6px",
                             borderRadius: "4px",
-                            background: b.payment_status === "PAID" ? "#eaf7ef" : "#fef3c7",
-                            color: b.payment_status === "PAID" ? "#1e824c" : "#92400e",
+                            background:
+                              b.payment_status === "PAID"
+                                ? "#eaf7ef"
+                                : b.is_advance_paid
+                                ? "#eff6ff"
+                                : "#fef3c7",
+                            color:
+                              b.payment_status === "PAID"
+                                ? "#1e824c"
+                                : b.is_advance_paid
+                                ? "#1d4ed8"
+                                : "#92400e",
                           }}
                         >
-                          {b.payment_status === "PAID" ? "PAID" : "PENDING"}
+                          {b.payment_status === "PAID"
+                            ? "PAID"
+                            : b.is_advance_paid
+                            ? `₹${Number(b.advance_amount || 100)} ADVANCE`
+                            : "PENDING"}
                         </span>
+                        {b.is_advance_paid && Number(b.remaining_amount) > 0 && b.status !== "COMPLETED" && (
+                          <div style={{ fontSize: "10.5px", color: "#b45309", fontWeight: 700, marginTop: "2px" }}>
+                            Due: ₹{Number(b.remaining_amount)}
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}

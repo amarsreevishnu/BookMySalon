@@ -28,6 +28,8 @@ from .views import (
     SalonResendEmailOTPView,
     SalonResubmitDataView,
     SalonResubmitView,
+    WorkerAppointmentsListView,
+    WorkerAppointmentDetailView,
     WorkerBookingStatusUpdateView,
     WorkerDashboardView,
     WorkerLeaveCancelView,
@@ -122,6 +124,16 @@ urlpatterns = [
         "worker/bookings/<int:pk>/status/",
         WorkerBookingStatusUpdateView.as_view(),
         name="worker-booking-status-update",
+    ),
+    path(
+        "worker/appointments/",
+        WorkerAppointmentsListView.as_view(),
+        name="worker-appointments-list",
+    ),
+    path(
+        "worker/appointments/<int:pk>/",
+        WorkerAppointmentDetailView.as_view(),
+        name="worker-appointment-detail",
     ),
     path(
         "explore/",

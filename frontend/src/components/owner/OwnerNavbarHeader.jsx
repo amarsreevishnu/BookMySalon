@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import api from "../../api/axios";
 import NotificationBell from "../common/NotificationBell";
 import "../../styles/ownerNavbar.css";
 
@@ -12,12 +13,70 @@ export default function OwnerNavbarHeader({
   showQuickWalkIn = true,
   showExportReport = true,
   customActions,
+  salonInfo,
 }) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
 
-  
+  // Fallback salon info fetching if salonInfo prop is not provided
+  const [fetchedSalon, setFetchedSalon] = useState(null);
+
+  useEffect(() => {
+    if (!salonInfo || !salonInfo.name) {
+      let isMounted = true;
+      api
+        .get("/salons/owner/dashboard/")
+        .then((res) => {
+          if (isMounted && res.data?.salon_info) {
+            setFetchedSalon(res.data.salon_info);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [salonInfo]);
+
+  const activeSalon = useMemo(() => {
+    if (salonInfo?.name) return salonInfo;
+    if (fetchedSalon?.name) return fetchedSalon;
+    return { name: "Salon Studio", city: "" };
+  }, [salonInfo, fetchedSalon]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
+      }
+    };
+    if (showProfileDropdown) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showProfileDropdown]);
+
+  // Close dropdown on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowProfileDropdown(false);
+      }
+    };
+    if (showProfileDropdown) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showProfileDropdown]);
+
   const handleLogout = () => {
     logout();
     setShowLogoutModal(false);
@@ -25,6 +84,7 @@ export default function OwnerNavbarHeader({
   };
 
   const handleSettingsClick = () => {
+    setShowProfileDropdown(false);
     if (onSettingsClick) {
       onSettingsClick();
     } else {
@@ -32,10 +92,20 @@ export default function OwnerNavbarHeader({
     }
   };
 
+  const userName = useMemo(() => {
+    if (user?.first_name) {
+      return `${user.first_name} ${user.last_name || ""}`.trim();
+    }
+    return user?.name || "Salon Owner";
+  }, [user]);
 
-   return (
+  const userAvatar =
+    user?.profile_photo ||
+    user?.avatar ||
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80";
+
+  return (
     <>
-     
       <header className="studio-header">
         <div className="studio-header-inner">
           {/* Logo & Studio Brand */}
@@ -47,7 +117,6 @@ export default function OwnerNavbarHeader({
             </div>
           </Link>
 
-          
           {/* Top Actions */}
           <div className="studio-header-actions">
             {customActions}
@@ -77,7 +146,7 @@ export default function OwnerNavbarHeader({
                   if (onExportReport) {
                     onExportReport();
                   } else {
-                    alert("Exporting daily operational report...");
+                    window.print();
                   }
                 }}
               >
@@ -104,7 +173,7 @@ export default function OwnerNavbarHeader({
             <button
               type="button"
               className="studio-icon-btn"
-              title="Settings"
+              title="Settings & Security"
               onClick={handleSettingsClick}
             >
               <svg
@@ -122,19 +191,160 @@ export default function OwnerNavbarHeader({
               </svg>
             </button>
 
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-              alt={user?.first_name || "Owner Avatar"}
-              className="studio-user-avatar"
-              title="Salon Manager • Click to Logout"
-              onClick={() => setShowLogoutModal(true)  }
-            />
+            {/* Profile Avatar & Interactive Dropdown Menu */}
+            <div className="studio-profile-menu-wrapper" ref={profileDropdownRef}>
+              <button
+                type="button"
+                className="studio-user-avatar-btn"
+                onClick={() => setShowProfileDropdown((prev) => !prev)}
+                title="Salon Manager Profile & Options"
+                aria-expanded={showProfileDropdown}
+              >
+                <img
+                  src={userAvatar}
+                  alt={userName}
+                  className="studio-user-avatar"
+                />
+                <span className="studio-user-status-dot" title="Active Master Admin" />
+              </button>
+
+              {showProfileDropdown && (
+                <div className="studio-profile-dropdown">
+                  {/* User Profile Header */}
+                  <div className="studio-dropdown-header">
+                    <img
+                      src={userAvatar}
+                      alt={userName}
+                      className="studio-dropdown-avatar"
+                    />
+                    <div className="studio-dropdown-user-info">
+                      <div className="studio-dropdown-name">{userName}</div>
+                      <span className="studio-dropdown-role">Owner • Master Admin</span>
+                      <div className="studio-dropdown-email">
+                        {user?.email || "owner@bookmysalon.com"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {activeSalon?.name && (
+                    <div className="studio-dropdown-salon-meta">
+                      <span className="studio-dropdown-salon-icon">🏛️</span>
+                      <div className="studio-dropdown-salon-text">
+                        <strong>{activeSalon.name}</strong>
+                        {activeSalon.city && <span> • {activeSalon.city}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="studio-dropdown-divider" />
+
+                  {/* Menu Items */}
+                  <div className="studio-dropdown-items">
+                    <button
+                      type="button"
+                      className="studio-dropdown-item"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        navigate("/owner/salon-profile");
+                      }}
+                    >
+                      <span className="studio-dropdown-item-icon">👤</span>
+                      <div className="studio-dropdown-item-content">
+                        <span className="studio-dropdown-item-title">Salon Profile</span>
+                        <span className="studio-dropdown-item-sub">View &amp; edit salon details</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="studio-dropdown-item"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        if (onSettingsClick) {
+                          onSettingsClick();
+                        } else {
+                          navigate("/owner/dashboard", { state: { targetTab: "Settings" } });
+                        }
+                      }}
+                    >
+                      <span className="studio-dropdown-item-icon">⚙️</span>
+                      <div className="studio-dropdown-item-content">
+                        <span className="studio-dropdown-item-title">Settings &amp; Security</span>
+                        <span className="studio-dropdown-item-sub">Credentials &amp; password</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="studio-dropdown-item"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        navigate("/owner/dashboard", { state: { targetTab: "Revenue" } });
+                      }}
+                    >
+                      <span className="studio-dropdown-item-icon">💰</span>
+                      <div className="studio-dropdown-item-content">
+                        <span className="studio-dropdown-item-title">Revenue &amp; Wallet</span>
+                        <span className="studio-dropdown-item-sub">Ledger, earnings &amp; advances</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="studio-dropdown-item"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        navigate("/owner/workers");
+                      }}
+                    >
+                      <span className="studio-dropdown-item-icon">👥</span>
+                      <div className="studio-dropdown-item-content">
+                        <span className="studio-dropdown-item-title">Specialists &amp; Staff</span>
+                        <span className="studio-dropdown-item-sub">Manage team &amp; duty roster</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="studio-dropdown-item"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        navigate("/owner/services");
+                      }}
+                    >
+                      <span className="studio-dropdown-item-icon">✨</span>
+                      <div className="studio-dropdown-item-content">
+                        <span className="studio-dropdown-item-title">Service Catalog</span>
+                        <span className="studio-dropdown-item-sub">Pricing, categories &amp; durations</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="studio-dropdown-divider" />
+
+                  {/* Logout Item */}
+                  <button
+                    type="button"
+                    className="studio-dropdown-item studio-dropdown-item--danger"
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      setShowLogoutModal(true);
+                    }}
+                  >
+                    <span className="studio-dropdown-item-icon">🚪</span>
+                    <div className="studio-dropdown-item-content">
+                      <span className="studio-dropdown-item-title">Logout</span>
+                      <span className="studio-dropdown-item-sub">End this active session</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-
-
+      {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div
           className="logout-modal-overlay"
@@ -143,7 +353,7 @@ export default function OwnerNavbarHeader({
           <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
             <div className="logout-modal-icon">
               <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
+                src={userAvatar}
                 alt="Owner Avatar"
                 className="studio-user-avatar"
                 style={{ width: "100%", height: "100%" }}

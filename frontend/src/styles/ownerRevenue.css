@@ -1,0 +1,766 @@
+/* ==========================================================================
+   BookMySalon — Owner Revenue & Financial Management Hub
+   Theme: Emerald #2d5a43, Deep Forest #1b382b, Gold #d4af37, Warm White
+   ========================================================================== */
+
+.revenue-hub-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeInRevenue 0.35s ease-out;
+}
+
+@keyframes fadeInRevenue {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Master Wallet Hero Banner                                                  */
+/* -------------------------------------------------------------------------- */
+.revenue-wallet-hero {
+  background: linear-gradient(135deg, #1b382b 0%, #2d5a43 60%, #3d7256 100%);
+  border-radius: 18px;
+  padding: 32px 36px;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(27, 56, 43, 0.22);
+}
+
+.revenue-wallet-hero::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.revenue-hero-left {
+  position: relative;
+  z-index: 1;
+}
+
+.revenue-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e2f4ea;
+  margin-bottom: 12px;
+}
+
+.revenue-hero-tag .tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 10px #4ade80;
+}
+
+.revenue-hero-balance-label {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.82);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.revenue-hero-balance-val {
+  font-size: 3rem;
+  font-weight: 800;
+  font-family: var(--studio-font-sans);
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.1;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.revenue-hero-subtitle {
+  margin-top: 10px;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.revenue-hero-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.revenue-refresh-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.revenue-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Metric Cards Grid                                                          */
+/* -------------------------------------------------------------------------- */
+.revenue-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.rev-metric-card {
+  background: #ffffff;
+  border: 1px solid var(--studio-border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--studio-shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rev-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--studio-shadow-md);
+}
+
+.rev-metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rev-metric-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--studio-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rev-metric-icon {
+  font-size: 1.25rem;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--studio-bg);
+}
+
+.rev-metric-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--studio-text-main);
+  letter-spacing: -0.02em;
+}
+
+.rev-metric-subtext {
+  font-size: 0.78rem;
+  color: var(--studio-text-subtle);
+}
+
+/* Highlight badge modifiers */
+.rev-metric-card.accent-green .rev-metric-value {
+  color: #1b4332;
+}
+
+.rev-metric-card.accent-blue .rev-metric-value {
+  color: #1e3a8a;
+}
+
+.rev-metric-card.accent-purple .rev-metric-value {
+  color: #6b21a8;
+}
+
+.rev-metric-card.accent-red .rev-metric-value {
+  color: #b91c1c;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Revenue Sub-Nav Tabs                                                       */
+/* -------------------------------------------------------------------------- */
+.revenue-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--studio-border);
+  padding-bottom: 2px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.revenue-nav-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.rev-tab-btn {
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--studio-text-muted);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rev-tab-btn:hover {
+  color: var(--studio-primary);
+  background: rgba(45, 90, 67, 0.04);
+}
+
+.rev-tab-btn.active {
+  color: var(--studio-primary);
+  font-weight: 700;
+}
+
+.rev-tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--studio-primary);
+  border-radius: 3px 3px 0 0;
+}
+
+.rev-pill-badge {
+  background: #eef4f0;
+  color: var(--studio-primary);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Filter & Search Bar                                                        */
+/* -------------------------------------------------------------------------- */
+.rev-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  padding: 14px 18px;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+}
+
+.rev-search-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--studio-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.rev-search-input-wrap input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.88rem;
+  color: var(--studio-text-main);
+}
+
+.rev-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rev-filter-pill {
+  border: 1px solid var(--studio-border);
+  background: #ffffff;
+  color: var(--studio-text-muted);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rev-filter-pill:hover {
+  border-color: var(--studio-primary);
+  color: var(--studio-primary);
+}
+
+.rev-filter-pill.active {
+  background: var(--studio-primary);
+  border-color: var(--studio-primary);
+  color: #ffffff;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ledger Tables                                                              */
+/* -------------------------------------------------------------------------- */
+.rev-table-card {
+  background: #ffffff;
+  border: 1px solid var(--studio-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--studio-shadow-sm);
+}
+
+.rev-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.rev-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.rev-table th {
+  background: #f8faf9;
+  color: var(--studio-text-muted);
+  font-weight: 600;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--studio-border);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.rev-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--studio-border-subtle);
+  color: var(--studio-text-main);
+  vertical-align: middle;
+}
+
+.rev-table tbody tr:hover {
+  background: #fafdfb;
+}
+
+/* Status Badges */
+.rev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rev-badge--credit {
+  background: #eaf7ef;
+  color: #1e824c;
+}
+
+.rev-badge--debit {
+  background: #fdeeee;
+  color: #c0392b;
+}
+
+.rev-badge--advance {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.rev-badge--remaining {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.rev-badge--full {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.rev-badge--refund {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Narrative cell */
+.rev-narrative-cell {
+  max-width: 420px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #2c3e35;
+}
+
+.rev-narrative-cell strong {
+  color: var(--studio-primary);
+}
+
+.rev-amount-cell {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.rev-amount-cell.credit {
+  color: #15803d;
+}
+
+.rev-amount-cell.debit {
+  color: #b91c1c;
+}
+
+/* Pagination */
+.rev-pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #fbfdfc;
+  border-top: 1px solid var(--studio-border);
+  font-size: 0.84rem;
+  color: var(--studio-text-muted);
+}
+
+.rev-page-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rev-page-btn {
+  border: 1px solid var(--studio-border);
+  background: #ffffff;
+  color: var(--studio-text-main);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rev-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rev-page-btn:not(:disabled):hover {
+  background: var(--studio-bg);
+  border-color: var(--studio-primary);
+  color: var(--studio-primary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Staff Earnings Grid & Cards                                                */
+/* -------------------------------------------------------------------------- */
+.rev-worker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.rev-worker-card {
+  background: #ffffff;
+  border: 1px solid var(--studio-border);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: var(--studio-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+.rev-worker-card:hover {
+  box-shadow: var(--studio-shadow-md);
+  border-color: #cbdad1;
+}
+
+.rev-worker-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rev-worker-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eef4f0;
+  border: 2px solid var(--studio-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--studio-primary);
+}
+
+.rev-worker-info h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--studio-text-main);
+  margin: 0 0 2px 0;
+}
+
+.rev-worker-info p {
+  font-size: 0.8rem;
+  color: var(--studio-text-muted);
+  margin: 0;
+}
+
+.rev-worker-tier-tag {
+  display: inline-block;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.rev-worker-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: var(--studio-bg);
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.rev-w-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.rev-w-stat-col .lbl {
+  font-size: 0.72rem;
+  color: var(--studio-text-subtle);
+  text-transform: uppercase;
+}
+
+.rev-w-stat-col .val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--studio-text-main);
+}
+
+.rev-w-stat-col .val.green {
+  color: #15803d;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modal Styling (Collect Remaining & Refund)                                 */
+/* -------------------------------------------------------------------------- */
+.rev-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.rev-modal-box {
+  background: #ffffff;
+  width: 100%;
+  max-width: 520px;
+  border-radius: 18px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: modalScale 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScale {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.rev-modal-header {
+  padding: 20px 24px;
+  background: #f8faf9;
+  border-bottom: 1px solid var(--studio-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rev-modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--studio-text-main);
+  font-weight: 700;
+}
+
+.rev-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--studio-text-muted);
+}
+
+.rev-modal-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rev-breakdown-box {
+  background: var(--studio-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.rev-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--studio-text-muted);
+}
+
+.rev-breakdown-row.total {
+  border-top: 1px dashed var(--studio-border);
+  padding-top: 8px;
+  font-weight: 700;
+  font-size: 0.96rem;
+  color: var(--studio-text-main);
+}
+
+.rev-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rev-form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--studio-text-main);
+}
+
+.rev-form-control {
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  outline: none;
+  color: var(--studio-text-main);
+  background: #ffffff;
+}
+
+.rev-form-control:focus {
+  border-color: var(--studio-primary);
+  box-shadow: 0 0 0 3px var(--studio-primary-glow);
+}
+
+.rev-modal-footer {
+  padding: 18px 24px;
+  background: #f8faf9;
+  border-top: 1px solid var(--studio-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-rev-secondary {
+  background: #ffffff;
+  border: 1px solid var(--studio-border);
+  color: var(--studio-text-main);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.btn-rev-primary {
+  background: var(--studio-primary);
+  border: 1px solid var(--studio-primary);
+  color: #ffffff;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-rev-primary:hover {
+  background: var(--studio-primary-hover);
+}
+
+.btn-rev-danger {
+  background: #dc2626;
+  border: 1px solid #dc2626;
+  color: #ffffff;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+

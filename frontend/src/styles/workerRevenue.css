@@ -1,0 +1,819 @@
+/* ==========================================================================
+   BookMySalon — Worker Revenue & Commission Management Hub
+   Theme: Deep Forest Teal #0f2b24, Emerald #10b981, Gold #d4af37, Slate #0f172a
+   ========================================================================== */
+
+.worker-revenue-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeInWorkerRevenue 0.35s ease-out;
+}
+
+@keyframes fadeInWorkerRevenue {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Master Worker Wallet Hero Banner                                           */
+/* -------------------------------------------------------------------------- */
+.worker-wallet-hero {
+  background: linear-gradient(135deg, #092019 0%, #134234 50%, #1b5b48 100%);
+  border-radius: 20px;
+  padding: 32px 36px;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(15, 43, 36, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.worker-wallet-hero::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.worker-hero-left {
+  position: relative;
+  z-index: 1;
+}
+
+.worker-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a7f3d0;
+  margin-bottom: 12px;
+}
+
+.worker-hero-tag .tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 10px #34d399;
+}
+
+.worker-hero-balance-label {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.82);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.worker-hero-balance-val {
+  font-size: 3.2rem;
+  font-weight: 800;
+  font-family: inherit;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.1;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.worker-hero-subtitle {
+  margin-top: 10px;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.82);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.worker-hero-subtitle span.pill {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #e6fffa;
+  font-weight: 500;
+}
+
+.worker-hero-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.worker-commission-badge {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  padding: 12px 20px;
+  border-radius: 14px;
+  text-align: right;
+  backdrop-filter: blur(10px);
+}
+
+.worker-commission-rate-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #6ee7b7;
+  line-height: 1;
+}
+
+.worker-commission-rate-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+.worker-hero-refresh-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.worker-hero-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Filter & Date Selection Bar                                                */
+/* -------------------------------------------------------------------------- */
+.worker-date-filter-bar {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.worker-date-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.worker-date-pill-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.worker-date-pill-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.worker-date-pill-btn.active {
+  background: #0f2b24;
+  border-color: #0f2b24;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 43, 36, 0.25);
+}
+
+.worker-custom-date-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.worker-date-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.worker-date-input-wrap input[type="date"] {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #1e293b;
+  outline: none;
+  font-family: inherit;
+}
+
+.worker-date-input-wrap input[type="date"]:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.worker-apply-dates-btn {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.worker-apply-dates-btn:hover {
+  background: #059669;
+}
+
+.worker-reset-dates-btn {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.worker-reset-dates-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 4-Card Revenue Stats Grid                                                  */
+/* -------------------------------------------------------------------------- */
+.worker-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 1024px) {
+  .worker-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .worker-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.worker-stat-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.worker-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+}
+
+.worker-stat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.worker-stat-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+}
+
+.worker-stat-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.worker-stat-icon-wrap.emerald {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.worker-stat-icon-wrap.teal {
+  background: #f0fdfa;
+  color: #0d9488;
+}
+
+.worker-stat-icon-wrap.indigo {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.worker-stat-icon-wrap.gold {
+  background: #fefce8;
+  color: #ca8a04;
+}
+
+.worker-stat-val {
+  font-size: 1.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.worker-stat-subtext {
+  font-size: 0.8rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.worker-stat-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.worker-stat-badge.green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.worker-stat-badge.blue {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sub-Tabs Navigation (Booking Earnings vs Transaction Ledger)               */
+/* -------------------------------------------------------------------------- */
+.worker-revenue-tabs-nav {
+  display: flex;
+  gap: 12px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 2px;
+  margin-top: 6px;
+}
+
+.worker-subtab-btn {
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.worker-subtab-btn:hover {
+  color: #0f172a;
+}
+
+.worker-subtab-btn.active {
+  color: #0f2b24;
+}
+
+.worker-subtab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #10b981;
+  border-radius: 3px;
+}
+
+.worker-tab-count-pill {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.worker-subtab-btn.active .worker-tab-count-pill {
+  background: #0f2b24;
+  color: #ffffff;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Search & Filter Controls Bar for Lists                                     */
+/* -------------------------------------------------------------------------- */
+.worker-table-controls {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px 18px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.worker-search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 440px;
+}
+
+.worker-search-input-wrap span.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.worker-search-input-wrap input {
+  width: 100%;
+  padding: 9px 14px 9px 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: #0f172a;
+  outline: none;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.worker-search-input-wrap input:focus {
+  background: #ffffff;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+
+.worker-filter-select-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.worker-filter-select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.85rem;
+  color: #334155;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.worker-filter-select:focus {
+  border-color: #10b981;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Data Tables (Booking Earnings & Transaction Ledger)                        */
+/* -------------------------------------------------------------------------- */
+.worker-table-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.worker-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.worker-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.worker-data-table thead {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.worker-data-table th {
+  padding: 14px 18px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.worker-data-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s ease;
+}
+
+.worker-data-table tbody tr:hover {
+  background: #fcfdfd;
+}
+
+.worker-data-table td {
+  padding: 16px 18px;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.worker-booking-id-pill {
+  font-weight: 700;
+  color: #0f2b24;
+  background: #ecfdf5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  display: inline-block;
+}
+
+.worker-client-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.worker-client-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.worker-service-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.worker-service-title {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.worker-service-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.worker-earning-highlight {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #059669;
+}
+
+.worker-reversal-highlight {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #dc2626;
+}
+
+.worker-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.worker-status-badge.credited {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.worker-status-badge.reversed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.worker-status-badge.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.worker-status-badge.credit-flow {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.worker-status-badge.debit-flow {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.worker-desc-cell {
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.4;
+  max-width: 320px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pagination & Footer                                                        */
+/* -------------------------------------------------------------------------- */
+.worker-table-footer {
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.worker-footer-count {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.worker-pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.worker-page-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.worker-page-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.worker-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.worker-page-indicator {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  padding: 0 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Empty & Loading States                                                     */
+/* -------------------------------------------------------------------------- */
+.worker-empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: #64748b;
+}
+
+.worker-empty-icon {
+  font-size: 2.8rem;
+  margin-bottom: 12px;
+}
+
+.worker-empty-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.worker-empty-sub {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.worker-loading-state {
+  padding: 60px 24px;
+  text-align: center;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.worker-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spinWorker 0.8s linear infinite;
+}
+
+@keyframes spinWorker {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive Adjustments                                                     */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .worker-wallet-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px 20px;
+    gap: 20px;
+  }
+
+  .worker-hero-balance-val {
+    font-size: 2.5rem;
+  }
+
+  .worker-hero-right {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .worker-commission-badge {
+    text-align: left;
+    width: 100%;
+  }
+
+  .worker-date-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .worker-custom-date-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+

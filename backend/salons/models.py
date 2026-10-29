@@ -91,6 +91,12 @@ class WorkerProfile(models.Model):
     assigned_services = models.JSONField(default=list, blank=True)
     shift_hours = models.JSONField(default=dict, blank=True)
     commission_tier = models.CharField(max_length=100, blank=True, default="Tier 2 • Senior Specialist")
+    commission_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=60.00,
+        help_text="Worker commission share percentage (e.g. 60.00 for 60%).",
+    )
     
     id_card_type = models.CharField(max_length=50, blank=True, default="Aadhaar Card")
     id_card_number = models.CharField(max_length=50, blank=True, default="")

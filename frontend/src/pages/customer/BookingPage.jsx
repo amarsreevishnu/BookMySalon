@@ -421,8 +421,9 @@ export default function BookingPage() {
       client_email: clientEmail.trim(),
       notes: notes.trim(),
       payment_method: paymentMethod,
+      is_token_only: Boolean(isTokenOnly && paymentMethod === "ONLINE"),
+      payment_type: (isTokenOnly && paymentMethod === "ONLINE") ? "ADVANCE" : "FULL",
       voucher_code: appliedVoucher?.code || "",
-      discount_amount: discountAmount,
     };
     if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
       payload.worker_id = Number(selectedWorker);

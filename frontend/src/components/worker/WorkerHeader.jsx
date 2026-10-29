@@ -148,6 +148,20 @@ export default function WorkerHeader({
 
               <button
                 type="button"
+                className={`wd-nav-tab ${activeTab === "revenue" ? "active" : ""}`}
+                onClick={() => {
+                  if (onTabChange) {
+                    onTabChange("revenue");
+                  } else {
+                    navigate("/worker/dashboard", { state: { view: "revenue" } });
+                  }
+                }}
+              >
+                Revenue
+              </button>
+
+              <button
+                type="button"
                 className={`wd-nav-tab ${activeTab === "leaves" ? "active" : ""}`}
                 onClick={() => {
                   if (activeTab === "leaves" && onTabChange) {
@@ -265,6 +279,22 @@ export default function WorkerHeader({
                     className="wd-dropdown-item"
                     onClick={() => {
                       setShowProfileDropdown(false);
+                      if (onTabChange) {
+                        onTabChange("revenue");
+                      } else {
+                        navigate("/worker/dashboard", { state: { view: "revenue" } });
+                      }
+                    }}
+                  >
+                    <span className="wd-dropdown-icon">💰</span>
+                    <span>Revenue &amp; Wallet</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wd-dropdown-item"
+                    onClick={() => {
+                      setShowProfileDropdown(false);
                       navigate("/worker/leave");
                     }}
                   >
@@ -326,6 +356,19 @@ export default function WorkerHeader({
             >
               <span>📅</span>
               <span>Appointments</span>
+            </button>
+
+            <button
+              type="button"
+              className={`wd-mobile-drawer-link ${activeTab === "revenue" ? "active" : ""}`}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onTabChange) onTabChange("revenue");
+                else navigate("/worker/dashboard", { state: { view: "revenue" } });
+              }}
+            >
+              <span>💰</span>
+              <span>Revenue &amp; Wallet</span>
             </button>
 
             <button

@@ -10,6 +10,7 @@ class Booking(models.Model):
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
+        NO_SHOW = "NO_SHOW", "No Show"
 
     salon = models.ForeignKey(
         "salons.Salon",
@@ -53,6 +54,10 @@ class Booking(models.Model):
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Discounts/coupons/vouchers')
     voucher_code = models.CharField(max_length=50, blank=True, default="", help_text='Applied promo or voucher code')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Final payable total')
+    advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Token advance paid online (e.g. ₹100)')
+    remaining_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Remaining service amount due at salon')
+    is_advance_paid = models.BooleanField(default=False, help_text='Whether advance payment has been confirmed')
+    is_fully_paid = models.BooleanField(default=False, help_text='Whether total service price is fully paid')
     booking_date = models.DateField()
     booking_time = models.CharField(max_length=50)
     start_time = models.TimeField(null=True, blank=True, help_text='Start time for online bookings')
@@ -70,6 +75,7 @@ class Booking(models.Model):
 
     class PaymentStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
+        PARTIALLY_PAID = "PARTIALLY_PAID", "Partially Paid (Advance)"
         PAID = "PAID", "Paid"
         FAILED = "FAILED", "Failed"
         REFUNDED = "REFUNDED", "Refunded"
@@ -87,6 +93,16 @@ class Booking(models.Model):
     razorpay_order_id = models.CharField(max_length=100, blank=True, default="")
     razorpay_payment_id = models.CharField(max_length=100, blank=True, default="")
     notes = models.TextField(blank=True, default="")
+    worker_remarks = models.TextField(
+        blank=True,
+        default="",
+        help_text="Specialist treatment remarks and consultation notes",
+    )
+    service_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when specialist started the appointment service",
+    )
     expires_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -102,6 +118,11 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"Booking #{self.id} - {self.client_name} - {self.service_name} ({self.status})"
+
+    @property
+    def payment(self):
+        """Returns the primary/latest payment record for backward compatibility."""
+        return self.payments.order_by("-created_at").first()
 
 
 # Re-export for backward compatibility
