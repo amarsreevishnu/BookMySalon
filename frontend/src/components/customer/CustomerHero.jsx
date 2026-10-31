@@ -1,5 +1,5 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
-
 
 function CustomerHero({
   search,
@@ -9,13 +9,84 @@ function CustomerHero({
   onSearch,
 }) {
   const { user } = useAuth();
+  
+  const [location, setLocation] = useState(() => {
+    return localStorage.getItem("user_detected_location") || "Detecting...";
+  });
+
+  const fetchBrowserLocation = () => {
+    if (!navigator.geolocation) {
+      setLocation("Location not supported");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const place = data.city || data.locality || data.principalSubdivision;
+            if (place) {
+              setLocation(place);
+              localStorage.setItem("user_detected_location", place);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Primary geocoding service failed:", err);
+        }
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const place =
+              addr.city ||
+              addr.town ||
+              addr.village ||
+              addr.suburb ||
+              addr.county ||
+              addr.state_district;
+            if (place) {
+              setLocation(place);
+              localStorage.setItem("user_detected_location", place);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Fallback geocoding service failed:", err);
+        }
+
+        setLocation(`${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`);
+      },
+      (error) => {
+        console.warn("Geolocation error:", error);
+        setLocation((prev) =>
+          prev && prev !== "Detecting..." ? prev : "Thiruvananthapuram"
+        );
+      },
+      { timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  useEffect(() => {
+    fetchBrowserLocation();
+    
+  }, []);
 
   return (
     <section className="customer-hero">
       <div className="customer-hero-top">
         <div>
           <h1>
-            Hello, {user?.first_name || "there"} <span>👋</span>
+            Hello, {user?.first_name || user?.full_name || ""} <span>👋</span>
           </h1>
 
           <p>
@@ -24,11 +95,16 @@ function CustomerHero({
           </p>
         </div>
 
-        <div className="current-location">
+        <div
+          className="current-location"
+          onClick={fetchBrowserLocation}
+          style={{ cursor: "pointer" }}
+          title="Click to refresh location"
+        >
           <span>📍</span>
           <div>
             <small>CURRENT LOCATION</small>
-            <strong>Thiruvananthapuram</strong>
+            <strong>{location}</strong>
           </div>
           <span>⌄</span>
         </div>

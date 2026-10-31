@@ -25,6 +25,7 @@ function GoogleCallback() {
     if (access && refresh && userRaw) {
       try {
         const user = JSON.parse(userRaw);
+        
         login(access, refresh, user);
 
         if (user.role === "OWNER") {
