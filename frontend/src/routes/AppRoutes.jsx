@@ -33,6 +33,8 @@ import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
 import AdminServicesList from "../pages/admin/AdminServicesList";
+import AdminSupport from "../pages/admin/AdminSupport";
+import OwnerSupport from "../pages/owner/OwnerSupport";
 
 import PrivateRoute from "./PrivateRoute";
 import PublicRoute from "./PublicRoute";
@@ -76,6 +78,8 @@ function AppRoutes() {
         <Route path="/admin/salons" element={<AdminSalonsList />} />
         <Route path="/admin/users" element={<AdminUserList />} />
         <Route path="/admin/services" element={<AdminServicesList />} />
+        <Route path="/admin/support" element={<AdminSupport />} />
+        <Route path="/admin/tickets" element={<AdminSupport />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Route>
 
@@ -85,6 +89,8 @@ function AppRoutes() {
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
         <Route path="/owner/services" element={<OwnerServices />} />
         <Route path="/owner/offers" element={<OwnerOffers />} />
+        <Route path="/owner/support" element={<OwnerSupport />} />
+        <Route path="/owner/tickets" element={<OwnerSupport />} />
         <Route path="/owner/workers" element={<WorkerManagement />} />
         <Route path="/owner/schedule" element={<OwnerSchedule />} />
         <Route path="/owner/worker-leaves" element={<OwnerWorkerLeaves />} />

@@ -37,6 +37,10 @@ urlpatterns = [
         "api/v1/notifications/",
         include("notifications.urls"),
     ),
+    path(
+        "api/v1/support/",
+        include("support.urls"),
+    ),
 
     # Allauth OAuth URLs
     path("accounts/", include("allauth.urls")),

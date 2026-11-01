@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import OwnerNavbarHeader from "./OwnerNavbarHeader";
+import api from "../../api/axios";
 import "../../styles/ownerNavbar.css";
 
 export const DEFAULT_NAV_TABS = [
@@ -12,6 +14,7 @@ export const DEFAULT_NAV_TABS = [
   "Salon Schedule",
   "Customers",
   "Offers",
+  "Support",
   "Revenue",
   "Reviews",
   "Settings",
@@ -28,6 +31,22 @@ export default function OwnerNavbar({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/support/owner/unread-count/")
+      .then((res) => {
+        if (isMounted) {
+          setUnreadSupportCount(res.data?.unread_count || 0);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [location.pathname]);
 
   const handleTabClick = (tab) => {
     if (onTabChange) {
@@ -57,6 +76,10 @@ export default function OwnerNavbar({
     } else if (tab === "Offers") {
       if (location.pathname !== "/owner/offers") {
         navigate("/owner/offers");
+      }
+    } else if (tab === "Support" || tab === "Support Tickets" || tab === "Tickets") {
+      if (location.pathname !== "/owner/support") {
+        navigate("/owner/support");
       }
     } else if (tab === "Dashboard") {
       if (location.pathname !== "/owner/dashboard") {
@@ -88,8 +111,10 @@ export default function OwnerNavbar({
                   onClick={() => handleTabClick(tab)}
                 >
                   {tab}
-                  {tab === "Workers" && (
-                    ''
+                  {tab === "Support" && unreadSupportCount > 0 && (
+                    <span className="owner-nav-unread-pill" title={`${unreadSupportCount} unread replies from Super Admin`}>
+                      {unreadSupportCount}
+                    </span>
                   )}
                 </button>
               );

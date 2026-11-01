@@ -1,0 +1,439 @@
+/* ==========================================================================
+   BookMySalon - Super Admin Support & Ticket Management Styles
+   ========================================================================== */
+
+.admin-support-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8fafc;
+}
+
+.admin-support-main {
+  flex: 1;
+  padding: 32px 36px 60px;
+  overflow-x: hidden;
+  max-width: 1600px;
+}
+
+/* Header */
+.as-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.as-title-wrap h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.as-title-wrap p {
+  font-size: 0.92rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Metrics Grid */
+.as-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.as-metric-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.as-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+}
+
+.as-metric-card.urgent {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+
+.as-metric-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.as-metric-icon.total { background: #f1f5f9; color: #334155; }
+.as-metric-icon.open { background: #dcfce7; color: #166534; }
+.as-metric-icon.progress { background: #dbeafe; color: #1e40af; }
+.as-metric-icon.waiting { background: #fef9c3; color: #854d0e; }
+.as-metric-icon.resolved { background: #f0fdf4; color: #15803d; }
+.as-metric-icon.closed { background: #f1f5f9; color: #475569; }
+.as-metric-icon.urgent { background: #fee2e2; color: #b91c1c; }
+
+.as-metric-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+.as-metric-val {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+/* Controls Bar */
+.as-controls-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.as-search-input-wrap {
+  flex: 1;
+  min-width: 260px;
+  position: relative;
+}
+
+.as-search-input {
+  width: 100%;
+  padding: 9px 14px 9px 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.as-search-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.as-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.as-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.as-select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+}
+
+.as-select:focus {
+  border-color: #4f46e5;
+}
+
+.as-refresh-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.as-refresh-btn:hover {
+  background: #e2e8f0;
+}
+
+/* Tickets Table */
+.as-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.as-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.as-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.as-table th {
+  background: #f8fafc;
+  padding: 12px 18px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.as-table td {
+  padding: 14px 18px;
+  font-size: 0.88rem;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.as-table tr:hover td {
+  background: #fafafa;
+}
+
+.as-ticket-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.as-tkt-num {
+  font-family: monospace;
+  font-weight: 700;
+  color: #4f46e5;
+  font-size: 0.84rem;
+}
+
+.as-tkt-salon {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.as-manage-btn {
+  background: #4f46e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.as-manage-btn:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+/* Modal Dialog for Admin Ticket Management */
+.as-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: os-fadein 0.2s ease-out;
+}
+
+.as-modal-dialog {
+  background: #ffffff;
+  border-radius: 18px;
+  max-width: 1080px;
+  width: 100%;
+  height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  animation: os-zoom 0.2s ease-out;
+}
+
+.as-modal-header {
+  padding: 18px 26px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+}
+
+.as-modal-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+/* Left side: Conversation stream */
+.as-conv-pane {
+  flex: 1.6;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e2e8f0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+/* Right side: Ticket Info & Quick Admin Actions */
+.as-info-pane {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: #f8fafc;
+}
+
+.as-info-block {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.as-info-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 6px;
+}
+
+.as-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.84rem;
+}
+
+.as-detail-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.as-detail-val {
+  color: #0f172a;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Quick Selectors in Admin Pane */
+.as-action-row {
+  margin-bottom: 12px;
+}
+
+.as-action-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.as-full-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  outline: none;
+  color: #1e293b;
+}
+
+.as-full-select:focus {
+  border-color: #4f46e5;
+}
+
+/* Pagination Footer */
+.as-pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 0.84rem;
+  color: #64748b;
+}
+
+.as-page-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.as-page-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.as-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

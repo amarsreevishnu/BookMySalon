@@ -78,6 +78,28 @@ export default function AdminSidebar({
 
   const isUsersActive = location.pathname.startsWith("/admin/users");
   const isServicesActive = location.pathname.startsWith("/admin/services");
+  const isSupportActive =
+    location.pathname.startsWith("/admin/support") ||
+    location.pathname.startsWith("/admin/tickets");
+
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/support/admin/unread-count/")
+      .then((res) => {
+        if (isMounted) {
+          setUnreadSupportCount(
+            (res.data?.unread_count || 0) + (res.data?.open_tickets_count || 0)
+          );
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [location.pathname]);
 
   const isNewFormActive = location.pathname === "/salon-application";
 
@@ -232,6 +254,19 @@ export default function AdminSidebar({
             <span>Offers</span>
           </div>
         </button>
+
+        <Link
+          to="/admin/support"
+          className={`admin-nav-item ${isSupportActive ? "active" : ""}`}
+        >
+          <div className="admin-nav-left">
+            <span>🎫</span>
+            <span>Support Tickets</span>
+          </div>
+          {unreadSupportCount > 0 && (
+            <span className="admin-nav-badge urgent">{unreadSupportCount}</span>
+          )}
+        </Link>
 
         <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
