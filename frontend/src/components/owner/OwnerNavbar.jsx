@@ -54,6 +54,10 @@ export default function OwnerNavbar({
       if (location.pathname !== "/owner/schedule") {
         navigate("/owner/schedule");
       }
+    } else if (tab === "Offers") {
+      if (location.pathname !== "/owner/offers") {
+        navigate("/owner/offers");
+      }
     } else if (tab === "Dashboard") {
       if (location.pathname !== "/owner/dashboard") {
         navigate("/owner/dashboard");

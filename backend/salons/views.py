@@ -2521,32 +2521,70 @@ class CustomerSalonDetailView(APIView):
             data["rating_breakdown"] = breakdown_pct
             data["reviews"] = reviews_data
 
-            # Real platform promotional offers from pricing engine
+            # Real platform promotional & salon custom offers
             try:
-                from bookings.pricing import COUPON_RULES
+                from offers.models import Offer
+                today = timezone.localdate()
+                db_offers = Offer.objects.filter(
+                    salon=salon,
+                    is_active=True,
+                    start_date__lte=today,
+                    end_date__gte=today,
+                ).prefetch_related("services")
+
                 offers_data = []
-                for code, rule in COUPON_RULES.items():
-                    if rule["type"] == "percent":
-                        pct = int(rule["value"] * 100)
-                        title = f"{pct}% OFF - {rule['label']}"
-                        desc = f"Valid on bookings above ₹{int(rule['min_spend'])}"
-                        discount_rate = rule["value"]
+                for off in db_offers:
+                    if off.is_exhausted:
+                        continue
+                    if off.discount_type == Offer.DiscountType.PERCENTAGE:
+                        discount_rate = float(off.discount_value / 100)
                         discount_fixed = None
-                    else:
-                        title = f"Flat ₹{int(rule['value'])} OFF - {rule['label']}"
-                        desc = f"Valid on bookings above ₹{int(rule['min_spend'])}"
+                    elif off.discount_type == Offer.DiscountType.FLAT:
                         discount_rate = None
-                        discount_fixed = float(rule["value"])
+                        discount_fixed = float(off.discount_value)
+                    else:  # FIXED_PRICE
+                        discount_rate = None
+                        discount_fixed = None
+
                     offers_data.append({
-                        "code": code,
-                        "title": title,
-                        "desc": desc,
+                        "id": off.id,
+                        "code": off.code or f"OFFER{off.id}",
+                        "title": off.title,
+                        "desc": off.description or f"Valid until {off.end_date.strftime('%b %d, %Y')}",
+                        "description": off.description or "",
+                        "offerType": off.offer_type,
+                        "offer_type": off.offer_type,
+                        "offerTypeDisplay": off.get_offer_type_display(),
+                        "offer_type_display": off.get_offer_type_display(),
+                        "discountType": off.discount_type,
+                        "discount_type": off.discount_type,
+                        "discountValue": float(off.discount_value),
+                        "discount_value": float(off.discount_value),
                         "discountRate": discount_rate,
                         "discountFixed": discount_fixed,
-                        "minSpend": float(rule["min_spend"]),
+                        "fixedPrice": float(off.discount_value) if off.discount_type == Offer.DiscountType.FIXED_PRICE else None,
+                        "minSpend": float(off.min_spend),
+                        "min_spend": float(off.min_spend),
+                        "max_discount_amount": float(off.max_discount_amount) if off.max_discount_amount else None,
+                        "customerEligibility": off.customer_eligibility,
+                        "customer_eligibility": off.customer_eligibility,
+                        "services": [s.id for s in off.services.all()],
+                        "serviceNames": [s.effective_name for s in off.services.all()],
+                        "services_detail": [
+                            {"id": s.id, "name": s.effective_name, "price": float(s.price), "duration": s.duration}
+                            for s in off.services.all()
+                        ],
+                        "applyToAllServices": off.apply_to_all_services,
+                        "apply_to_all_services": off.apply_to_all_services,
+                        "endDate": off.end_date.strftime("%b %d, %Y"),
+                        "end_date": off.end_date.isoformat(),
+                        "terms": off.terms_and_conditions,
+                        "terms_and_conditions": off.terms_and_conditions,
                     })
+
                 data["offers"] = offers_data
-            except Exception:
+            except Exception as off_err:
+                logger.warning("Error loading salon offers: %s", off_err)
                 data["offers"] = []
 
             return Response(data, status=status.HTTP_200_OK)

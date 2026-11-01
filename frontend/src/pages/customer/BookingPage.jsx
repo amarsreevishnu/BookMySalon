@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
@@ -165,8 +165,15 @@ export default function BookingPage() {
   const [notes, setNotes] = useState("");
 
   /* voucher / discounts */
-  const [voucherCode, setVoucherCode] = useState(searchParams.get("coupon") || "SUMMERGLOW");
-  const [appliedVoucher, setAppliedVoucher] = useState({ code: "SUMMERGLOW", discount: 50 });
+  const initialCoupon = searchParams.get("coupon") || "";
+  const [voucherCode, setVoucherCode] = useState(initialCoupon);
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherError, setVoucherError] = useState("");
+  const [voucherLoading, setVoucherLoading] = useState(false);
+
+  /* salon active offers */
+  const [salonOffers, setSalonOffers] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(false);
 
   /* payment modal & options */
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -181,6 +188,13 @@ export default function BookingPage() {
   const [bookingResult, setBookingResult] = useState(null);
   const [copiedBookingId, setCopiedBookingId] = useState(false);
   const [error, setError] = useState("");
+  const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showAddServicesModal, setShowAddServicesModal] = useState(false);
+  const [showChangeStylistModal, setShowChangeStylistModal] = useState(false);
+  const [serviceSearchTerm, setServiceSearchTerm] = useState("");
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState("all");
+  const [stylistWarning, setStylistWarning] = useState("");
 
   const days = buildNextDays(30);
 
@@ -202,23 +216,29 @@ export default function BookingPage() {
   }, [selectedServices]);
 
   const taxAmount = useMemo(() => {
+    if (appliedVoucher?.tax_amount !== undefined) {
+      return Number(appliedVoucher.tax_amount);
+    }
     return Math.round(serviceSubtotal * 0.05); // 5% GST & Hygiene Safety
-  }, [serviceSubtotal]);
+  }, [appliedVoucher, serviceSubtotal]);
 
   const discountAmount = useMemo(() => {
     if (!appliedVoucher || !serviceSubtotal) return 0;
+    if (appliedVoucher.discount !== undefined) {
+      return Number(appliedVoucher.discount);
+    }
     if (appliedVoucher.discountRate) {
       return Math.round(serviceSubtotal * appliedVoucher.discountRate);
-    }
-    if (appliedVoucher.discount) {
-      return Math.min(serviceSubtotal, appliedVoucher.discount);
     }
     return 0;
   }, [appliedVoucher, serviceSubtotal]);
 
   const totalPayable = useMemo(() => {
+    if (appliedVoucher?.total_amount !== undefined) {
+      return Number(appliedVoucher.total_amount);
+    }
     return Math.max(0, serviceSubtotal + taxAmount - discountAmount);
-  }, [serviceSubtotal, taxAmount, discountAmount]);
+  }, [appliedVoucher, serviceSubtotal, taxAmount, discountAmount]);
 
   const payableNowAmount = useMemo(() => {
     if (isTokenOnly && paymentMethod === "ONLINE") {
@@ -238,6 +258,59 @@ export default function BookingPage() {
       }
     });
   }
+
+  function handleRemoveTreatment(serviceId, serviceName) {
+    if (selectedServices.length <= 1) {
+      const confirmRemove = window.confirm(
+        `"${serviceName}" is the only treatment in your booking. Removing it will return you to the salon page to choose different services. Would you like to proceed?`
+      );
+      if (confirmRemove) {
+        setSelectedServices([]);
+        navigate(`/customer/salons/${salonId}`);
+      }
+      return;
+    }
+    setSelectedServices((prev) => prev.filter((s) => s.id !== serviceId));
+  }
+
+  function handleModalToggleService(svc) {
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === svc.id);
+      if (exists) {
+        if (prev.length <= 1) {
+          setError("At least one treatment must remain in your booking.");
+          return prev;
+        }
+        setError("");
+        return prev.filter((s) => s.id !== svc.id);
+      } else {
+        setError("");
+        return [...prev, svc];
+      }
+    });
+  }
+
+  const availableCategories = useMemo(() => {
+    const cats = new Set();
+    services.forEach((s) => {
+      if (s.category) cats.add(s.category);
+    });
+    return ["all", ...Array.from(cats)];
+  }, [services]);
+
+  const filteredModalServices = useMemo(() => {
+    return services.filter((s) => {
+      if (s.is_active === false) return false;
+      const term = serviceSearchTerm.trim().toLowerCase();
+      const matchesSearch =
+        !term ||
+        s.name.toLowerCase().includes(term) ||
+        (s.category && s.category.toLowerCase().includes(term));
+      const matchesCat =
+        selectedCategoryTab === "all" || s.category === selectedCategoryTab;
+      return matchesSearch && matchesCat;
+    });
+  }, [services, serviceSearchTerm, selectedCategoryTab]);
 
   /* ── Load salon + services + off-days ─── */
   useEffect(() => {
@@ -315,7 +388,29 @@ export default function BookingPage() {
 
     api
       .get(`/bookings/salons/${salonId}/workers/`, { params })
-      .then((r) => setWorkers(r.data.workers || []))
+      .then((r) => {
+        const eligibleWorkers = r.data.workers || [];
+        setWorkers(eligibleWorkers);
+
+        // Check if currently selected specific stylist is qualified for the updated services
+        setSelectedWorker((currentWorker) => {
+          if (currentWorker && currentWorker !== "any" && currentWorker !== "auto") {
+            const isEligible = eligibleWorkers.some(
+              (w) => String(w.id) === String(currentWorker)
+            );
+            if (!isEligible) {
+              setStylistWarning(
+                `⚠️ The selected specialist cannot perform all your chosen treatments. Switched to Auto-Assign.`
+              );
+              return "any";
+            } else {
+              setStylistWarning("");
+              return currentWorker;
+            }
+          }
+          return currentWorker;
+        });
+      })
       .catch(console.error);
   }, [selectedServices, selectedDate, salonId]);
 
@@ -380,7 +475,7 @@ export default function BookingPage() {
         setClientName(`${stored.first_name || ""} ${stored.last_name || ""}`.trim());
       }
       if (stored.email) setClientEmail(stored.email);
-      if (stored.phone) setClientPhone(stored.phone);
+      if (stored.phone_number) setClientPhone(stored.phone_number);
     } catch {}
   }, []);
 
@@ -408,30 +503,285 @@ export default function BookingPage() {
     return selectedWorkerObj ? selectedWorkerObj.name : "Specialist";
   }
 
-  function handleApplyVoucher() {
-    const code = voucherCode.trim().toUpperCase();
+  /* ── Load salon active offers (filtered for usage limits / customer eligibility) ─── */
+  useEffect(() => {
+    if (!salonId) return;
+    setOffersLoading(true);
+    const params = {};
+    // Verified user email is used as primary customer identifier
+    if (clientEmail && clientEmail.trim().includes("@")) {
+      params.email = clientEmail.trim();
+    }
+
+    api
+      .get(`/offers/salon/${salonId}/`, { params })
+      .then((res) => {
+        setSalonOffers(Array.isArray(res.data) ? res.data : []);
+      })
+      .catch((err) => {
+        console.error("Failed to load salon offers:", err);
+      })
+      .finally(() => {
+        setOffersLoading(false);
+      });
+  }, [salonId, clientEmail]);
+  
+  /* ── Apply Offer or Voucher Code strictly calculated via Django Backend ─── */
+  async function handleApplyOffer(codeToApply, overrideServices = null) {
+    const code = (codeToApply || voucherCode || "").trim().toUpperCase();
     if (!code) {
       setAppliedVoucher(null);
+      setVoucherError("");
       return;
     }
-    if (code === "SUMMERGLOW") {
-      setAppliedVoucher({ code: "SUMMERGLOW", discount: 50 });
-    } else if (code === "FIRSTSPA") {
-      setAppliedVoucher({ code: "FIRSTSPA", discount: 200 });
-    } else if (code === "LUXE20") {
-      const rateDiscount = Math.round(serviceSubtotal * 0.2);
-      setAppliedVoucher({ code: "LUXE20", discountRate: 0.2, discount: rateDiscount });
-    } else if (code === "WELCOME50") {
-      setAppliedVoucher({ code: "WELCOME50", discount: 50 });
-    } else if (code === "FLAT100") {
-      setAppliedVoucher({ code: "FLAT100", discount: 100 });
-    } else {
-      setAppliedVoucher({ code, discount: 50 });
+    const targetServices = overrideServices || selectedServices;
+    if (!targetServices || targetServices.length === 0) {
+      setVoucherError("Please select at least one service before applying an offer.");
+      return;
+    }
+    setVoucherLoading(true);
+    setVoucherError("");
+    try {
+      const res = await api.post("/offers/validate/", {
+        salon_id: Number(salonId),
+        code: code,
+        service_ids: targetServices.map((s) => s.id),
+        booking_date: selectedDate,
+        booking_time: selectedSlot?.time || "",
+        customer_phone: clientPhone.trim(),
+        customer_email: clientEmail.trim(),
+      });
+
+      if (res.data && res.data.valid) {
+        setAppliedVoucher({
+          offer_id: res.data.offer_id,
+          code: res.data.offer_code || code,
+          title: res.data.offer_title,
+          offer_type: res.data.offer_type,
+          discount_type: res.data.discount_type,
+          discount_value: res.data.discount_value,
+          discount: Number(res.data.discount_amount),
+          subtotal: Number(res.data.subtotal),
+          tax_amount: Number(res.data.tax_amount),
+          total_amount: Number(res.data.total_amount),
+        });
+        setVoucherCode(res.data.offer_code || code);
+        setVoucherError("");
+      }
+    } catch (err) {
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.voucher_code ||
+        "Invalid or ineligible offer code for this booking.";
+      setVoucherError(msg);
+      setAppliedVoucher(null);
+    } finally {
+      setVoucherLoading(false);
+    }
+  }
+
+  function handleRemoveVoucher() {
+    setAppliedVoucher(null);
+    setVoucherCode("");
+    setVoucherError("");
+  }
+
+  function handleAddMissingComboServices(missingServices, offer) {
+    if (!missingServices || missingServices.length === 0) return;
+    const toAdd = missingServices.map((missingItem) => {
+      const found = services.find((s) => String(s.id) === String(missingItem.id));
+      return (
+        found || {
+          id: missingItem.id,
+          name: missingItem.name,
+          price: Number(missingItem.price) || 0,
+          duration: missingItem.duration || 45,
+        }
+      );
+    });
+    const updated = [...selectedServices, ...toAdd];
+    setSelectedServices(updated);
+    handleApplyOffer(offer.code, updated);
+  }
+
+  /* ── Auto re-validate active offer when selected services change ─── */
+  const isInitialServiceRender = useRef(true);
+  useEffect(() => {
+    if (isInitialServiceRender.current) {
+      isInitialServiceRender.current = false;
+      return;
+    }
+    if (appliedVoucher?.code) {
+      if (selectedServices.length === 0) {
+        setAppliedVoucher(null);
+        setVoucherError("Offer removed because no services are selected.");
+        return;
+      }
+      api
+        .post("/offers/validate/", {
+          salon_id: Number(salonId),
+          code: appliedVoucher.code,
+          service_ids: selectedServices.map((s) => s.id),
+          booking_date: selectedDate,
+          booking_time: selectedSlot?.time || "",
+          customer_phone: clientPhone.trim(),
+          customer_email: clientEmail.trim(),
+        })
+        .then((res) => {
+          if (res.data && res.data.valid) {
+            setAppliedVoucher({
+              offer_id: res.data.offer_id,
+              code: res.data.offer_code || appliedVoucher.code,
+              title: res.data.offer_title,
+              offer_type: res.data.offer_type,
+              discount_type: res.data.discount_type,
+              discount_value: res.data.discount_value,
+              discount: Number(res.data.discount_amount),
+              subtotal: Number(res.data.subtotal),
+              tax_amount: Number(res.data.tax_amount),
+              total_amount: Number(res.data.total_amount),
+            });
+            setVoucherError("");
+          }
+        })
+        .catch((err) => {
+          const msg =
+            err.response?.data?.error ||
+            err.response?.data?.voucher_code ||
+            "Applied offer is no longer valid for the selected services.";
+          setAppliedVoucher(null);
+          setVoucherError(msg);
+        });
+    }
+  }, [selectedServices]);
+
+  const initialCouponAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!loading && initialCoupon && selectedServices.length > 0 && !initialCouponAppliedRef.current && !appliedVoucher && !voucherError) {
+      initialCouponAppliedRef.current = true;
+      handleApplyOffer(initialCoupon);
+    }
+  }, [loading, initialCoupon, selectedServices.length, appliedVoucher, voucherError]);
+
+  function getOfferEligibility(offer) {
+    if (!offer) return { eligible: false, isCombo: false, missingCombo: [], reason: "Invalid offer" };
+
+    if (offer.is_customer_eligible === false) {
+      return {
+        eligible: false,
+        isCombo: offer.offer_type === "COMBO",
+        missingCombo: [],
+        reason: offer.customer_ineligibility_reason || "Not eligible for your account",
+      };
+    }
+
+    if (offer.min_spend && serviceSubtotal < Number(offer.min_spend)) {
+      const diff = Number(offer.min_spend) - serviceSubtotal;
+      return {
+        eligible: false,
+        isCombo: offer.offer_type === "COMBO",
+        missingCombo: [],
+        reason: `Min spend ₹${Number(offer.min_spend).toLocaleString("en-IN")} (Add ₹${diff.toLocaleString("en-IN")} more)`,
+      };
+    }
+
+    if (offer.offer_type === "COMBO") {
+      const required = offer.services_detail || [];
+      const selectedIds = new Set(selectedServices.map((s) => String(s.id)));
+      const missing = required.filter((cs) => !selectedIds.has(String(cs.id)));
+      if (missing.length > 0) {
+        return {
+          eligible: false,
+          isCombo: true,
+          missingCombo: missing,
+          reason: `Requires all ${required.length} combo services`,
+        };
+      }
+      return {
+        eligible: true,
+        isCombo: true,
+        missingCombo: [],
+        reason: "All combo services selected!",
+      };
+    }
+
+    if (!offer.apply_to_all_services && (offer.services_detail?.length > 0 || offer.service_ids?.length > 0)) {
+      const allowedIds = new Set(
+        (offer.services_detail?.map((s) => String(s.id))) || (offer.service_ids?.map((id) => String(id))) || []
+      );
+      const hasMatch = selectedServices.some((s) => allowedIds.has(String(s.id)));
+      if (!hasMatch) {
+        const allowedNames = offer.services_detail?.map((s) => s.name).join(", ") || "specific services";
+        return {
+          eligible: false,
+          isCombo: false,
+          missingCombo: [],
+          reason: `Applies only to: ${allowedNames}`,
+        };
+      }
+    }
+
+    return { eligible: true, isCombo: false, missingCombo: [], reason: "Eligible" };
+  }
+
+  function formatOfferDiscount(offer) {
+    if (offer.discount_type === "PERCENTAGE") {
+      const cap = offer.max_discount_amount ? ` (up to ₹${Number(offer.max_discount_amount)})` : "";
+      return `${Number(offer.discount_value)}% OFF${cap}`;
+    }
+    if (offer.discount_type === "FIXED_PRICE") {
+      return `Fixed ₹${Number(offer.discount_value).toLocaleString("en-IN")}`;
+    }
+    return `₹${Number(offer.discount_value).toLocaleString("en-IN")} OFF`;
+  }
+
+  function getOfferTypeMeta(type) {
+    switch (type) {
+      case "COMBO":
+        return { label: "Combo Deal", cls: "combo" };
+      case "FIRST_BOOKING":
+        return { label: "First Booking", cls: "first_booking" };
+      case "SERVICE":
+        return { label: "Service Special", cls: "service" };
+      case "FESTIVAL":
+        return { label: "Festival Deal", cls: "festival" };
+      default:
+        return { label: "Coupon Offer", cls: "coupon" };
     }
   }
 
   /* ── Open Payment Modal after reviewing booking ─── */
   function handleProceedToPaymentModal() {
+    if (selectedServices.length === 0) {
+      setError("Please select at least one treatment before proceeding.");
+      return;
+    }
+    if (!serviceSubtotal || serviceSubtotal <= 0) {
+      setError("Treatment total amount is invalid. Please select valid treatments.");
+      return;
+    }
+    if (!totalDurationMinutes || totalDurationMinutes <= 0) {
+      setError("Appointment duration is invalid. Please check your selected treatments.");
+      return;
+    }
+    if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
+      const isQualified = workers.some((w) => String(w.id) === String(selectedWorker));
+      if (!isQualified) {
+        setError(
+          "The selected specialist cannot perform all your chosen treatments. Please select an eligible specialist or choose Auto-Assign."
+        );
+        setShowChangeStylistModal(true);
+        return;
+      }
+    }
+    if (!selectedDate) {
+      setError("Please select an appointment date.");
+      return;
+    }
+    if (!selectedSlot || !selectedSlot.time) {
+      setError("Please select an appointment time slot.");
+      return;
+    }
     if (!clientName.trim()) {
       setError("Please enter your name in the contact details section.");
       return;
@@ -440,11 +790,58 @@ export default function BookingPage() {
     setShowPaymentModal(true);
   }
 
-  /* ── Final Booking Confirmation inside Payment Modal ─── */
-  async function handleFinalBookingSubmit() {
+  /* ── Ask Confirmation before initiating booking submission (Pay at Salon & Online) ─── */
+  function handleInitiatePaymentConfirm() {
     if (selectedServices.length === 0) {
       setError("Please select at least one service.");
       return;
+    }
+    if (!serviceSubtotal || serviceSubtotal <= 0) {
+      setError("Treatment total amount is invalid.");
+      return;
+    }
+    if (!totalDurationMinutes || totalDurationMinutes <= 0) {
+      setError("Treatment duration is invalid.");
+      return;
+    }
+    if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
+      const isQualified = workers.some((w) => String(w.id) === String(selectedWorker));
+      if (!isQualified) {
+        setError("The selected specialist cannot perform all your chosen treatments. Please choose an eligible specialist or select Auto-Assign.");
+        setShowChangeStylistModal(true);
+        return;
+      }
+    }
+    if (!clientName.trim()) {
+      setError("Please enter your full name in the contact details section.");
+      return;
+    }
+    setError("");
+    setShowConfirmPrompt(true);
+  }
+
+  /* ── Final Booking Confirmation after User confirms 'Yes, Proceed' ─── */
+  async function handleFinalBookingSubmit() {
+    setShowConfirmPrompt(false);
+    if (selectedServices.length === 0) {
+      setError("Please select at least one service.");
+      return;
+    }
+    if (!serviceSubtotal || serviceSubtotal <= 0) {
+      setError("Treatment total amount is invalid.");
+      return;
+    }
+    if (!totalDurationMinutes || totalDurationMinutes <= 0) {
+      setError("Treatment duration is invalid.");
+      return;
+    }
+    if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
+      const isQualified = workers.some((w) => String(w.id) === String(selectedWorker));
+      if (!isQualified) {
+        setError("The selected specialist cannot perform all your chosen treatments. Please choose an eligible specialist or select Auto-Assign.");
+        setShowChangeStylistModal(true);
+        return;
+      }
     }
     if (!clientName.trim()) {
       setError("Please enter your full name.");
@@ -480,7 +877,12 @@ export default function BookingPage() {
         const r = await api.post("/bookings/create/", payload);
         setBookingResult(r.data.booking);
         setShowPaymentModal(false);
-        setStep(5); // confirmed receipt screen
+        // Show celebration animation before navigating to confirmed page
+        setShowSuccessAnimation(true);
+        setTimeout(() => {
+          setShowSuccessAnimation(false);
+          setStep(5); // confirmed receipt screen
+        }, 2200);
       } catch (e) {
         const detail =
           e?.response?.data?.error ||
@@ -534,7 +936,12 @@ export default function BookingPage() {
             const verifyRes = await api.post(endpoint, verifyPayload);
             setBookingResult(verifyRes.data.booking);
             setShowPaymentModal(false);
-            setStep(5); // confirmed receipt screen
+            // Show the exact same celebration animation before navigating to confirmed page
+            setShowSuccessAnimation(true);
+            setTimeout(() => {
+              setShowSuccessAnimation(false);
+              setStep(5); // confirmed receipt screen
+            }, 2200);
           } catch (verErr) {
             setError(
               verErr?.response?.data?.error ||
@@ -555,10 +962,8 @@ export default function BookingPage() {
 
       const rzp = new window.Razorpay(options);
       rzp.on("payment.failed", function (response) {
+        setError(`Payment failed: ${response.error?.description || "Transaction declined"}`);
         setSubmitting(false);
-        setError(
-          `Payment failed: ${response.error?.description || "Transaction was declined."}. You can retry with Razorpay or select Pay at Salon.`
-        );
       });
       rzp.open();
     } catch (e) {
@@ -566,7 +971,7 @@ export default function BookingPage() {
         e?.response?.data?.error ||
         e?.response?.data?.detail ||
         e?.message ||
-        "Could not initiate online payment. Please try again.";
+        "Could not initiate online payment. Please try again or select Pay at Salon.";
       setError(detail);
       setSubmitting(false);
     }
@@ -1065,61 +1470,66 @@ export default function BookingPage() {
                   {/* Card 2: Selected Treatment Card */}
                   <div className="bk-treatment-card">
                     <div className="bk-treatment-card-header">
-                      <span className="bk-treatment-label">
-                        {selectedServices.length > 1 ? `SELECTED TREATMENTS (${selectedServices.length})` : "SELECTED TREATMENT"}
-                      </span>
-                      <span className="bk-treatment-cat-pill">
-                        {selectedServices.length > 1 ? "Curated Package" : (selectedService.category || "Precision Styling")}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span className="bk-treatment-label">
+                          {selectedServices.length > 1 ? `SELECTED TREATMENTS (${selectedServices.length})` : "SELECTED TREATMENT"}
+                        </span>
+                        <span className="bk-treatment-cat-pill">
+                          {selectedServices.length > 1 ? "Curated Package" : (selectedService.category || "Precision Styling")}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="bk-treatment-add-more-btn"
+                        onClick={() => setShowAddServicesModal(true)}
+                        title="Add more treatments from salon"
+                      >
+                        + Add More
+                      </button>
                     </div>
 
-                    {selectedServices.length === 1 ? (
-                      <>
-                        <div className="bk-treatment-title-row">
-                          <h3 className="bk-treatment-name">{selectedService.name}</h3>
-                          <div className="bk-treatment-price-wrap">
-                            <div className="bk-treatment-price">
-                              ₹{Number(selectedService.price).toLocaleString("en-IN")}
+                    <div className="bk-treatments-list">
+                      {selectedServices.map((svc) => (
+                        <div key={svc.id} className="bk-treatment-item-row">
+                          <div className="bk-treatment-item-left">
+                            <div className="bk-treatment-item-title-row">
+                              <strong className="bk-treatment-item-name">{svc.name}</strong>
+                              {svc.category && (
+                                <span className="bk-treatment-item-cat-badge">{svc.category}</span>
+                              )}
                             </div>
-                            <div className="bk-treatment-duration">{selectedService.duration} mins</div>
+                            <div className="bk-treatment-item-sub">
+                              <span className="bk-treatment-item-duration">⏱ {svc.duration} mins</span>
+                              {svc.description && (
+                                <>
+                                  <span className="bk-treatment-item-dot">•</span>
+                                  <span className="bk-treatment-item-desc">
+                                    {svc.description.length > 70
+                                      ? `${svc.description.slice(0, 70)}…`
+                                      : svc.description}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
-                        <p className="bk-treatment-desc">
-                          {selectedService.description ||
-                            "Precision scissor cut & organic botanical wash with invigorating scalp acupressure massage."}
-                        </p>
-                      </>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "10px 0" }}>
-                        {selectedServices.map((svc) => (
-                          <div
-                            key={svc.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "10px 14px",
-                              background: "#f8fafc",
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                            }}
-                          >
-                            <div>
-                              <strong style={{ fontSize: "0.92rem", color: "#0f172a", display: "block" }}>
-                                {svc.name}
-                              </strong>
-                              <span style={{ fontSize: "0.76rem", color: "#64748b" }}>
-                                ⏱ {svc.duration} mins • {svc.category || "Service"}
-                              </span>
-                            </div>
-                            <span style={{ fontWeight: 700, color: "#1b4332", fontSize: "0.92rem" }}>
+                          <div className="bk-treatment-item-right">
+                            <span className="bk-treatment-item-price">
                               ₹{Number(svc.price).toLocaleString("en-IN")}
                             </span>
+                            <button
+                              type="button"
+                              className="bk-ps-remove-btn"
+                              onClick={() => handleRemoveTreatment(svc.id, svc.name)}
+                              title={`Remove ${svc.name}`}
+                              aria-label={`Remove ${svc.name}`}
+                            >
+                              ✕
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
 
                     {/* Stylist Sub-card */}
                     <div className="bk-stylist-row">
@@ -1157,12 +1567,24 @@ export default function BookingPage() {
                       <button
                         type="button"
                         className="bk-stylist-change-btn"
-                        onClick={() => navigate(`/customer/salons/${salonId}`)}
-                        title="Change specialist on salon page"
+                        onClick={() => setShowChangeStylistModal(true)}
+                        title="Change specialist"
                       >
                         Change
                       </button>
                     </div>
+
+                    {stylistWarning && (
+                      <div className="bk-stylist-compat-alert">
+                        <span>{stylistWarning}</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowChangeStylistModal(true)}
+                        >
+                          Change Stylist
+                        </button>
+                      </div>
+                    )}
 
                     {/* 3-Tile Stats Grid */}
                     <div className="bk-stats-3col">
@@ -1190,6 +1612,123 @@ export default function BookingPage() {
                         </div>
                       </div>
                     </div>
+                    
+                  </div>
+
+                  {/* Available Offers & Deals Card (Step 4 Review Page only) */}
+                  <div className="bk-available-offers-card">
+                    <div className="bk-offers-head">
+                      <div className="bk-offers-title-group">
+                        <h4 className="bk-offers-title">🏷 Available Offers & Deals</h4>
+                        {salonOffers.length > 0 && (
+                          <span className="bk-offers-count-pill">{salonOffers.length} available</span>
+                        )}
+                      </div>
+                      <span className="bk-offers-single-rule">
+                        1 offer per booking • Cannot combine
+                      </span>
+                    </div>
+
+                    {offersLoading ? (
+                      <div style={{ textAlign: "center", padding: "20px", color: "#64748b", fontSize: "0.85rem" }}>
+                        Loading available offers…
+                      </div>
+                    ) : salonOffers.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "18px 12px", color: "#64748b", fontSize: "0.84rem" }}>
+                        No promotional offers currently listed for this salon. If you have an exclusive coupon code, enter it below in the payment summary.
+                      </div>
+                    ) : (
+                      <div className="bk-offers-stack">
+                        {salonOffers.map((offer) => {
+                          const isApplied = appliedVoucher?.code === offer.code;
+                          const meta = getOfferTypeMeta(offer.offer_type);
+                          const eligibility = getOfferEligibility(offer);
+
+                          return (
+                            <div
+                              key={offer.id}
+                              className={`bk-offer-tile ${isApplied ? "is-applied" : ""} ${
+                                !eligibility.eligible && !isApplied ? "is-ineligible" : ""
+                              }`}
+                            >
+                              <div className="bk-offer-tile-left">
+                                <div className="bk-offer-meta-row">
+                                  <span className={`bk-offer-type-tag ${meta.cls}`}>{meta.label}</span>
+                                  <span className="bk-offer-code-pill">{offer.code}</span>
+                                </div>
+                                <h5 className="bk-offer-tile-title">{offer.title}</h5>
+                                {offer.description && (
+                                  <p className="bk-offer-tile-desc">{offer.description}</p>
+                                )}
+
+                                {/* Combo breakdown chips */}
+                                {offer.offer_type === "COMBO" && offer.services_detail?.length > 0 && (
+                                  <div className="bk-offer-combo-bundle">
+                                    <span className="bk-combo-bundle-label">Included in Bundle:</span>
+                                    <div className="bk-combo-bundle-items">
+                                      {offer.services_detail.map((cs) => {
+                                        const isSelected = selectedServices.some((s) => String(s.id) === String(cs.id));
+                                        return (
+                                          <span
+                                            key={cs.id}
+                                            className={`bk-combo-item-chip ${isSelected ? "selected" : "missing"}`}
+                                          >
+                                            {isSelected ? "✓" : "+"} {cs.name}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Eligibility status if not eligible and not applied */}
+                                {!eligibility.eligible && !isApplied && (
+                                  <span className="bk-offer-req-badge">
+                                    ⓘ {eligibility.reason}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="bk-offer-tile-right">
+                                <span className="bk-offer-discount-badge">
+                                  {formatOfferDiscount(offer)}
+                                </span>
+
+                                {isApplied ? (
+                                  <button
+                                    type="button"
+                                    className="bk-offer-remove-btn"
+                                    onClick={handleRemoveVoucher}
+                                    title="Remove this offer"
+                                  >
+                                    Applied ✓ (Remove)
+                                  </button>
+                                ) : eligibility.isCombo && eligibility.missingCombo.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="bk-offer-add-missing-btn"
+                                    disabled={voucherLoading}
+                                    onClick={() => handleAddMissingComboServices(eligibility.missingCombo, offer)}
+                                    title="Add missing bundle services and apply deal"
+                                  >
+                                    + Add Missing ({eligibility.missingCombo.length}) & Apply
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="bk-offer-apply-btn"
+                                    disabled={voucherLoading || !eligibility.eligible}
+                                    onClick={() => handleApplyOffer(offer.code)}
+                                  >
+                                    {voucherLoading && voucherCode === offer.code ? "Applying..." : "Apply Offer"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Card 3: Trust Assurances */}
@@ -1220,7 +1759,7 @@ export default function BookingPage() {
                 <div className="bk-review-right">
                   {/* Contact Info Card */}
                   <div className="bk-review-contact-card">
-                    <h3 className="bk-review-contact-title">Your Details</h3>
+                    <h3 className="bk-review-contact-title">Your Details </h3>
                     <div className="bk-review-contact-form">
                       <div>
                         <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
@@ -1230,6 +1769,7 @@ export default function BookingPage() {
                           type="text"
                           placeholder="e.g. Rahul Sharma"
                           value={clientName}
+
                           onChange={(e) => setClientName(e.target.value)}
                         />
                       </div>
@@ -1248,12 +1788,13 @@ export default function BookingPage() {
                         </div>
                         <div>
                           <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                            Email
+                            Email <span>🔓</span>
                           </label>
                           <input
                             type="email"
                             placeholder="you@example.com"
                             value={clientEmail}
+                            disabled
                             onChange={(e) => setClientEmail(e.target.value)}
                           />
                         </div>
@@ -1273,15 +1814,20 @@ export default function BookingPage() {
                     </div>
                   </div>
 
+                  
+
                   {/* Payment Summary Box */}
                   <div className="bk-payment-summary-box">
                     <h3 className="bk-payment-summary-title">Payment Summary</h3>
 
                     {selectedServices.map((svc) => (
                       <div key={svc.id} className="bk-ps-line">
-                        <span>
-                          {svc.name} ({svc.duration} mins)
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          
+                          <span>
+                            {svc.name} ({svc.duration} mins)
+                          </span>
+                        </div>
                         <strong>₹{Number(svc.price).toLocaleString("en-IN")}</strong>
                       </div>
                     ))}
@@ -1298,7 +1844,7 @@ export default function BookingPage() {
 
                     {discountAmount > 0 && (
                       <div className="bk-ps-line bk-ps-line--discount">
-                        <span>🏷 Voucher Discount ({appliedVoucher?.code})</span>
+                        <span>🏷 Offer Discount ({appliedVoucher?.title || appliedVoucher?.code})</span>
                         <strong>-₹{discountAmount}</strong>
                       </div>
                     )}
@@ -1321,23 +1867,100 @@ export default function BookingPage() {
 
                     {/* Voucher Input */}
                     <div className="bk-voucher-wrap">
-                      <label className="bk-voucher-label">Have a gift voucher or code?</label>
+                      <label className="bk-voucher-label">Have an offer or voucher code?</label>
                       <div className="bk-voucher-input-group">
                         <input
                           type="text"
                           className="bk-voucher-input"
-                          placeholder="e.g. SUMMERGLOW"
+                          placeholder={salonOffers.length > 0 ? `e.g. ${salonOffers[0].code}` : "Enter offer code"}
                           value={voucherCode}
-                          onChange={(e) => setVoucherCode(e.target.value)}
+                          onChange={(e) => {
+                            setVoucherCode(e.target.value.toUpperCase());
+                            setVoucherError("");
+                          }}
+                          disabled={Boolean(appliedVoucher)}
                         />
-                        <button
-                          type="button"
-                          className={`bk-voucher-btn ${appliedVoucher ? "bk-voucher-btn--applied" : ""}`}
-                          onClick={handleApplyVoucher}
-                        >
-                          {appliedVoucher ? "Applied" : "Apply"}
-                        </button>
+                        {appliedVoucher ? (
+                          <button
+                            type="button"
+                            className="bk-voucher-btn bk-voucher-btn--applied"
+                            onClick={handleRemoveVoucher}
+                          >
+                            Remove ✕
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="bk-voucher-btn"
+                            disabled={voucherLoading || !voucherCode.trim()}
+                            onClick={() => handleApplyOffer(voucherCode)}
+                          >
+                            {voucherLoading ? "Validating..." : "Apply"}
+                          </button>
+                        )}
                       </div>
+
+                      {/* Quick Apply Available Offers Chips */}
+                      {salonOffers.length > 0 && (
+                        <div className="bk-summary-quick-offers" style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                            🏷️ Available Deals for This Salon:
+                          </span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {salonOffers.map((off) => {
+                              const isApplied = appliedVoucher?.code === off.code;
+                              const elig = getOfferEligibility(off);
+                              return (
+                                <button
+                                  key={off.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isApplied) {
+                                      handleRemoveVoucher();
+                                    } else if (elig.isCombo && elig.missingCombo.length > 0) {
+                                      handleAddMissingComboServices(elig.missingCombo, off);
+                                    } else {
+                                      setVoucherCode(off.code);
+                                      handleApplyOffer(off.code);
+                                    }
+                                  }}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "5px",
+                                    padding: "4px 8px",
+                                    fontSize: "0.74rem",
+                                    fontWeight: 600,
+                                    borderRadius: "6px",
+                                    border: isApplied ? "1.5px solid #16a34a" : "1px dashed #cbd5e1",
+                                    background: isApplied ? "#f0fdf4" : elig.eligible ? "#ffffff" : "#f8fafc",
+                                    color: isApplied ? "#15803d" : elig.eligible ? "#1e293b" : "#64748b",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                  title={elig.eligible ? `Apply ${off.code}` : elig.reason}
+                                >
+                                  <span style={{ fontWeight: 700, fontFamily: "monospace" }}>{off.code}</span>
+                                  <span>•</span>
+                                  <span>{formatOfferDiscount(off)}</span>
+                                  {isApplied && <span style={{ color: "#16a34a", fontWeight: 700 }}>✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {appliedVoucher && (
+                        <div style={{ color: "#15803d", fontSize: "0.82rem", fontWeight: 600, marginTop: "6px" }}>
+                          ✓ {appliedVoucher.title || appliedVoucher.code} applied! (-₹{appliedVoucher.discount})
+                        </div>
+                      )}
+                      {voucherError && (
+                        <div style={{ color: "#b91c1c", fontSize: "0.82rem", fontWeight: 500, marginTop: "6px" }}>
+                          ⚠️ {voucherError}
+                        </div>
+                      )}
                     </div>
 
                     {error && (
@@ -1496,102 +2119,54 @@ export default function BookingPage() {
                     Fast-track check-in with contactless digital payment. Guaranteed priority slot.
                   </p>
 
-                  {/* Online Payment Sub-options (when selected) */}
                   {paymentMethod === "ONLINE" && (
-                    <div className="bk-online-subbox" onClick={(e) => e.stopPropagation()}>
-                      {/* Tabs */}
-                      <div className="bk-sub-tabs">
+                    <div className="bk-pay-subtabs-wrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="bk-subtabs-nav">
                         <button
                           type="button"
                           className={`bk-sub-tab ${onlineTab === "upi" ? "bk-sub-tab--active" : ""}`}
                           onClick={() => setOnlineTab("upi")}
                         >
-                          UPI / QR Code
+                          UPI / QR
                         </button>
                         <button
                           type="button"
                           className={`bk-sub-tab ${onlineTab === "cards" ? "bk-sub-tab--active" : ""}`}
                           onClick={() => setOnlineTab("cards")}
                         >
-                          Cards (Visa/Master/RuPay)
+                          Cards
                         </button>
                         <button
                           type="button"
                           className={`bk-sub-tab ${onlineTab === "netbanking" ? "bk-sub-tab--active" : ""}`}
                           onClick={() => setOnlineTab("netbanking")}
                         >
-                          Net Banking & Wallets
+                          NetBanking
                         </button>
                       </div>
 
-                      {/* Quick UPI Apps */}
-                      <div className="bk-quick-upi-apps">
-                        <span className="bk-upi-app-pill">
-                          <span className="bk-upi-app-dot" style={{ background: "#4285F4" }} />
-                          Google Pay
+                      {/* Brand Chips Bar */}
+                      <div className="bk-brand-chips-row">
+                        <span className="bk-brand-chip">
+                          <span className="bk-brand-chip-dot" style={{ background: "#2563eb" }} />
+                          GPay
                         </span>
-                        <span className="bk-upi-app-pill">
-                          <span className="bk-upi-app-dot" style={{ background: "#5f259f" }} />
+                        <span className="bk-brand-chip">
+                          <span className="bk-brand-chip-dot" style={{ background: "#6739b7" }} />
                           PhonePe
                         </span>
-                        <span className="bk-upi-app-pill">
-                          <span className="bk-upi-app-dot" style={{ background: "#00baf2" }} />
-                          Paytm UPI
+                        <span className="bk-brand-chip">
+                          <span className="bk-brand-chip-dot" style={{ background: "#00baf2" }} />
+                          Paytm
                         </span>
-                        <span className="bk-upi-app-pill">
-                          <span className="bk-upi-app-dot" style={{ background: "#ea580c" }} />
+                        <span className="bk-brand-chip">
+                          <span className="bk-brand-chip-dot" style={{ background: "#ea580c" }} />
                           BHIM
                         </span>
                       </div>
 
                       {/* Tab 1: UPI / QR Code */}
-                      {onlineTab === "upi" && (
-                        <div className="bk-upi-qr-section">
-                          <div className="bk-qr-box">
-                            <div className="bk-qr-placeholder">
-                              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="1.5">
-                                <rect x="3" y="3" width="7" height="7" rx="1" />
-                                <rect x="14" y="3" width="7" height="7" rx="1" />
-                                <rect x="14" y="14" width="7" height="7" rx="1" />
-                                <rect x="3" y="14" width="7" height="7" rx="1" />
-                                <path d="M7 7h.01M17 7h.01M7 17h.01M17 17h.01" strokeWidth="3" strokeLinecap="round" />
-                              </svg>
-                            </div>
-                            <span className="bk-qr-subtext">Scan with any UPI App</span>
-                          </div>
-
-                          <div className="bk-vpa-box">
-                            <span className="bk-vpa-label">Or enter Virtual Payment Address (UPI ID)</span>
-                            <div className="bk-vpa-input-wrap">
-                              <input
-                                type="text"
-                                className="bk-vpa-input"
-                                placeholder="yourname@oksbi / mobilenumber@upi"
-                                value={upiIdInput}
-                                onChange={(e) => {
-                                  setUpiIdInput(e.target.value);
-                                  setIsVpaVerified(false);
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className="bk-vpa-verify-btn"
-                                onClick={() => {
-                                  if (upiIdInput.includes("@")) {
-                                    setIsVpaVerified(true);
-                                  }
-                                }}
-                              >
-                                {isVpaVerified ? "✓ Verified" : "Verify"}
-                              </button>
-                            </div>
-                            <span className="bk-vpa-subnote">
-                              <span>🔒</span>
-                              <span>Payment request will be sent to your mobile device via Razorpay</span>
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                      
 
                       {/* Tab 2: Cards */}
                       {onlineTab === "cards" && (
@@ -1710,7 +2285,7 @@ export default function BookingPage() {
 
                   {discountAmount > 0 && (
                     <div className="bk-modal-bill-line bk-modal-bill-line--discount">
-                      <span>Voucher Discount ({appliedVoucher?.code})</span>
+                      <span> Discount ({appliedVoucher?.code})</span>
                       <strong>-₹{discountAmount}</strong>
                     </div>
                   )}
@@ -1735,7 +2310,7 @@ export default function BookingPage() {
                     <button
                       type="button"
                       className="bk-modal-try-again-btn"
-                      onClick={handleFinalBookingSubmit}
+                      onClick={handleInitiatePaymentConfirm}
                       disabled={submitting}
                     >
                       Try Again
@@ -1748,7 +2323,7 @@ export default function BookingPage() {
                   type="button"
                   className="bk-modal-submit-cta"
                   disabled={submitting}
-                  onClick={handleFinalBookingSubmit}
+                  onClick={handleInitiatePaymentConfirm}
                 >
                   {submitting
                     ? "Processing…"
@@ -1773,6 +2348,404 @@ export default function BookingPage() {
                   </a>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================================
+          CONFIRMATION PROMPT DIALOG ("Yes, Proceed" for all payment modes)
+          ========================================================================== */}
+      {showConfirmPrompt && selectedSlot && selectedDate && (
+        <div
+          className="bk-confirm-prompt-backdrop"
+          onClick={() => !submitting && setShowConfirmPrompt(false)}
+        >
+          <div
+            className="bk-confirm-prompt-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bk-confirm-prompt-icon-wrap">
+              <span className="bk-confirm-prompt-icon">📅</span>
+            </div>
+
+            <h3 className="bk-confirm-prompt-title">Confirm Your Booking</h3>
+            <p className="bk-confirm-prompt-desc">
+              Are you sure you want to proceed with this appointment?
+            </p>
+
+            {/* Quick Summary Breakdown */}
+            <div className="bk-confirm-prompt-summary">
+              <div className="bk-cp-row">
+                <span className="bk-cp-label">Salon</span>
+                <span className="bk-cp-val bk-cp-val--bold">{salon?.name || "BookMySalon"}</span>
+              </div>
+              <div className="bk-cp-row">
+                <span className="bk-cp-label">Specialist</span>
+                <span className="bk-cp-val">{workerLabel()}</span>
+              </div>
+              <div className="bk-cp-row">
+                <span className="bk-cp-label">Date & Time</span>
+                <span className="bk-cp-val">
+                  {formatDateDisplay(selectedDate)} at {selectedSlot.time_display}
+                </span>
+              </div>
+              <div className="bk-cp-row">
+                <span className="bk-cp-label">Treatments ({selectedServices.length})</span>
+                <span className="bk-cp-val">
+                  {selectedServices.map((s) => s.name).join(" + ")}
+                </span>
+              </div>
+              <div className="bk-cp-divider" />
+              <div className="bk-cp-row">
+                <span className="bk-cp-label">Payment Mode</span>
+                <span className="bk-cp-val bk-cp-val--badge">
+                  {paymentMethod === "PAY_AT_SALON"
+                    ? "🏪 Pay at Salon (Zero Advance)"
+                    : isTokenOnly
+                    ? "💳 Online Token Advance (₹100)"
+                    : `💳 Online Full Payment (₹${payableNowAmount.toLocaleString("en-IN")})`}
+                </span>
+              </div>
+              <div className="bk-cp-row bk-cp-row--total">
+                <span className="bk-cp-label">Amount Payable Now</span>
+                <span className="bk-cp-val bk-cp-val--price">
+                  {paymentMethod === "PAY_AT_SALON"
+                    ? "₹0 (Pay after service)"
+                    : `₹${payableNowAmount.toLocaleString("en-IN")}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="bk-confirm-prompt-actions">
+              <button
+                type="button"
+                className="bk-cp-btn bk-cp-btn--cancel"
+                disabled={submitting}
+                onClick={() => setShowConfirmPrompt(false)}
+              >
+                Cancel / Review
+              </button>
+              <button
+                type="button"
+                className="bk-cp-btn bk-cp-btn--proceed"
+                disabled={submitting}
+                onClick={handleFinalBookingSubmit}
+              >
+                {submitting ? "Processing…" : "Yes, Proceed →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================================
+          BOOKING CONFIRMATION ANIMATION OVERLAY (Shown for Pay at Salon & Online)
+          ========================================================================== */}
+      {showSuccessAnimation && (
+        <div className="bk-success-anim-backdrop">
+          <div className="bk-success-anim-card">
+            {/* Floating Confetti Particles */}
+            <div className="bk-confetti-particle p1" />
+            <div className="bk-confetti-particle p2" />
+            <div className="bk-confetti-particle p3" />
+            <div className="bk-confetti-particle p4" />
+            <div className="bk-confetti-particle p5" />
+            <div className="bk-confetti-particle p6" />
+
+            {/* SVG Animated Circle & Checkmark */}
+            <div className="bk-anim-check-wrapper">
+              <div className="bk-anim-pulse-ring" />
+              <svg
+                className="bk-anim-svg"
+                viewBox="0 0 80 80"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle
+                  className="bk-anim-circle"
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  fill="none"
+                  stroke="#15803d"
+                  strokeWidth="4"
+                />
+                <path
+                  className="bk-anim-check"
+                  fill="none"
+                  stroke="#15803d"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M24 41 l11 11 l22 -22"
+                />
+              </svg>
+            </div>
+
+            <h2 className="bk-success-anim-title">Booking Confirmed!</h2>
+            <p className="bk-success-anim-desc">
+              Your appointment is locked in with <strong>{salon?.name || "BookMySalon"}</strong>.
+            </p>
+
+            <div className="bk-success-anim-badge">
+              {paymentMethod === "PAY_AT_SALON"
+                ? "🏪 Pay at Salon Verified • Zero Advance"
+                : "💳 Online Payment Successful"}
+            </div>
+
+            {/* Animated Progress Bar */}
+            <div className="bk-success-anim-progress-track">
+              <div className="bk-success-anim-progress-bar" />
+            </div>
+            <span className="bk-success-anim-subtext">Redirecting to your confirmed receipt…</span>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================================
+          ADD MORE SERVICES MODAL
+          ========================================================================== */}
+      {showAddServicesModal && (
+        <div className="bk-service-modal-backdrop" onClick={() => setShowAddServicesModal(false)}>
+          <div className="bk-service-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="bk-service-modal-head">
+              <div>
+                <h3 className="bk-service-modal-title">Add Treatments & Services</h3>
+                <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", color: "#64748b" }}>
+                  Select additional services offered by {salon?.name || "this salon"}.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="bk-service-modal-close"
+                onClick={() => setShowAddServicesModal(false)}
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="bk-service-modal-search">
+              <input
+                type="text"
+                className="bk-service-search-input"
+                placeholder="Search services by name or category…"
+                value={serviceSearchTerm}
+                onChange={(e) => setServiceSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {/* Category Pills */}
+            {availableCategories.length > 2 && (
+              <div className="bk-service-cat-pills">
+                {availableCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`bk-service-cat-pill ${selectedCategoryTab === cat ? "active" : ""}`}
+                    onClick={() => setSelectedCategoryTab(cat)}
+                  >
+                    {cat === "all" ? "All Services" : cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Services List */}
+            <div className="bk-service-modal-list">
+              {filteredModalServices.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                  <p style={{ fontSize: "1.2rem", marginBottom: "4px" }}>🔍</p>
+                  <p style={{ fontWeight: 600 }}>No treatments match your search</p>
+                </div>
+              ) : (
+                filteredModalServices.map((svc) => {
+                  const isAdded = selectedServices.some((s) => s.id === svc.id);
+                  return (
+                    <div
+                      key={svc.id}
+                      className="bk-modal-svc-row"
+                      style={{
+                        background: isAdded ? "#f0fdf4" : "#ffffff",
+                        borderColor: isAdded ? "#86efac" : "#e2e8f0",
+                      }}
+                    >
+                      <div className="bk-modal-svc-info">
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <strong className="bk-modal-svc-name">{svc.name}</strong>
+                          {svc.category && (
+                            <span className="bk-modal-svc-cat">{svc.category}</span>
+                          )}
+                        </div>
+                        {svc.description && (
+                          <p className="bk-modal-svc-desc">{svc.description}</p>
+                        )}
+                        <div className="bk-modal-svc-meta">
+                          <span className="bk-modal-svc-price">₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                          <span className="bk-modal-svc-duration">⏱ {svc.duration} mins</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`bk-modal-svc-btn ${isAdded ? "added" : ""}`}
+                        onClick={() => handleModalToggleService(svc)}
+                      >
+                        {isAdded ? "✓ Added (Remove)" : "+ Add Service"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Summary */}
+            <div className="bk-service-modal-footer">
+              <div className="bk-service-modal-summary">
+                <span>
+                  <strong>{selectedServices.length}</strong> treatment{selectedServices.length > 1 ? "s" : ""} selected • ⏱ <strong>{totalDurationMinutes} mins</strong>
+                </span>
+                <span style={{ fontWeight: 700, color: "#15803d" }}>
+                  Subtotal: ₹{serviceSubtotal.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="bk-service-modal-done-btn"
+                onClick={() => setShowAddServicesModal(false)}
+              >
+                Done / Save Selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================================
+          CHANGE STYLIST MODAL
+          ========================================================================== */}
+      {showChangeStylistModal && (
+        <div className="bk-service-modal-backdrop" onClick={() => setShowChangeStylistModal(false)}>
+          <div className="bk-stylist-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="bk-service-modal-head">
+              <div>
+                <h3 className="bk-service-modal-title">Select Specialist</h3>
+                <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", color: "#64748b" }}>
+                  Qualified specialists for your {selectedServices.length} selected treatment{selectedServices.length > 1 ? "s" : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="bk-service-modal-close"
+                onClick={() => setShowChangeStylistModal(false)}
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bk-stylist-modal-list">
+              {/* Option 1: Auto-assign / Any specialist */}
+              <div
+                className={`bk-stylist-modal-item ${
+                  !selectedWorker || selectedWorker === "any" || selectedWorker === "auto"
+                    ? "is-selected"
+                    : ""
+                }`}
+                onClick={() => {
+                  setSelectedWorker("any");
+                  setStylistWarning("");
+                  setShowChangeStylistModal(false);
+                }}
+              >
+                <div className="bk-stylist-modal-item-left">
+                  <div className="bk-stylist-modal-avatar-fallback">✦</div>
+                  <div className="bk-stylist-modal-meta">
+                    <div className="bk-stylist-modal-name-row">
+                      <span className="bk-stylist-modal-name">Auto-Assign (Any Available Specialist)</span>
+                      <span className="bk-stylist-modal-rating">Fastest</span>
+                    </div>
+                    <span className="bk-stylist-role">
+                      Optimal match based on current workstation schedules
+                    </span>
+                    <span className="bk-stylist-modal-station">✓ Ensures maximum slot flexibility</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`bk-stylist-modal-btn ${
+                    !selectedWorker || selectedWorker === "any" || selectedWorker === "auto"
+                      ? "selected"
+                      : "choose"
+                  }`}
+                >
+                  {!selectedWorker || selectedWorker === "any" || selectedWorker === "auto"
+                    ? "Selected ✓"
+                    : "Choose"}
+                </button>
+              </div>
+
+              {/* Specific Eligible Specialists */}
+              {workers.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "20px 10px", color: "#64748b" }}>
+                  <p style={{ fontSize: "0.85rem" }}>
+                    No specific individual specialists found for this combination of treatments. Auto-Assign will pair you with available staff.
+                  </p>
+                </div>
+              ) : (
+                workers.map((w) => {
+                  const isCurrent = String(selectedWorker) === String(w.id);
+                  return (
+                    <div
+                      key={w.id}
+                      className={`bk-stylist-modal-item ${isCurrent ? "is-selected" : ""}`}
+                      onClick={() => {
+                        setSelectedWorker(String(w.id));
+                        setStylistWarning("");
+                        setShowChangeStylistModal(false);
+                      }}
+                    >
+                      <div className="bk-stylist-modal-item-left">
+                        {w.profile_photo ? (
+                          <img
+                            src={resolveImageUrl(w.profile_photo)}
+                            alt={w.name}
+                            className="bk-stylist-modal-avatar"
+                          />
+                        ) : (
+                          <div className="bk-stylist-modal-avatar-fallback">
+                            {w.name ? w.name[0] : "S"}
+                          </div>
+                        )}
+                        <div className="bk-stylist-modal-meta">
+                          <div className="bk-stylist-modal-name-row">
+                            <span className="bk-stylist-modal-name">{w.name}</span>
+                            {w.rating && (
+                              <span className="bk-stylist-modal-rating">★ {w.rating}</span>
+                            )}
+                          </div>
+                          <span className="bk-stylist-role">
+                            {w.specialization || "Professional Stylist"}
+                            {w.experience ? ` • ${w.experience}` : ""}
+                          </span>
+                          <span className="bk-stylist-modal-station">
+                            ✓ Certified for all {selectedServices.length} selected treatment{selectedServices.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`bk-stylist-modal-btn ${isCurrent ? "selected" : "choose"}`}
+                      >
+                        {isCurrent ? "Selected ✓" : "Choose"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

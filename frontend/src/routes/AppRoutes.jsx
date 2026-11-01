@@ -22,6 +22,8 @@ import WorkerManagement from "../pages/owner/WorkerManagement";
 import OwnerSchedule from "../pages/owner/OwnerSchedule";
 import OwnerWorkerLeaves from "../pages/owner/OwnerWorkerLeaves";
 import OwnerServices from "../pages/owner/OwnerServices";
+import OwnerOffers from "../pages/owner/OwnerOffers";
+import OffersPage from "../pages/customer/OffersPage";
 import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import WorkerLeave from "../pages/worker/WorkerLeave";
 import WorkerCalendar from "../pages/worker/WorkerCalendar";
@@ -52,6 +54,10 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
       </Route>
 
+      {/* Customer Routes */}
+      <Route path="/offers" element={<OffersPage />} />
+      
+
       <Route element={<RoleRoute allowedRoles={["CUSTOMER"]} />}>
         <Route path="/customer/home" element={<CustomerHome />} />
         <Route path="/customer/salons" element={<SalonsExplore />} />
@@ -61,6 +67,7 @@ function AppRoutes() {
         <Route path="/customer/my-bookings" element={<MyBookings />} />
         <Route path="/salons/:id" element={<SalonDetail />} />
         <Route path="/salons/:id/book" element={<BookingPage />} />
+        <Route path="/customer/offers" element={<OffersPage />} />
       </Route>
 
 
@@ -77,6 +84,7 @@ function AppRoutes() {
         
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
         <Route path="/owner/services" element={<OwnerServices />} />
+        <Route path="/owner/offers" element={<OwnerOffers />} />
         <Route path="/owner/workers" element={<WorkerManagement />} />
         <Route path="/owner/schedule" element={<OwnerSchedule />} />
         <Route path="/owner/worker-leaves" element={<OwnerWorkerLeaves />} />

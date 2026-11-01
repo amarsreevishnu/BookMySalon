@@ -1273,6 +1273,21 @@
   letter-spacing: 0.5px;
 }
 
+.bk-offer-type-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.bk-offer-type-tag.combo { background: #ede9fe; color: #6d28d9; }
+.bk-offer-type-tag.first_booking { background: #fef3c7; color: #b45309; }
+.bk-offer-type-tag.service { background: #ccfbf1; color: #0f766e; }
+.bk-offer-type-tag.festival { background: #ffe4e6; color: #be123c; }
+.bk-offer-type-tag.coupon { background: #dbeafe; color: #1d4ed8; }
+
 .coupon-title {
   font-size: 0.95rem;
   font-weight: 700;

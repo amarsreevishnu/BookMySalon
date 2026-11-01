@@ -293,6 +293,7 @@ class CreateRazorpayOrderView(APIView):
                     service=service,
                     worker=assigned_worker,
                     customer=customer,
+                    applied_offer=data.get('applied_offer'),
                     client_name=data['client_name'],
                     client_phone=data.get('client_phone', ''),
                     client_email=data.get('client_email', ''),
@@ -515,6 +516,13 @@ class VerifyRazorpayPaymentView(APIView):
                     notes="Verified online payment via Razorpay",
                 )
 
+                if booking.applied_offer:
+                    try:
+                        from offers.services import record_offer_redemption
+                        record_offer_redemption(booking.applied_offer, booking, booking.customer)
+                    except Exception as red_err:
+                        logging.getLogger(__name__).warning("Could not record offer redemption on online payment: %s", red_err)
+
                 try:
                     from notifications.services import notify_booking_confirmed, notify_payment_success
                     notify_booking_confirmed(booking)
@@ -618,6 +626,13 @@ class ConfirmPaymentView(APIView):
                         'payment_status': Payment.PaymentStatus.PAID,
                     }
                 )
+
+                if booking.applied_offer:
+                    try:
+                        from offers.services import record_offer_redemption
+                        record_offer_redemption(booking.applied_offer, booking, booking.customer)
+                    except Exception as red_err:
+                        logging.getLogger(__name__).warning("Could not record offer redemption on offline payment: %s", red_err)
 
                 try:
                     from notifications.services import notify_booking_confirmed, notify_payment_success

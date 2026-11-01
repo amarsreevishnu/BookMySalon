@@ -974,6 +974,7 @@ class BookingCreateView(APIView):
                     service=service,
                     worker=assigned_worker,
                     customer=customer,
+                    applied_offer=data.get('applied_offer'),
                     client_name=data['client_name'],
                     client_phone=data.get('client_phone', ''),
                     client_email=data.get('client_email', ''),
@@ -1000,6 +1001,13 @@ class BookingCreateView(APIView):
                     notes=data.get('notes', ''),
                 )
                 booking.services.set(services_list)
+
+                if booking.applied_offer:
+                    try:
+                        from offers.services import record_offer_redemption
+                        record_offer_redemption(booking.applied_offer, booking, customer)
+                    except Exception as red_err:
+                        logger.warning("Could not record offer redemption: %s", red_err)
 
                 from payments.models import Payment
                 Payment.objects.update_or_create(
@@ -1230,6 +1238,7 @@ class BookingReserveView(APIView):
                     service=service,
                     worker=assigned_worker,
                     customer=customer,
+                    applied_offer=data.get('applied_offer'),
                     client_name=data['client_name'],
                     client_phone=data.get('client_phone', ''),
                     client_email=data.get('client_email', ''),

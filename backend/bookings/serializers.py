@@ -81,22 +81,43 @@ class BookingCreateSerializer(serializers.Serializer):
         services_dict = {s.id: s for s in services}
         ordered_services = [services_dict[sid] for sid in svc_ids if sid in services_dict]
 
-        # Validate voucher code strictly against approved server rules
+        # Validate voucher / offer code strictly against Offer engine and approved server rules
         raw_code = (attrs.get('voucher_code') or '').strip().upper()
+        applied_offer = None
         if raw_code:
-            if raw_code not in COUPON_RULES:
-                raise serializers.ValidationError({'voucher_code': f'Coupon code "{raw_code}" is invalid or expired.'})
-            rule = COUPON_RULES[raw_code]
-            est_subtotal = sum(Decimal(str(s.price or "0.00")) for s in ordered_services)
-            if est_subtotal < rule['min_spend']:
-                raise serializers.ValidationError({
-                    'voucher_code': f'Coupon "{raw_code}" requires a minimum booking subtotal of ₹{rule["min_spend"]}.'
-                })
-
-        pricing = calculate_pricing(
-            ordered_services,
-            voucher_code=raw_code,
-        )
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from offers.services import validate_and_calculate_offer
+            request = self.context.get('request')
+            customer_user = request.user if request and request.user.is_authenticated else None
+            try:
+                offer_calc = validate_and_calculate_offer(
+                    salon=salon,
+                    offer_code_or_id=raw_code,
+                    services=ordered_services,
+                    customer=customer_user,
+                    customer_phone=attrs.get('client_phone', ''),
+                    customer_email=attrs.get('client_email', ''),
+                    booking_date=booking_date,
+                    booking_time=attrs.get('start_time'),
+                )
+                applied_offer = offer_calc.get('offer')
+                tot_dur = sum(int(s.duration or 0) for s in ordered_services)
+                pricing = {
+                    'subtotal': offer_calc['subtotal'],
+                    'total_duration': max(15, tot_dur),
+                    'tax_amount': offer_calc['tax_amount'],
+                    'discount_amount': offer_calc['discount_amount'],
+                    'voucher_code': offer_calc['offer_code'],
+                    'total_amount': offer_calc['total_amount'],
+                }
+            except DjangoValidationError as ve:
+                err_msg = ve.message if hasattr(ve, 'message') else (', '.join(ve.messages) if hasattr(ve, 'messages') else str(ve))
+                raise serializers.ValidationError({'voucher_code': err_msg})
+        else:
+            pricing = calculate_pricing(
+                ordered_services,
+                voucher_code='',
+            )
 
         total_duration = pricing['total_duration']
         start_time = attrs['start_time']
@@ -113,6 +134,7 @@ class BookingCreateSerializer(serializers.Serializer):
         attrs['discount_amount'] = pricing['discount_amount']
         attrs['total_amount'] = pricing['total_amount']
         attrs['voucher_code'] = pricing['voucher_code']
+        attrs['applied_offer'] = applied_offer
         attrs['total_duration'] = total_duration
 
         return attrs
@@ -126,6 +148,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
     service_display_name = serializers.SerializerMethodField()
     duration_minutes = serializers.SerializerMethodField()
     services_detail = serializers.SerializerMethodField()
+    applied_offer_title = serializers.SerializerMethodField()
     has_salon_review = serializers.SerializerMethodField()
     salon_review = serializers.SerializerMethodField()
     has_worker_review = serializers.SerializerMethodField()
@@ -140,7 +163,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'customer',
             'client_name', 'client_phone', 'client_email',
             'service_name', 'service_display_name', 'service_price',
-            'subtotal', 'tax_amount', 'discount_amount', 'voucher_code', 'total_amount',
+            'subtotal', 'tax_amount', 'discount_amount', 'voucher_code', 'applied_offer', 'applied_offer_title', 'total_amount',
             'advance_amount', 'remaining_amount', 'is_advance_paid', 'is_fully_paid',
             'services_detail',
             'booking_date',
@@ -167,6 +190,11 @@ class BookingReadSerializer(serializers.ModelSerializer):
             from salons.media_utils import build_full_media_url
             return build_full_media_url(request, obj.worker.profile_photo)
         return ''
+
+    def get_applied_offer_title(self, obj):
+        if obj.applied_offer:
+            return obj.applied_offer.title
+        return obj.voucher_code or ''
 
     def get_services_detail(self, obj):
         svcs = list(obj.services.all())

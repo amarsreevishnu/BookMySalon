@@ -1927,6 +1927,167 @@
   margin: 0;
 }
 
+/* Selected Treatments List & Remove Button */
+.bk-treatment-add-more-btn {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bk-treatment-add-more-btn:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.bk-treatments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bk-treatment-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.bk-treatment-item-row:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.bk-treatment-item-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-treatment-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-treatment-item-name {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bk-treatment-item-cat-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.bk-treatment-item-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.bk-treatment-item-duration {
+  font-weight: 500;
+}
+
+.bk-treatment-item-dot {
+  color: #cbd5e1;
+}
+
+.bk-treatment-item-desc {
+  color: #64748b;
+}
+
+.bk-treatment-item-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.bk-treatment-item-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.bk-treatment-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.bk-treatment-remove-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+  transform: scale(1.08);
+}
+
+.bk-ps-remove-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.bk-ps-remove-btn:hover {
+  background: #fecaca;
+  color: #b91c1c;
+  transform: scale(1.1);
+}
+
 /* Stylist Row inside Treatment Card */
 .bk-stylist-row {
   background: #f8fafc;
@@ -2373,6 +2534,289 @@
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* ==========================================================================
+   Available Offers & Deals Panel (Booking Review Page)
+   ========================================================================== */
+
+.bk-available-offers-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.bk-offers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.bk-offers-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bk-offers-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bk-offers-count-pill {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.bk-offers-single-rule {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.bk-offers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bk-offers-stack::-webkit-scrollbar {
+  width: 5px;
+}
+.bk-offers-stack::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.bk-offer-tile {
+  background: #fafaf9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.bk-offer-tile:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.bk-offer-tile.is-applied {
+  background: #f0fdf4;
+  border-color: #86efac;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.08);
+}
+
+.bk-offer-tile.is-ineligible {
+  opacity: 0.88;
+}
+
+.bk-offer-tile-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-offer-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-offer-type-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.bk-offer-type-tag.combo { background: #ede9fe; color: #6d28d9; }
+.bk-offer-type-tag.first_booking { background: #fef3c7; color: #b45309; }
+.bk-offer-type-tag.service { background: #ccfbf1; color: #0f766e; }
+.bk-offer-type-tag.festival { background: #ffe4e6; color: #be123c; }
+.bk-offer-type-tag.coupon { background: #dbeafe; color: #1d4ed8; }
+
+.bk-offer-code-pill {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.bk-offer-tile-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.bk-offer-tile-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.bk-offer-combo-bundle {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-combo-bundle-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.bk-combo-bundle-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bk-combo-item-chip {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bk-combo-item-chip.selected {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.bk-combo-item-chip.missing {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.bk-offer-req-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 4px;
+  width: fit-content;
+  margin-top: 2px;
+}
+
+.bk-offer-tile-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.bk-offer-discount-badge {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1b4332;
+  white-space: nowrap;
+}
+
+.bk-offer-apply-btn {
+  background: #1b4332;
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bk-offer-apply-btn:hover {
+  background: #2d6a4f;
+  transform: translateY(-1px);
+}
+
+.bk-offer-apply-btn.applied {
+  background: #15803d;
+  color: #ffffff;
+  cursor: default;
+}
+
+.bk-offer-remove-btn {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-offer-remove-btn:hover {
+  background: #fee2e2;
+}
+
+.bk-offer-add-missing-btn {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bk-offer-add-missing-btn:hover {
+  background: #ede9fe;
+  border-color: #c4b5fd;
 }
 
 /* ==========================================================================
@@ -3109,6 +3553,842 @@
 .bk-review-textarea:focus {
   border-color: #2d6a4f;
   box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.12);
+}
+
+/* ==========================================================================
+   Confirmation Prompt & Booking Success Animation Overlays
+   ========================================================================== */
+
+@keyframes bkFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bkPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bkCardPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(24px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bkCircleDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bkCheckDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bkPulseRing {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes bkFillProgress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes bkConfettiFloat {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-80px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* 1. Confirmation Prompt Dialog */
+.bk-confirm-prompt-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 99990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: bkFadeIn 0.2s ease-out;
+}
+
+.bk-confirm-prompt-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  padding: 28px 24px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22);
+  border: 1px solid #e2e8f0;
+  text-align: center;
+  animation: bkPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.bk-confirm-prompt-icon-wrap {
+  width: 54px;
+  height: 54px;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+}
+
+.bk-confirm-prompt-icon {
+  font-size: 1.6rem;
+}
+
+.bk-confirm-prompt-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+}
+
+.bk-confirm-prompt-desc {
+  font-size: 0.88rem;
+  color: #64748b;
+  margin: 0 0 18px 0;
+}
+
+.bk-confirm-prompt-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: left;
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 0.82rem;
+}
+
+.bk-cp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.bk-cp-label {
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.bk-cp-val {
+  color: #1e293b;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
+.bk-cp-val--bold {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bk-cp-val--badge {
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: #0f172a;
+}
+
+.bk-cp-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 4px 0;
+}
+
+.bk-cp-row--total {
+  font-size: 0.92rem;
+  margin-top: 2px;
+}
+
+.bk-cp-val--price {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1b4332;
+}
+
+.bk-confirm-prompt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.bk-cp-btn {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-cp-btn--cancel {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.bk-cp-btn--cancel:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.bk-cp-btn--proceed {
+  background: #1b4332;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(27, 67, 50, 0.28);
+}
+
+.bk-cp-btn--proceed:hover {
+  background: #2d6a4f;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(27, 67, 50, 0.35);
+}
+
+.bk-cp-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 2. Success Celebration Animation Overlay */
+.bk-success-anim-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: bkFadeIn 0.25s ease-out;
+}
+
+.bk-success-anim-card {
+  background: #ffffff;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 440px;
+  padding: 38px 28px 32px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  animation: bkCardPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.25);
+}
+
+.bk-anim-check-wrapper {
+  position: relative;
+  width: 86px;
+  height: 86px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bk-anim-pulse-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 3px solid #86efac;
+  animation: bkPulseRing 1.8s infinite ease-out;
+}
+
+.bk-anim-svg {
+  width: 86px;
+  height: 86px;
+}
+
+.bk-anim-circle {
+  stroke-dasharray: 230;
+  stroke-dashoffset: 230;
+  animation: bkCircleDraw 0.65s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.bk-anim-check {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: bkCheckDraw 0.45s 0.5s ease-out forwards;
+}
+
+.bk-success-anim-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  font-family: inherit;
+}
+
+.bk-success-anim-desc {
+  font-size: 0.92rem;
+  color: #475569;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+
+.bk-success-anim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 22px;
+}
+
+.bk-success-anim-progress-track {
+  width: 100%;
+  height: 5px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.bk-success-anim-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1b4332, #22c55e);
+  width: 0%;
+  animation: bkFillProgress 2.2s linear forwards;
+}
+
+.bk-success-anim-subtext {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Floating Confetti particles */
+.bk-confetti-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: bkConfettiFloat 1.8s ease-out infinite;
+}
+
+.bk-confetti-particle.p1 { top: 20px; left: 30px; background: #f59e0b; animation-delay: 0.1s; }
+.bk-confetti-particle.p2 { top: 40px; right: 40px; background: #10b981; animation-delay: 0.3s; }
+.bk-confetti-particle.p3 { top: 80px; left: 50px; background: #6366f1; animation-delay: 0.2s; }
+.bk-confetti-particle.p4 { top: 70px; right: 60px; background: #ec4899; animation-delay: 0.4s; }
+.bk-confetti-particle.p5 { bottom: 60px; left: 40px; background: #14b8a6; animation-delay: 0.5s; }
+.bk-confetti-particle.p6 { bottom: 50px; right: 35px; background: #f43f5e; animation-delay: 0.15s; }
+
+/* ==========================================================================
+   Add Services Modal & Change Stylist Modal (Review Booking Page)
+   ========================================================================== */
+
+/* Add Services Modal */
+.bk-service-modal-backdrop,
+.bk-stylist-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 99990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: bkFadeIn 0.2s ease-out;
+}
+
+.bk-service-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e2e8f0;
+  animation: bkPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.bk-service-modal-header,
+.bk-stylist-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.bk-service-modal-title,
+.bk-stylist-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.bk-service-modal-sub,
+.bk-stylist-modal-sub {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.bk-modal-close-icon {
+  background: #f1f5f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.bk-modal-close-icon:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.bk-service-modal-controls {
+  padding: 12px 24px 8px;
+  border-bottom: 1px solid #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.bk-service-search-input {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.86rem;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.bk-service-search-input:focus {
+  border-color: #1b4332;
+  box-shadow: 0 0 0 2px rgba(27, 67, 50, 0.12);
+}
+
+.bk-service-cat-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.bk-service-cat-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.bk-service-cat-pill.active {
+  background: #1b4332;
+  color: #ffffff;
+  border-color: #1b4332;
+}
+
+.bk-service-modal-list {
+  padding: 12px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.bk-modal-svc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.bk-modal-svc-row:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.bk-modal-svc-row.is-selected {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.bk-modal-svc-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bk-modal-svc-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-modal-svc-name {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bk-modal-svc-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bk-modal-svc-sub {
+  font-size: 0.76rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bk-modal-svc-desc {
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.bk-modal-svc-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.bk-modal-svc-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.bk-modal-svc-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bk-modal-svc-btn.add {
+  background: #1b4332;
+  color: #ffffff;
+  border: none;
+}
+
+.bk-modal-svc-btn.add:hover {
+  background: #2d6a4f;
+}
+
+.bk-modal-svc-btn.added {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.bk-modal-svc-btn.added:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.bk-service-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.bk-service-modal-summary {
+  font-size: 0.82rem;
+  color: #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bk-service-modal-done-btn {
+  background: #1b4332;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-service-modal-done-btn:hover {
+  background: #2d6a4f;
+}
+
+/* Change Stylist Modal */
+.bk-stylist-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e2e8f0;
+  animation: bkPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.bk-stylist-modal-list {
+  padding: 16px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.bk-stylist-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-stylist-modal-item:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.bk-stylist-modal-item.is-selected {
+  background: #f0fdf4;
+  border-color: #22c55e;
+  box-shadow: 0 2px 10px rgba(34, 197, 94, 0.12);
+}
+
+.bk-stylist-modal-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.bk-stylist-modal-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e2e8f0;
+}
+
+.bk-stylist-modal-avatar-fallback {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1b4332;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.bk-stylist-modal-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bk-stylist-modal-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bk-stylist-modal-name {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bk-stylist-modal-rating {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.bk-stylist-modal-role {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.bk-stylist-modal-station {
+  font-size: 0.72rem;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.bk-stylist-modal-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bk-stylist-modal-btn.selected {
+  background: #15803d;
+  color: #ffffff;
+  border: none;
+}
+
+.bk-stylist-modal-btn.choose {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.bk-stylist-modal-btn.choose:hover {
+  background: #1b4332;
+  color: #ffffff;
+  border-color: #1b4332;
+}
+
+/* Stylist Incompatibility Alert Banner */
+.bk-stylist-compat-alert {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.bk-stylist-compat-alert button {
+  background: #b45309;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 

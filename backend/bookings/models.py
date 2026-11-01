@@ -52,6 +52,14 @@ class Booking(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Sum of all services prices')
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Taxes (GST & hygiene)')
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Discounts/coupons/vouchers')
+    applied_offer = models.ForeignKey(
+        'offers.Offer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
+        help_text='Applied promotional or discount offer',
+    )
     voucher_code = models.CharField(max_length=50, blank=True, default="", help_text='Applied promo or voucher code')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Final payable total')
     advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Token advance paid online (e.g. ₹100)')

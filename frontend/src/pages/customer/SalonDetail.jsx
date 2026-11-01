@@ -530,6 +530,7 @@ export default function SalonDetail() {
 
           const dynamicOffers = Array.isArray(apiData.offers) ? apiData.offers : [];
 
+          
           const dynRating = typeof apiData.rating === "number" ? apiData.rating : (parseFloat(apiData.rating) || 5.0);
           const dynReviewsCount = typeof apiData.reviews_count === "number" ? apiData.reviews_count : (parseInt(apiData.reviews_count, 10) || 0);
           const dynReviews = Array.isArray(apiData.reviews) ? apiData.reviews : [];
@@ -656,6 +657,35 @@ export default function SalonDetail() {
     });
   };
 
+  const formatOfferDiscount = (offer) => {
+    const dType = offer.discount_type || offer.discountType;
+    const dVal = offer.discount_value || offer.discountValue;
+    const maxD = offer.max_discount_amount;
+    if (dType === "PERCENTAGE") {
+      const cap = maxD ? ` (up to ₹${Number(maxD)})` : "";
+      return `${Number(dVal)}% OFF${cap}`;
+    }
+    if (dType === "FIXED_PRICE") {
+      return `Fixed ₹${Number(dVal).toLocaleString("en-IN")}`;
+    }
+    return `₹${Number(dVal).toLocaleString("en-IN")} OFF`;
+  };
+
+  const getOfferTypeMeta = (type) => {
+    switch (type) {
+      case "COMBO":
+        return { label: "Combo Deal", cls: "combo" };
+      case "FIRST_BOOKING":
+        return { label: "First Booking", cls: "first_booking" };
+      case "SERVICE":
+        return { label: "Service Special", cls: "service" };
+      case "FESTIVAL":
+        return { label: "Festival Deal", cls: "festival" };
+      default:
+        return { label: "Coupon Offer", cls: "coupon" };
+    }
+  };
+
   const billSummary = useMemo(() => {
     const subtotal = selectedServices.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
     const taxRate = 0.05; // 5% GST
@@ -665,12 +695,22 @@ export default function SalonDetail() {
     if (appliedCoupon) {
       const minSpend = Number(appliedCoupon.minSpend || appliedCoupon.min_spend || 0);
       if (subtotal >= minSpend) {
-        if (appliedCoupon.discountRate) {
-          discount = Math.round(subtotal * appliedCoupon.discountRate);
-        } else if (appliedCoupon.discountFixed) {
-          discount = Math.min(subtotal, appliedCoupon.discountFixed);
-        } else if (appliedCoupon.discount) {
-          discount = Math.min(subtotal, appliedCoupon.discount);
+        const dType = appliedCoupon.discount_type || appliedCoupon.discountType;
+        const dVal = Number(appliedCoupon.discount_value ?? appliedCoupon.discountValue ?? 0);
+        const maxD = appliedCoupon.max_discount_amount ? Number(appliedCoupon.max_discount_amount) : null;
+
+        if (dType === "FIXED_PRICE" || (appliedCoupon.fixedPrice !== null && appliedCoupon.fixedPrice !== undefined)) {
+          const fixedPrice = Number(appliedCoupon.fixedPrice ?? dVal);
+          discount = Math.max(0, subtotal - fixedPrice);
+        } else if (dType === "PERCENTAGE" || appliedCoupon.discountRate) {
+          const rate = appliedCoupon.discountRate ? Number(appliedCoupon.discountRate) : (dVal / 100);
+          let calcD = Math.round(subtotal * rate);
+          if (maxD && calcD > maxD) calcD = maxD;
+          discount = Math.min(subtotal, calcD);
+        } else if (dType === "FLAT" || appliedCoupon.discountFixed || appliedCoupon.discount) {
+          let calcD = Number(appliedCoupon.discountFixed || appliedCoupon.discount || dVal);
+          if (maxD && calcD > maxD) calcD = maxD;
+          discount = Math.min(subtotal, calcD);
         }
       }
     }
@@ -700,11 +740,41 @@ export default function SalonDetail() {
   const handleApplyCoupon = (coupon) => {
     const minSpend = Number(coupon.minSpend || coupon.min_spend || 0);
     if (billSummary.subtotal < minSpend) {
-      showToast(`Add items worth ₹${minSpend} to apply ${coupon.code}`);
+      showToast(`Add treatments worth ₹${minSpend} to apply ${coupon.code}`);
       return;
     }
+
+    // For combo offers, check if missing combo treatments exist
+    const isCombo = coupon.offer_type === "COMBO" || coupon.offerType === "COMBO";
+    if (isCombo && coupon.services_detail?.length > 0) {
+      const selectedIds = new Set(selectedServices.map((s) => String(s.id)));
+      const missing = coupon.services_detail.filter((cs) => !selectedIds.has(String(cs.id)));
+      if (missing.length > 0) {
+        const toAdd = missing.map((m) => {
+          const found = salon.services?.find((s) => String(s.id) === String(m.id));
+          return (
+            found || {
+              id: m.id,
+              name: m.name,
+              price: Number(m.price) || 0,
+              duration: m.duration || 45,
+            }
+          );
+        });
+        setSelectedServices((prev) => [...prev, ...toAdd]);
+        setAppliedCoupon(coupon);
+        showToast(`Added ${missing.length} bundle treatment(s) and applied ${coupon.code}! 🎉`);
+        return;
+      }
+    }
+
     setAppliedCoupon(coupon);
     showToast(`Coupon ${coupon.code} applied successfully! 🎉`);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    showToast("Coupon removed.");
   };
 
   // Synchronize favorites state with server or local storage
@@ -1672,25 +1742,100 @@ export default function SalonDetail() {
                     <div className="offers-cards-grid">
                       {salon.offers.map((offer) => {
                         const isCurrentApplied = appliedCoupon?.code === offer.code;
+                        const meta = getOfferTypeMeta(offer.offer_type || offer.offerType);
+                        const isCombo = (offer.offer_type || offer.offerType) === "COMBO";
+                        const comboItems = offer.services_detail || [];
+                        const selectedIds = new Set(selectedServices.map((s) => String(s.id)));
+                        const missingComboCount = isCombo ? comboItems.filter((cs) => !selectedIds.has(String(cs.id))).length : 0;
+                        const minSpendVal = Number(offer.min_spend || offer.minSpend || 0);
+
                         return (
-                          <div key={offer.code} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
+                          <div key={offer.code || offer.id} className={`coupon-card ${isCurrentApplied ? "coupon-applied" : ""}`}>
                             <div className="coupon-left">
-                              <div className="coupon-badge">CODE: {offer.code}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
+                                <span className={`bk-offer-type-tag ${meta.cls}`}>{meta.label}</span>
+                                <div className="coupon-badge" style={{ margin: 0 }}>CODE: {offer.code}</div>
+                              </div>
                               <h4 className="coupon-title">{offer.title}</h4>
-                              <p className="coupon-desc">{offer.desc}</p>
+                              {(offer.desc || offer.description) && (
+                                <p className="coupon-desc">{offer.desc || offer.description}</p>
+                              )}
+
+                              {/* Combo inclusions */}
+                              {isCombo && comboItems.length > 0 && (
+                                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#475569" }}>
+                                    Included in Deal:
+                                  </span>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                    {comboItems.map((cs) => {
+                                      const isSelected = selectedIds.has(String(cs.id));
+                                      return (
+                                        <span
+                                          key={cs.id}
+                                          style={{
+                                            fontSize: "0.72rem",
+                                            padding: "2px 6px",
+                                            borderRadius: "4px",
+                                            background: isSelected ? "#ecfdf5" : "#f1f5f9",
+                                            color: isSelected ? "#065f46" : "#475569",
+                                            border: isSelected ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {isSelected ? "✓" : "+"} {cs.name}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {minSpendVal > 0 && (
+                                <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "6px" }}>
+                                  Min spend: ₹{minSpendVal.toLocaleString("en-IN")}
+                                </div>
+                              )}
                             </div>
-                            <div className="coupon-right">
-                              <button
-                                type="button"
-                                className="coupon-apply-btn"
-                                disabled={isCurrentApplied}
-                                onClick={() => {
-                                  handleApplyCoupon(offer);
-                                  scrollToBooking();
-                                }}
-                              >
-                                {isCurrentApplied ? "✓ Applied" : "Apply Code"}
-                              </button>
+
+                            <div className="coupon-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px", flexShrink: 0 }}>
+                              <span style={{ fontSize: "1.05rem", fontWeight: 800, color: "#065f46" }}>
+                                {formatOfferDiscount(offer)}
+                              </span>
+
+                              {isCurrentApplied ? (
+                                <button
+                                  type="button"
+                                  className="coupon-apply-btn"
+                                  onClick={handleRemoveCoupon}
+                                  style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}
+                                >
+                                  Applied ✓ (Remove)
+                                </button>
+                              ) : isCombo && missingComboCount > 0 ? (
+                                <button
+                                  type="button"
+                                  className="coupon-apply-btn"
+                                  onClick={() => {
+                                    handleApplyCoupon(offer);
+                                    scrollToBooking();
+                                  }}
+                                  title="Add bundle items and apply offer"
+                                >
+                                  + Add Combo ({missingComboCount}) & Apply
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="coupon-apply-btn"
+                                  onClick={() => {
+                                    handleApplyCoupon(offer);
+                                    scrollToBooking();
+                                  }}
+                                >
+                                  Apply Code
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
