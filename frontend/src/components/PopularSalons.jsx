@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import { resolveImageUrl } from "../utils/imageUtils";
+import useFavorites from "../hooks/useFavorites";
 import "../styles/popularSalons.css";
 
 /* ------------------------------------------------------------------ */
@@ -144,18 +145,7 @@ function PopularSalons() {
   const [salons, setSalons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("All");
-  const [favorites, setFavorites] = useState(new Set());
-
-  const toggleFavorite = (salonName, e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(salonName)) next.delete(salonName);
-      else next.add(salonName);
-      return next;
-    });
-  };
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
     let isMounted = true;
@@ -287,12 +277,12 @@ function PopularSalons() {
           </div>
         ) : (
           filteredSalons.slice(0, 6).map((salon, idx) => {
-            const isFav = favorites.has(salon.name);
+            const isFav = isFavorite(salon.id);
             return (
               <AnimatedCard key={salon.id || salon.name} index={idx}>
                 {/* Media */}
                 <Link
-                  to="/customer/salons"
+                  to={`/customer/salons/${salon.id}`}
                   className="ac-media"
                   aria-label={`View ${salon.name}`}
                 >
@@ -319,7 +309,11 @@ function PopularSalons() {
                     <button
                       type="button"
                       className={`ac-fav ${isFav ? "ac-fav--active" : ""}`}
-                      onClick={(e) => toggleFavorite(salon.name, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        toggleFavorite(salon.id, salon.name);
+                      }}
                       aria-label={
                         isFav ? "Remove from favorites" : "Save to favorites"
                       }

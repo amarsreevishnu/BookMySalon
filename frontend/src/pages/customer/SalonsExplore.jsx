@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
+import useFavorites from "../../hooks/useFavorites";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonsExplore.css";
 import CustomerHeader from "../../components/customer/CustomerHeader";
@@ -147,7 +148,7 @@ export default function SalonsExplore() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  const [savedFavorites, setSavedFavorites] = useState(new Set([1]));
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const [toastMessage, setToastMessage] = useState("");
 
@@ -369,19 +370,20 @@ export default function SalonsExplore() {
     return count;
   }, [treatmentQuery, atmosphere, instantSlots, distanceRadius, minRating, priceTier, selectedServices, selectedPurity]);
 
-  // Toggle favorite heart
-  const toggleFavorite = (id) => {
-    setSavedFavorites((prev) => {
-      const updated = new Set(prev);
-      if (updated.has(id)) {
-        updated.delete(id);
-        setToastMessage("Removed from your saved favorites.");
-      } else {
-        updated.add(id);
-        setToastMessage("Saved to your personal favorites! ♥");
-      }
-      return updated;
-    });
+  // Toggle favorite heart via shared useFavorites hook
+  const handleToggleFavorite = async (salon, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const res = await toggleFavorite(salon.id, salon.name);
+    if (res.success) {
+      setToastMessage(
+        res.isFavorite
+          ? `Saved "${salon.name}" to your favorites! ♥`
+          : `Removed "${salon.name}" from favorites.`
+      );
+    }
   };
 
   // Reset all filters
@@ -792,11 +794,11 @@ export default function SalonsExplore() {
                     </span>
                     <button
                       type="button"
-                      className={`btn-fav-toggle ${savedFavorites.has(salon.id) ? "saved" : ""}`}
-                      onClick={() => toggleFavorite(salon.id)}
-                      title={savedFavorites.has(salon.id) ? "Remove from favorites" : "Save to favorites"}
+                      className={`btn-fav-toggle ${isFavorite(salon.id) ? "saved" : ""}`}
+                      onClick={(e) => handleToggleFavorite(salon, e)}
+                      title={isFavorite(salon.id) ? "Remove from favorites" : "Save to favorites"}
                     >
-                      {savedFavorites.has(salon.id) ? "♥" : "♡"}
+                      {isFavorite(salon.id) ? "♥" : "♡"}
                     </button>
                   </div>
 

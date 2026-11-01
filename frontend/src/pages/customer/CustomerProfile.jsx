@@ -133,6 +133,20 @@ export default function CustomerProfile() {
     }
   }, [activeTab]);
 
+  const handleRemoveProfileFavorite = async (salonId) => {
+    try {
+      await api.post("/accounts/customer/toggle-favorite/", { salon_id: salonId });
+      setFavoritesList((prev) => prev.filter((s) => s.id !== salonId));
+      window.dispatchEvent(
+        new CustomEvent("bm-favorites-updated", {
+          detail: { salonId, isFavorite: false },
+        })
+      );
+    } catch (err) {
+      console.error("Failed to remove favorite:", err);
+    }
+  };
+
   // Handle Tab Switch
   const handleTabChange = (tabKey) => {
     setSearchParams({ tab: tabKey });
@@ -1089,42 +1103,108 @@ export default function CustomerProfile() {
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
-                    {favoritesList.map((f) => (
-                      <div
-                        key={f.id}
-                        style={{
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "12px",
-                          overflow: "hidden",
-                          background: "#ffffff",
-                        }}
-                      >
-                        <img
-                          src={resolveImageUrl(f.cover_image)}
-                          alt={f.name}
-                          style={{ width: "100%", height: "130px", objectFit: "cover" }}
-                        />
-                        <div style={{ padding: "12px" }}>
-                          <h4 style={{ fontSize: "14px", fontWeight: "700", margin: "0 0 4px" }}>{f.name}</h4>
-                          <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px" }}>
-                            📍 {f.city} • {f.category}
-                          </p>
-                          <Link
-                            to={`/salons/${f.id}`}
-                            className="btn-form-save"
-                            style={{
-                              textDecoration: "none",
-                              display: "block",
-                              textAlign: "center",
-                              padding: "6px 12px",
-                              fontSize: "12px",
-                            }}
-                          >
-                            Book Slot
-                          </Link>
+                    {favoritesList.map((f) => {
+                      const isAvail = f.is_available !== false && f.approval_status === "APPROVED";
+                      return (
+                        <div
+                          key={f.id}
+                          style={{
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "12px",
+                            overflow: "hidden",
+                            background: "#ffffff",
+                            position: "relative",
+                          }}
+                        >
+                          <div style={{ position: "relative" }}>
+                            <img
+                              src={resolveImageUrl(f.cover_image)}
+                              alt={f.name}
+                              style={{ width: "100%", height: "130px", objectFit: "cover" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProfileFavorite(f.id)}
+                              title="Remove from favorites"
+                              style={{
+                                position: "absolute",
+                                top: "8px",
+                                right: "8px",
+                                background: "#ffffff",
+                                border: "none",
+                                borderRadius: "50%",
+                                width: "28px",
+                                height: "28px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#e11d48",
+                                cursor: "pointer",
+                                fontSize: "14px",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                              }}
+                            >
+                              ♥
+                            </button>
+                            {!isAvail && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  top: "8px",
+                                  left: "8px",
+                                  background: "rgba(254, 242, 242, 0.95)",
+                                  color: "#991b1b",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                }}
+                              >
+                                Unavailable
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ padding: "12px" }}>
+                            <h4 style={{ fontSize: "14px", fontWeight: "700", margin: "0 0 4px" }}>{f.name}</h4>
+                            <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px" }}>
+                              📍 {f.city} • {f.category}
+                            </p>
+                            {isAvail ? (
+                              <Link
+                                to={`/customer/salons/${f.id}`}
+                                className="btn-form-save"
+                                style={{
+                                  textDecoration: "none",
+                                  display: "block",
+                                  textAlign: "center",
+                                  padding: "6px 12px",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                Book Slot
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                style={{
+                                  width: "100%",
+                                  padding: "6px 12px",
+                                  fontSize: "12px",
+                                  background: "#f3f4f6",
+                                  color: "#9ca3af",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                  cursor: "not-allowed",
+                                }}
+                              >
+                                Booking Paused
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

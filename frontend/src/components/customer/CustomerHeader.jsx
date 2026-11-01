@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useAuth } from "../../hooks/useAuth";
+import useFavorites from "../../hooks/useFavorites";
 import { selectUserAvatar } from "../../features/auth/authSlice";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import NotificationBell from "../common/NotificationBell";
@@ -10,6 +11,7 @@ import "../../styles/salonsExplore.css";
 function CustomerHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { favoritesCount } = useFavorites();
   const reduxAvatar = useSelector(selectUserAvatar);
   const userAvatar = reduxAvatar || user?.avatar || "";
   
@@ -69,26 +71,25 @@ function CustomerHeader() {
           <nav className="explore-nav-links">
             <Link to="/customer/home" className="explore-nav-link">Home</Link>
             <Link to="/customer/salons" className="explore-nav-link">Find Salons</Link>
-            <a
-              href="#bookings"
-              className="explore-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                showToast("Opening your bookings...");
-              }}
-            >
-              Bookings
-            </a>
-            <a
-              href="#favorites"
-              className="explore-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                showToast("You have 0 saved favorite salon(s).");
-              }}
-            >
+            <Link to="/customer/my-bookings" className="explore-nav-link">Bookings</Link>
+            <Link to="/customer/saved-salons" className="explore-nav-link">
               Favorites
-            </a>
+              {favoritesCount > 0 && (
+                <span
+                  style={{
+                    background: "#ffe4e6",
+                    color: "#e11d48",
+                    padding: "1px 6px",
+                    borderRadius: "10px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    marginLeft: "4px",
+                  }}
+                >
+                  {favoritesCount}
+                </span>
+              )}
+            </Link>
           </nav>
 
           <div className="explore-header-right">
@@ -163,13 +164,13 @@ function CustomerHeader() {
                     </Link>
 
                     <Link
-                      to="/customer/profile?tab=favorites"
+                      to="/customer/saved-salons"
                       className="dropdown-menu-item"
                       onClick={() => setUserDropdownOpen(false)}
                       style={{ textDecoration: "none" }}
                     >
                       <span className="dropdown-item-icon">❤️</span>
-                      <span>Saved Favorites</span>
+                      <span>Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}</span>
                     </Link>
                   </div>
 
@@ -220,28 +221,20 @@ function CustomerHeader() {
             >
               <span>🔍</span> Find Salons
             </Link>
-            <a
-              href="#bookings"
+            <Link
+              to="/customer/my-bookings"
               className="explore-mobile-link"
-              onClick={(e) => {
-                e.preventDefault();
-                setMobileMenuOpen(false);
-                showToast("Opening your bookings...");
-              }}
+              onClick={() => setMobileMenuOpen(false)}
             >
               <span>📅</span> Bookings
-            </a>
-            <a
-              href="#favorites"
+            </Link>
+            <Link
+              to="/customer/saved-salons"
               className="explore-mobile-link"
-              onClick={(e) => {
-                e.preventDefault();
-                setMobileMenuOpen(false);
-                showToast("You have 0 saved favorite salon(s).");
-              }}
+              onClick={() => setMobileMenuOpen(false)}
             >
-              <span>❤️</span> Favorites
-            </a>
+              <span>❤️</span> Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}
+            </Link>
             <button
               type="button"
               className="explore-mobile-link"

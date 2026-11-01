@@ -828,20 +828,30 @@ class CustomerToggleFavoriteView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if profile.favorite_salons.filter(id=salon.id).exists():
-            profile.favorite_salons.remove(salon)
-            is_fav = False
-            msg = f"Removed {salon.name} from favorites"
-        else:
-            profile.favorite_salons.add(salon)
+        # Check if action is specified or auto-toggle
+        action = request.data.get("action")
+        exists = profile.favorite_salons.filter(id=salon.id).exists()
+
+        if action == "add" or (action is None and not exists):
+            if not exists:
+                profile.favorite_salons.add(salon)
             is_fav = True
-            msg = f"Added {salon.name} to favorites"
+            msg = f"Added {salon.name} to Saved Salons"
+        else:
+            if exists:
+                profile.favorite_salons.remove(salon)
+            is_fav = False
+            msg = f"Removed {salon.name} from Saved Salons"
+
+        favorite_ids = list(profile.favorite_salons.values_list("id", flat=True))
 
         return Response(
             {
                 "message": msg,
                 "is_favorite": is_fav,
-                "saved_places_count": profile.favorite_salons.count(),
+                "salon_id": salon.id,
+                "saved_places_count": len(favorite_ids),
+                "favorite_ids": favorite_ids,
             },
             status=status.HTTP_200_OK,
         )
@@ -884,24 +894,53 @@ class CustomerFavoritesListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.db.models import Avg, Count
+        from reviews.models import SalonReview
+
         user = request.user
         profile, _ = CustomerProfile.objects.get_or_create(user=user)
         salons = profile.favorite_salons.all().order_by("-created_at")
+
         results = []
         for s in salons:
+            is_approved = (s.approval_status == Salon.ApprovalStatus.APPROVED)
+            rev_agg = SalonReview.objects.filter(salon=s).aggregate(avg=Avg("rating"), count=Count("id"))
+            rating_val = round(float(rev_agg["avg"]), 1) if rev_agg["avg"] is not None else 4.9
+            reviews_cnt = rev_agg["count"] or 0
+
+            cover_img = s.cover_image
+            if not cover_img and s.images and isinstance(s.images, list) and len(s.images) > 0:
+                cover_img = s.images[0]
+
             results.append(
                 {
                     "id": s.id,
                     "name": s.name,
+                    "tagline": s.tagline or "",
                     "city": s.city,
+                    "state": s.state or "Kerala",
                     "category": s.category,
-                    "cover_image": s.cover_image or "",
+                    "cover_image": cover_img or "",
                     "address": s.address,
                     "phone": s.phone,
+                    "rating": rating_val,
+                    "reviews_count": reviews_cnt,
+                    "approval_status": s.approval_status,
+                    "is_available": is_approved,
+                    "availability_message": "Available for booking" if is_approved else "Currently unavailable for new bookings",
+                    "amenities": s.amenities or [],
+                    "price": "₹299+",
                 }
             )
+
+        favorite_ids = [s.id for s in salons]
+
         return Response(
-            {"favorites": results, "total_count": len(results)},
+            {
+                "favorites": results,
+                "total_count": len(results),
+                "favorite_ids": favorite_ids,
+            },
             status=status.HTTP_200_OK,
         )
 

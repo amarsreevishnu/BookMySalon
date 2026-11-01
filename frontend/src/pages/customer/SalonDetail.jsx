@@ -824,7 +824,17 @@ export default function SalonDetail() {
 
   const handleSaveToggle = async () => {
     const token = localStorage.getItem("access_token");
-    if (token && salon?.id) {
+    if (!token) {
+      const confirmLogin = window.confirm(
+        `Please sign in to save "${salon?.name || "this salon"}" to your favorite salons.\n\nWould you like to sign in now?`
+      );
+      if (confirmLogin) {
+        navigate("/login", { state: { from: window.location.pathname } });
+      }
+      return;
+    }
+
+    if (salon?.id) {
       try {
         const res = await api.post("/accounts/customer/toggle-favorite/", {
           salon_id: salon.id,
@@ -832,24 +842,21 @@ export default function SalonDetail() {
         const isFav = Boolean(res.data?.is_favorite);
         setIsSaved(isFav);
         showToast(isFav ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
+        window.dispatchEvent(
+          new CustomEvent("bm-favorites-updated", {
+            detail: {
+              salonId: salon.id,
+              isFavorite: isFav,
+              favoriteIds: res.data?.favorite_ids || [],
+            },
+          })
+        );
         return;
       } catch (err) {
         console.error("Failed to toggle favorite on backend:", err);
+        showToast("Failed to update favorites. Please try again.");
       }
     }
-
-    const nextSaved = !isSaved;
-    setIsSaved(nextSaved);
-    try {
-      const stored = JSON.parse(localStorage.getItem("guest_saved_salons") || "[]");
-      const updated = nextSaved
-        ? Array.from(new Set([...stored, salon?.id]))
-        : stored.filter((x) => x !== salon?.id);
-      localStorage.setItem("guest_saved_salons", JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-    showToast(nextSaved ? "Saved to your favorite salons! ❤️" : "Removed from favorites.");
   };
 
   

@@ -13,6 +13,7 @@ import SalonDetail from "../pages/customer/SalonDetail";
 import CustomerProfile from "../pages/customer/CustomerProfile";
 import BookingPage from "../pages/customer/BookingPage";
 import MyBookings from "../pages/customer/MyBookings";
+import SavedSalons from "../pages/customer/SavedSalons";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
 import CreateSalon from "../pages/owner/CreateSalon";
@@ -67,6 +68,8 @@ function AppRoutes() {
         <Route path="/customer/profile" element={<CustomerProfile />} />
         <Route path="/customer/salons/:id/book" element={<BookingPage />} />
         <Route path="/customer/my-bookings" element={<MyBookings />} />
+        <Route path="/customer/saved-salons" element={<SavedSalons />} />
+        <Route path="/customer/favorites" element={<SavedSalons />} />
         <Route path="/salons/:id" element={<SalonDetail />} />
         <Route path="/salons/:id/book" element={<BookingPage />} />
         <Route path="/customer/offers" element={<OffersPage />} />

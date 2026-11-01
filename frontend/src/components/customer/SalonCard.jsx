@@ -1,12 +1,29 @@
 import { useNavigate } from "react-router-dom";
+import useFavorites from "../../hooks/useFavorites";
 
 function SalonCard({ salon }) {
   const navigate = useNavigate();
+  const { isFavorite, toggleFavorite } = useFavorites();
+
+  const handleHeartClick = (e) => {
+    e.stopPropagation();
+    toggleFavorite(salon.id, salon.name);
+  };
 
   return (
     <article className="customer-salon-card">
       <div className="salon-card-image-wrapper">
         <img src={salon.image} alt={salon.name} />
+
+        <button
+          type="button"
+          className={`salon-card-fav-btn ${isFavorite(salon.id) ? "saved" : ""}`}
+          onClick={handleHeartClick}
+          title={isFavorite(salon.id) ? "Remove from favorites" : "Save to favorites"}
+          aria-label={isFavorite(salon.id) ? "Remove from favorites" : "Save to favorites"}
+        >
+          {isFavorite(salon.id) ? "♥" : "♡"}
+        </button>
 
         <span className="salon-card-rating">
           ★ {salon.rating}
