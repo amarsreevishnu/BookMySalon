@@ -52,15 +52,16 @@ function CustomerHome() {
           onSearch={handleSearch}
         />
 
+        <SalonSection
+          selectedCategory={selectedCategory}
+          selectedFilter={selectedFilter}
+        />
+
         <CategorySection
           selectedCategory={selectedCategory}
           onCategorySelect={handleCategorySelect}
         />
 
-        <SalonSection
-          selectedCategory={selectedCategory}
-          selectedFilter={selectedFilter}
-        />
 
         <OfferSection />
 

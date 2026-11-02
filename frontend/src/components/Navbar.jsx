@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getRoleDashboardPath } from "../utils/roleUtils";
 import NotificationBell from "./common/NotificationBell";
-
+import logo from "../assets/logo.png"
 function Navbar() {
   const { token, user } = useAuth();
   const dashboardPath = getRoleDashboardPath(user);
@@ -13,7 +13,9 @@ function Navbar() {
     <header className="navbar-wrapper">
       <div className="navbar">
         <Link to="/" className="brand">
-            <div className="explore-brand-icon">✂</div>
+            <div className="explore-brand-icon">
+              <img src={logo} alt="BookMySalon Logo" />
+            </div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>

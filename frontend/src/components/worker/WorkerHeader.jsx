@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import api from "../../api/axios";
 import NotificationBell from "../common/NotificationBell";
+import logo from "../../assets/logo.png"
 import "../../styles/workerDashboard.css";
 
 export default function WorkerHeader({
@@ -106,7 +107,9 @@ export default function WorkerHeader({
         <div className="wd-navbar-inner">
           <div className="wd-navbar-left">
             <Link to="/worker/dashboard" className="wd-brand-link">
-              <div className="wd-brand-icon">✂</div>
+              <div className="wd-brand-icon">
+                <img src={logo} alt="BookMySalon Logo" />
+              </div>
               <div className="explore-brand-titles">
                 <span className="explore-brand-name">BookMySalon</span>
                 <span className="explore-brand-sub">ORGANIC WELLNESS</span>

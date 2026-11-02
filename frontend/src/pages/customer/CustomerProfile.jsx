@@ -6,8 +6,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { selectUserAvatar } from "../../features/auth/authSlice";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/customerProfile.css";
+import "../../styles/receipt.css";
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
@@ -56,6 +58,17 @@ export default function CustomerProfile() {
   const [bookingsList, setBookingsList] = useState([]);
   const [favoritesList, setFavoritesList] = useState([]);
   const [tabLoading, setTabLoading] = useState(false);
+
+  // Receipt Modal State
+  const [activeReceiptBookingId, setActiveReceiptBookingId] = useState(null);
+
+  function openReceiptModal(b) {
+    setActiveReceiptBookingId(b.id);
+  }
+
+  function closeReceiptModal() {
+    setActiveReceiptBookingId(null);
+  }
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -115,7 +128,7 @@ export default function CustomerProfile() {
     if (activeTab === "bookings") {
       setTabLoading(true);
       api
-        .get("/accounts/customer/bookings/")
+        .get("/bookings/my/")
         .then((res) => {
           setBookingsList(res.data.bookings || []);
         })
@@ -358,10 +371,7 @@ export default function CustomerProfile() {
     <div className="customer-profile-page">
       <CustomerHeader />
 
-      <main className="profile-main-container">
-        {/* Header & Title */}
-        
-
+      <main className="profile-main-container">   
         
         <div className="profile-layout-grid">
           {/* LEFT SIDEBAR*/}
@@ -386,7 +396,7 @@ export default function CustomerProfile() {
 
               <div className="sidebar-verified-badge">
                 <span className="dot">●</span>
-                <span>Verified Client</span>
+                <span>Verified Customer</span>
               </div>
             </div>
 
@@ -432,6 +442,20 @@ export default function CustomerProfile() {
                     {profileData?.stats?.saved_places_count || 0}
                   </span>
                 </button>
+
+                <Link
+                  to="/customer/wallet"
+                  className="sidebar-nav-btn"
+                  style={{ textDecoration: "none" }}
+                >
+                  <div className="sidebar-nav-btn-left">
+                    <span className="sidebar-nav-icon">👛</span>
+                    <span>My Wallet</span>
+                  </div>
+                  <span className="sidebar-nav-badge" style={{ background: "#ecfdf5", color: "#0f766e" }}>
+                    INR
+                  </span>
+                </Link>
 
                 <button
                   type="button"
@@ -573,7 +597,7 @@ export default function CustomerProfile() {
                     <div className="avatar-display-right">
                       <div className="member-tier-badge">
                         <span>🏆</span>
-                        <span>{profileData?.membership_tier || "Emerald Member"}</span>
+                        <span>{profileData?.membership_tier || "Wellness Member"}</span>
                       </div>
                       <p className="member-since-text">
                         Member since {profileData?.member_since || "October 2025"}
@@ -1053,13 +1077,17 @@ export default function CustomerProfile() {
                             📅 {b.booking_date} at {b.booking_time} ({b.duration})
                           </small>
                         </div>
-                        <Link
-                          to={`/customer/salons/${b.salon_id || b.salon}`}
-                          className="btn-outline-action"
-                          style={{ textDecoration: "none" }}
-                        >
-                          View Salon
-                        </Link>
+                        {b.receipt_available ? (
+                          <button
+                            type="button"
+                            className="bk-btn-receipt"
+                            onClick={() => openReceiptModal(b)}
+                            title="View and download your official tax invoice and receipt"
+                          >
+                            <span>📄</span> View Receipt
+                          </button>
+                        ) : null}
+                        
                       </div>
                     ))}
                   </div>
@@ -1373,7 +1401,7 @@ export default function CustomerProfile() {
           </div>
         </div>
       )}
-
+      
       {/* ====================================================================
           MODAL: CHANGE PASSWORD
           ==================================================================== */}
@@ -1516,6 +1544,12 @@ export default function CustomerProfile() {
           </div>
         </div>
       )}
+      {/* Service Receipt Modal */}
+      <ServiceReceiptModal
+        isOpen={Boolean(activeReceiptBookingId)}
+        bookingId={activeReceiptBookingId}
+        onClose={closeReceiptModal}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

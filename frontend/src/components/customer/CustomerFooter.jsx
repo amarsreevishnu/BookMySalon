@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
-
+import logo from "../../assets/logo.png"
 function CustomerFooter() {
   return (
     <footer className="customer-footer">
       <div className="customer-footer-brand">
         <Link to="/customer/home" className="explore-brand-group">
-            <div className="explore-brand-icon">✂</div>
+            <div className="explore-brand-icon">
+               <img src={logo} alt="BookMySalon Logo" />
+            </div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>

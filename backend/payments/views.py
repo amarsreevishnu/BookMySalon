@@ -209,16 +209,8 @@ class CreateRazorpayOrderView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
 
-                # Check if advance token only was requested (e.g. ₹100 token)
-                is_token_only = bool(data.get('is_token_only') or data.get('payment_type') == 'ADVANCE')
-                if is_token_only:
-                    advance_charge = min(Decimal("100.00"), total_amount)
-                    amount_in_paise = max(100, int(round(float(advance_charge) * 100)))
-                    remaining_after_advance = max(Decimal("0.00"), total_amount - advance_charge)
-                else:
-                    advance_charge = total_amount
-                    amount_in_paise = max(100, int(round(float(total_amount) * 100)))
-                    remaining_after_advance = Decimal("0.00")
+                # Online payment is always full amount (no advance token)
+                amount_in_paise = max(100, int(round(float(total_amount) * 100)))
 
                 rzp_key = getattr(settings, 'RAZORPAY_KEY_ID', '')
                 rzp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
@@ -248,8 +240,8 @@ class CreateRazorpayOrderView(APIView):
                                 "tax_amount": str(tax_amount),
                                 "discount_amount": str(discount_amount),
                                 "total_amount": str(total_amount),
-                                "is_token_only": "true" if is_token_only else "false",
-                                "advance_amount": str(advance_charge),
+                                "is_token_only": "false",
+                                "advance_amount": "0.00",
                                 "voucher_code": str(voucher_code),
                                 "worker_id": str(assigned_worker.id) if assigned_worker else "",
                                 "client_name": str(data['client_name']),
@@ -304,8 +296,8 @@ class CreateRazorpayOrderView(APIView):
                     discount_amount=discount_amount,
                     voucher_code=voucher_code,
                     total_amount=total_amount,
-                    advance_amount=advance_charge,
-                    remaining_amount=remaining_after_advance,
+                    advance_amount=Decimal("0.00"),
+                    remaining_amount=Decimal("0.00"),
                     is_advance_paid=False,
                     is_fully_paid=False,
                     booking_date=booking_date,
@@ -329,8 +321,8 @@ class CreateRazorpayOrderView(APIView):
                     defaults={
                         'customer': customer,
                         'salon': salon,
-                        'amount': advance_charge,
-                        'payment_type': Payment.PaymentType.ADVANCE if is_token_only else Payment.PaymentType.FULL,
+                        'amount': total_amount,
+                        'payment_type': Payment.PaymentType.FULL,
                         'payment_method': Payment.PaymentMethod.ONLINE,
                         'payment_status': Payment.PaymentStatus.PENDING,
                         'razorpay_order_id': order_id,
@@ -397,8 +389,25 @@ class VerifyRazorpayPaymentView(APIView):
         msg = f"{order_id}|{payment_id}".encode()
         expected = hmac.new(rzp_secret.encode(), msg, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, signature):
+            if order_id:
+                try:
+                    Booking.objects.filter(
+                        razorpay_order_id=order_id,
+                        status=Booking.Status.PENDING,
+                    ).update(
+                        status=Booking.Status.CANCELLED,
+                        payment_status=Booking.PaymentStatus.FAILED,
+                        expires_at=None,
+                        updated_at=timezone.now(),
+                    )
+                    Payment.objects.filter(razorpay_order_id=order_id).update(
+                        payment_status=Payment.PaymentStatus.FAILED,
+                        updated_at=timezone.now(),
+                    )
+                except Exception:
+                    pass
             return Response(
-                {'error': 'Invalid payment signature. Verification failed.'},
+                {'error': 'Invalid payment signature. Verification failed. Booking cancelled.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -433,7 +442,13 @@ class VerifyRazorpayPaymentView(APIView):
                 # Check if pending reservation has expired
                 if booking.expires_at and booking.expires_at < timezone.now():
                     booking.status = Booking.Status.CANCELLED
-                    booking.save(update_fields=['status', 'updated_at'])
+                    booking.payment_status = Booking.PaymentStatus.FAILED
+                    booking.expires_at = None
+                    booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
+                    Payment.objects.filter(booking=booking).update(
+                        payment_status=Payment.PaymentStatus.FAILED,
+                        updated_at=timezone.now(),
+                    )
                     return Response(
                         {'error': 'Booking reservation has expired. Please select a time slot and try again.'},
                         status=status.HTTP_410_GONE,
@@ -463,27 +478,59 @@ class VerifyRazorpayPaymentView(APIView):
                             rzp_amount = payment_json.get("amount")
 
                             if rzp_status not in ("captured", "authorized"):
+                                booking.status = Booking.Status.CANCELLED
+                                booking.payment_status = Booking.PaymentStatus.FAILED
+                                booking.expires_at = None
+                                booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
+                                Payment.objects.filter(booking=booking).update(
+                                    payment_status=Payment.PaymentStatus.FAILED,
+                                    updated_at=timezone.now(),
+                                )
                                 return Response(
-                                    {'error': f'Payment is not confirmed by Razorpay (status: {rzp_status}).'},
+                                    {'error': f'Payment is not confirmed by Razorpay (status: {rzp_status}). Booking cancelled.'},
                                     status=status.HTTP_400_BAD_REQUEST,
                                 )
 
                             if rzp_order_id != order_id:
+                                booking.status = Booking.Status.CANCELLED
+                                booking.payment_status = Booking.PaymentStatus.FAILED
+                                booking.expires_at = None
+                                booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
+                                Payment.objects.filter(booking=booking).update(
+                                    payment_status=Payment.PaymentStatus.FAILED,
+                                    updated_at=timezone.now(),
+                                )
                                 return Response(
-                                    {'error': 'Payment order mismatch between Razorpay and booking.'},
+                                    {'error': 'Payment order mismatch between Razorpay and booking. Booking cancelled.'},
                                     status=status.HTTP_400_BAD_REQUEST,
                                 )
 
-                            expected_charge = booking.advance_amount if (booking.advance_amount and booking.advance_amount > 0) else (booking.total_amount if booking.total_amount is not None else booking.service_price)
+                            expected_charge = booking.total_amount if booking.total_amount is not None else booking.service_price
                             expected_amount_paise = max(100, int(round(float(expected_charge) * 100)))
                             if rzp_amount is not None and rzp_amount != expected_amount_paise:
+                                booking.status = Booking.Status.CANCELLED
+                                booking.payment_status = Booking.PaymentStatus.FAILED
+                                booking.expires_at = None
+                                booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
+                                Payment.objects.filter(booking=booking).update(
+                                    payment_status=Payment.PaymentStatus.FAILED,
+                                    updated_at=timezone.now(),
+                                )
                                 return Response(
-                                    {'error': f'Payment amount mismatch. Expected ₹{expected_amount_paise/100:.2f}, got ₹{rzp_amount/100:.2f}.'},
+                                    {'error': f'Payment amount mismatch. Expected ₹{expected_amount_paise/100:.2f}, got ₹{rzp_amount/100:.2f}. Booking cancelled.'},
                                     status=status.HTTP_400_BAD_REQUEST,
                                 )
                         elif rzp_verify_res.status_code == 404:
+                            booking.status = Booking.Status.CANCELLED
+                            booking.payment_status = Booking.PaymentStatus.FAILED
+                            booking.expires_at = None
+                            booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
+                            Payment.objects.filter(booking=booking).update(
+                                payment_status=Payment.PaymentStatus.FAILED,
+                                updated_at=timezone.now(),
+                            )
                             return Response(
-                                {'error': 'Payment ID not found on Razorpay gateway.'},
+                                {'error': 'Payment ID not found on Razorpay gateway. Booking cancelled.'},
                                 status=status.HTTP_400_BAD_REQUEST,
                             )
                     except requests.RequestException as api_err:
@@ -495,25 +542,26 @@ class VerifyRazorpayPaymentView(APIView):
                 booking.razorpay_payment_id = payment_id
                 booking.razorpay_order_id = order_id
                 booking.expires_at = None
-                booking.is_advance_paid = True
-                booking.is_fully_paid = (booking.remaining_amount == Decimal("0.00"))
-                booking.payment_status = Booking.PaymentStatus.PAID if booking.is_fully_paid else Booking.PaymentStatus.PARTIALLY_PAID
+                booking.is_advance_paid = False
+                booking.is_fully_paid = True
+                booking.remaining_amount = Decimal("0.00")
+                booking.payment_status = Booking.PaymentStatus.PAID
                 booking.save(update_fields=[
                     'status', 'payment_status', 'payment_method',
                     'razorpay_payment_id', 'razorpay_order_id', 'expires_at',
-                    'is_advance_paid', 'is_fully_paid', 'updated_at'
+                    'is_advance_paid', 'is_fully_paid', 'remaining_amount', 'updated_at'
                 ])
 
                 # Record in Owner Revenue ledger
                 from payments.services import record_booking_advance_payment
-                expected_charge = booking.advance_amount if (booking.advance_amount and booking.advance_amount > 0) else (booking.total_amount if booking.total_amount is not None else booking.service_price)
+                expected_charge = booking.total_amount if booking.total_amount is not None else booking.service_price
                 record_booking_advance_payment(
                     booking=booking,
                     amount=expected_charge,
                     payment_method=Payment.PaymentMethod.ONLINE,
                     razorpay_order_id=order_id,
                     razorpay_payment_id=payment_id,
-                    notes="Verified online payment via Razorpay",
+                    notes="Verified online payment in full via Razorpay",
                 )
 
                 if booking.applied_offer:
@@ -534,6 +582,12 @@ class VerifyRazorpayPaymentView(APIView):
                 except Exception:
                     pass
 
+                try:
+                    from bookings.tasks import trigger_booking_confirmation_email
+                    trigger_booking_confirmation_email(booking.id)
+                except Exception as mail_err:
+                    logging.getLogger(__name__).warning("Could not trigger booking confirmation email on online payment: %s", mail_err)
+
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -544,6 +598,95 @@ class VerifyRazorpayPaymentView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class PaymentFailedView(APIView):
+    """
+    Called when online payment fails (e.g. razorpay on('payment.failed') or customer cancels/dismisses checkout).
+    Immediately marks the pending booking as CANCELLED and payment_status as FAILED.
+    Frees the reserved slot for other customers or retries.
+    """
+    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk=None):
+        booking_id = pk or request.data.get('booking_id')
+        order_id = str(request.data.get('razorpay_order_id', '')).strip()
+        reason = str(request.data.get('reason', 'Payment declined or cancelled by customer')).strip()
+        error_code = str(request.data.get('error_code', '')).strip()
+
+        try:
+            with transaction.atomic():
+                query = Booking.objects.select_for_update()
+                if booking_id:
+                    query = query.filter(pk=booking_id)
+                elif order_id:
+                    query = query.filter(razorpay_order_id=order_id)
+                else:
+                    return Response(
+                        {'error': 'booking_id or razorpay_order_id is required.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                booking = query.first()
+                if not booking:
+                    return Response(
+                        {'error': 'Booking not found.'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                # Authorization check: If booking belongs to a customer, verify user if authenticated
+                if booking.customer and request.user and request.user.is_authenticated:
+                    if booking.customer != request.user and not request.user.is_staff:
+                        return Response(
+                            {'error': 'You do not have permission to modify this booking.'},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
+
+                # If booking is already CONFIRMED or COMPLETED, do not allow canceling via failure endpoint
+                if booking.status in (Booking.Status.CONFIRMED, Booking.Status.COMPLETED, Booking.Status.IN_PROGRESS):
+                    return Response(
+                        {'error': f'Cannot fail a booking that is already {booking.status}.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Transition PENDING -> CANCELLED with FAILED payment status
+                if booking.status == Booking.Status.PENDING:
+                    booking.status = Booking.Status.CANCELLED
+                    booking.payment_status = Booking.PaymentStatus.FAILED
+                    booking.expires_at = None
+                    note_msg = f"[Payment Failed: {reason} (Code: {error_code})]" if error_code else f"[Payment Failed: {reason}]"
+                    current_notes = booking.notes or ""
+                    booking.notes = f"{current_notes}\n{note_msg}".strip()
+                    booking.save(update_fields=['status', 'payment_status', 'expires_at', 'notes', 'updated_at'])
+
+                    Payment.objects.filter(booking=booking).update(
+                        payment_status=Payment.PaymentStatus.FAILED,
+                        updated_at=timezone.now(),
+                    )
+
+                    return Response({
+                        'message': 'Booking marked as CANCELLED due to failed payment.',
+                        'booking_id': booking.id,
+                        'status': booking.status,
+                        'payment_status': booking.payment_status,
+                    }, status=status.HTTP_200_OK)
+
+                elif booking.status == Booking.Status.CANCELLED:
+                    return Response({
+                        'message': 'Booking was already cancelled.',
+                        'booking_id': booking.id,
+                        'status': booking.status,
+                        'payment_status': booking.payment_status,
+                    }, status=status.HTTP_200_OK)
+
+                return Response(
+                    {'error': f'Booking has unexpected status: {booking.status}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ConfirmPaymentView(APIView):
@@ -643,6 +786,12 @@ class ConfirmPaymentView(APIView):
                     )
                 except Exception:
                     pass
+
+                try:
+                    from bookings.tasks import trigger_booking_confirmation_email
+                    trigger_booking_confirmation_email(booking.id)
+                except Exception as mail_err:
+                    logging.getLogger(__name__).warning("Could not trigger booking confirmation email on offline payment: %s", mail_err)
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

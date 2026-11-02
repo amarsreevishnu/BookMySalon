@@ -73,28 +73,31 @@ def record_booking_advance_payment(
     total_price = Decimal(str(booking.total_amount if booking.total_amount is not None else booking.service_price))
     remaining = max(Decimal("0.00"), total_price - amount)
 
-    # 1. Create Payment record for advance
+    is_full = (remaining == Decimal("0.00"))
+    payment_type = Payment.PaymentType.FULL if is_full else Payment.PaymentType.ADVANCE
+
+    # 1. Create Payment record for payment
     payment = Payment.objects.create(
         booking=booking,
         customer=booking.customer,
         salon=booking.salon,
         amount=amount,
-        payment_type=Payment.PaymentType.ADVANCE,
+        payment_type=payment_type,
         payment_method=payment_method,
         payment_status=Payment.PaymentStatus.PAID,
         razorpay_order_id=razorpay_order_id or booking.razorpay_order_id,
         razorpay_payment_id=razorpay_payment_id or booking.razorpay_payment_id,
-        notes=notes or f"Advance token payment of ₹{amount:g} received",
+        notes=notes or (f"Full online payment of ₹{amount:g} received" if is_full else f"Advance token payment of ₹{amount:g} received"),
         paid_at=timezone.now(),
     )
 
     # 2. Update booking states
-    booking.advance_amount = amount
+    booking.advance_amount = Decimal("0.00") if is_full else amount
     booking.remaining_amount = remaining
-    booking.is_advance_paid = True
-    booking.is_fully_paid = (remaining == Decimal("0.00"))
+    booking.is_advance_paid = False if is_full else True
+    booking.is_fully_paid = is_full
     booking.payment_status = (
-        Booking.PaymentStatus.PAID if remaining == Decimal("0.00") else Booking.PaymentStatus.PARTIALLY_PAID
+        Booking.PaymentStatus.PAID if is_full else Booking.PaymentStatus.PARTIALLY_PAID
     )
     if payment_method:
         booking.payment_method = payment_method
@@ -336,6 +339,13 @@ def record_service_completion_and_final_payment(
     booking.remaining_amount = Decimal("0.00")
     booking.save(update_fields=["status", "payment_status", "is_fully_paid", "remaining_amount", "updated_at"])
 
+    # Auto-generate immutable ServiceReceipt
+    try:
+        from bookings.models import ServiceReceipt
+        ServiceReceipt.get_or_create_for_booking(booking)
+    except Exception as receipt_err:
+        logger.warning("Could not auto-generate receipt for booking #%s: %s", booking.id, receipt_err)
+
     return owner_tx, worker_earning
 
 
@@ -576,6 +586,34 @@ def process_booking_cancellation_and_refund(
     booking.status = Booking.Status.CANCELLED
     booking.payment_status = Booking.PaymentStatus.REFUNDED
     booking.save(update_fields=["status", "payment_status", "updated_at"])
+
+    # Automatically credit refund amount into customer's wallet if customer exists and total_paid > 0
+    if total_paid > Decimal("0.00") and booking.customer:
+        try:
+            from wallet.services import refund_to_wallet
+            refund_to_wallet(
+                booking=booking,
+                amount=total_paid,
+                reason=cancellation_reason_note,
+                processed_by=processed_by,
+                idempotency_key=f"REFUND-BKG-{booking.id}-{refund.id}",
+            )
+        except Exception as wallet_err:
+            logger.error("Failed to credit customer wallet for booking #%s: %s", booking.id, wallet_err)
+
+    # If a ServiceReceipt exists for this booking, preserve it and update refund/cancellation audit state
+    try:
+        from bookings.models import ServiceReceipt
+        receipt = ServiceReceipt.objects.filter(booking=booking).first()
+        if receipt:
+            receipt.is_cancelled = True
+            receipt.is_refunded = True
+            receipt.refund_amount = total_paid
+            receipt.refund_date = timezone.now()
+            receipt.cancellation_reason = cancellation_reason_note
+            receipt.save(update_fields=["is_cancelled", "is_refunded", "refund_amount", "refund_date", "cancellation_reason", "updated_at"])
+    except Exception as sync_err:
+        logger.warning("Could not sync receipt refund audit for booking #%s: %s", booking.id, sync_err)
 
     return refund, owner_tx
 

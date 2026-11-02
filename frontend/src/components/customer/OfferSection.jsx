@@ -123,7 +123,7 @@ function OfferSection() {
 
               <div className="offer-card-content">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="offer-type">{typeLabel}</span>
+                  
                   {offer.salon_name && (
                     <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
                       📍 {offer.salon_name}
@@ -132,7 +132,7 @@ function OfferSection() {
                 </div>
 
                 <h3>{offer.title}</h3>
-
+                  <span className="offer-type">{typeLabel}</span>
                 <p>{offer.description || "Limited-time promotion at hand-vetted partner salons."}</p>
 
                 <div className="offer-bottom">
@@ -140,7 +140,7 @@ function OfferSection() {
                     <small>PROMO CODE</small>
                     <strong>{offer.code || "AUTO-APPLY"}</strong>
                   </div>
-
+                    
                   <button type="button" onClick={() => handleClaimOffer(offer)}>
                     Claim Offer
                   </button>

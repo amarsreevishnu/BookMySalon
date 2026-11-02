@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
 import "../../styles/booking.css";
 
 const STATUS_COLORS = {
@@ -41,6 +42,17 @@ export default function MyBookings() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
 
+  // Receipt Modal State
+  const [activeReceiptBookingId, setActiveReceiptBookingId] = useState(null);
+
+  function openReceiptModal(b) {
+    setActiveReceiptBookingId(b.id);
+  }
+
+  function closeReceiptModal() {
+    setActiveReceiptBookingId(null);
+  }
+
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(""), 3500);
@@ -50,8 +62,8 @@ export default function MyBookings() {
     setLoading(true);
     setError("");
     try {
-      const r = await api.get("/bookings/my/");
-      setBookings(r.data.bookings || []);
+      const res = await api.get("/bookings/my/");
+      setBookings(res.data.bookings || []);
     } catch (e) {
       if (e?.response?.status === 401) {
         navigate("/login");
@@ -218,47 +230,83 @@ export default function MyBookings() {
                     </div>
                   </div>
 
-                  {canCancel && (
-                    <div className="bk-booking-actions">
-                      <button
-                        className="bk-btn-cancel"
-                        disabled={cancellingId === b.id}
-                        onClick={() => handleCancel(b.id)}
-                      >
-                        {cancellingId === b.id ? "Cancelling…" : "Cancel Booking"}
-                      </button>
-                    </div>
-                  )}
+                  <div
+                    className="bk-booking-actions"
+                    style={{
+                      marginTop: "14px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid #f1f5f9",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "10px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      {canCancel && (
+                        <button
+                          className="bk-btn-cancel"
+                          disabled={cancellingId === b.id}
+                          onClick={() => handleCancel(b.id)}
+                        >
+                          {cancellingId === b.id ? "Cancelling…" : "Cancel Booking"}
+                        </button>
+                      )}
 
-                  {/* Completed Booking Review Actions */}
-                  {isCompleted && (
-                    <div className="bk-booking-actions" style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                      {!isReviewed ? (
+                      {b.receipt_available ? (
                         <button
                           type="button"
-                          className="bk-btn-review"
-                          onClick={() => openCreateReviewModal(b)}
+                          className="bk-btn-receipt"
+                          onClick={() => openReceiptModal(b)}
+                          title="View and download your official tax invoice and receipt"
                         >
-                          <span>⭐</span> Rate &amp; Review Service
+                          <span>📄</span> View Receipt
                         </button>
+                      ) : isCompleted ? (
+                        <span className="bk-receipt-locked-hint" title="Receipt is being finalized">
+                          ⏳ Finalizing receipt…
+                        </span>
                       ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                          <div className="bk-reviewed-badge">
-                            <span>✓ Feedback Submitted</span>
-                            {b.salon_review && <span>• Salon: {b.salon_review.rating}★</span>}
-                            {b.worker_review && <span>• Stylist: {b.worker_review.rating}★</span>}
-                          </div>
-                          <button
-                            type="button"
-                            className="bk-btn-view-review"
-                            onClick={() => openViewReviewModal(b)}
-                          >
-                            View Feedback
-                          </button>
-                        </div>
+                        <span
+                          className="bk-receipt-locked-hint"
+                          title="Receipt available once service is completed and payment confirmed"
+                        >
+                          🔒 Receipt available after service completion
+                        </span>
                       )}
                     </div>
-                  )}
+
+                    {/* Completed Booking Review Actions */}
+                    {isCompleted && (
+                      <div>
+                        {!isReviewed ? (
+                          <button
+                            type="button"
+                            className="bk-btn-review"
+                            onClick={() => openCreateReviewModal(b)}
+                          >
+                            <span>⭐</span> Rate &amp; Review Service
+                          </button>
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                            <div className="bk-reviewed-badge">
+                              <span>✓ Feedback Submitted</span>
+                              {b.salon_review && <span>• Salon: {b.salon_review.rating}★</span>}
+                              {b.worker_review && <span>• Stylist: {b.worker_review.rating}★</span>}
+                            </div>
+                            <button
+                              type="button"
+                              className="bk-btn-view-review"
+                              onClick={() => openViewReviewModal(b)}
+                            >
+                              View Feedback
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -417,6 +465,13 @@ export default function MyBookings() {
           </div>
         </div>
       )}
+
+      {/* Service Receipt Modal */}
+      <ServiceReceiptModal
+        isOpen={Boolean(activeReceiptBookingId)}
+        bookingId={activeReceiptBookingId}
+        onClose={closeReceiptModal}
+      />
 
       <CustomerFooter />
     </div>

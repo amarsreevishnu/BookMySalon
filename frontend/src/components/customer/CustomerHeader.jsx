@@ -8,6 +8,8 @@ import { resolveImageUrl } from "../../utils/imageUtils";
 import NotificationBell from "../common/NotificationBell";
 import "../../styles/salonsExplore.css";
 
+import logo from "../../assets/logo.png"
+
 function CustomerHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -61,7 +63,10 @@ function CustomerHeader() {
       <header className="explore-header">
         <div className="explore-header-inner">
           <Link to="/customer/home" className="explore-brand-group">
-            <div className="explore-brand-icon">✂</div>
+            <div className="explore-brand-icon">
+              <img src={logo} alt="BookMySalon Logo" />
+            </div>
+
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>
@@ -72,6 +77,7 @@ function CustomerHeader() {
             <Link to="/customer/home" className="explore-nav-link">Home</Link>
             <Link to="/customer/salons" className="explore-nav-link">Find Salons</Link>
             <Link to="/customer/my-bookings" className="explore-nav-link">Bookings</Link>
+            <Link to="/customer/wallet" className="explore-nav-link">Wallet</Link>
             <Link to="/customer/saved-salons" className="explore-nav-link">
               Favorites
               {favoritesCount > 0 && (
@@ -164,6 +170,16 @@ function CustomerHeader() {
                     </Link>
 
                     <Link
+                      to="/customer/wallet"
+                      className="dropdown-menu-item"
+                      onClick={() => setUserDropdownOpen(false)}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <span className="dropdown-item-icon">👛</span>
+                      <span>My Wallet</span>
+                    </Link>
+
+                    <Link
                       to="/customer/saved-salons"
                       className="dropdown-menu-item"
                       onClick={() => setUserDropdownOpen(false)}
@@ -227,6 +243,13 @@ function CustomerHeader() {
               onClick={() => setMobileMenuOpen(false)}
             >
               <span>📅</span> Bookings
+            </Link>
+            <Link
+              to="/customer/wallet"
+              className="explore-mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <span>👛</span> My Wallet
             </Link>
             <Link
               to="/customer/saved-salons"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
+import logo from "../assets/logo.png"
 function Footer() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
@@ -20,7 +20,7 @@ function Footer() {
         <div className="footer-brand">
           
           <Link to="/" className="brand footer-logo">
-            <div  className="brand-icon">✂</div>
+            <div  className="brand-icon"><img src={logo} alt="BookMySalon Logo" /></div>
             <div className="explore-brand-titles">
               <span className="brand-text" style={{color:"white"}}>BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>

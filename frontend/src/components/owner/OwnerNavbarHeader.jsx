@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import api from "../../api/axios";
 import NotificationBell from "../common/NotificationBell";
+import logo from "../../assets/logo.png"
 import "../../styles/ownerNavbar.css";
 
 export default function OwnerNavbarHeader({
@@ -10,7 +11,7 @@ export default function OwnerNavbarHeader({
   onExportReport,
   onNotificationsClick,
   onSettingsClick,
-  showQuickWalkIn = true,
+  showQuickWalkIn = false,
   showExportReport = true,
   customActions,
   salonInfo,
@@ -110,7 +111,9 @@ export default function OwnerNavbarHeader({
         <div className="studio-header-inner">
           {/* Logo & Studio Brand */}
           <Link to="/owner/dashboard" className="explore-brand-group">
-            <div className="explore-brand-icon">✂</div>
+            <div className="explore-brand-icon">
+              <img src={logo} alt="BookMySalon Logo" />
+            </div>
             <div className="explore-brand-titles">
               <span className="explore-brand-name">BookMySalon</span>
               <span className="explore-brand-sub">ORGANIC WELLNESS</span>

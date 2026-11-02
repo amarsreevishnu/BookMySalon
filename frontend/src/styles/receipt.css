@@ -1,0 +1,441 @@
+/* ==========================================================================
+   BookMySalon - Service Receipt / Invoice Modal Styling
+   ========================================================================== */
+
+.bms-receipt-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  overflow-y: auto;
+  animation: bmsReceiptFadeIn 0.2s ease-out;
+}
+
+@keyframes bmsReceiptFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bms-receipt-container {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 680px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  animation: bmsReceiptSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bmsReceiptSlideUp {
+  from {
+    transform: translateY(20px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal Top Bar */
+.bms-receipt-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.bms-receipt-topbar-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bms-receipt-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bms-btn-action {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.bms-btn-action-primary {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.bms-btn-action-primary:hover:not(:disabled) {
+  background: #0d9488;
+}
+
+.bms-btn-action-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bms-btn-action-secondary {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.bms-btn-action-secondary:hover {
+  background: #475569;
+}
+
+.bms-btn-action-close {
+  background: transparent;
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.bms-btn-action-close:hover {
+  color: #ffffff;
+}
+
+/* Modal Scrollable Body */
+.bms-receipt-body {
+  padding: 24px;
+  overflow-y: auto;
+  font-family: inherit;
+  color: #1e293b;
+}
+
+/* Printable Sheet */
+.bms-receipt-sheet {
+  background: #ffffff;
+}
+
+/* Header Section */
+.bms-receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #0f766e;
+  gap: 16px;
+}
+
+.bms-receipt-brand {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.bms-receipt-brand-tag {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.bms-receipt-title-block {
+  text-align: right;
+}
+
+.bms-receipt-doc-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f766e;
+  letter-spacing: 0.5px;
+}
+
+.bms-receipt-inv-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 2px;
+}
+
+.bms-receipt-date {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Status Banner */
+.bms-receipt-status-banner {
+  margin-top: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bms-status-paid {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.bms-status-refunded {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.bms-status-cancelled {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* Metadata Grid */
+.bms-receipt-parties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  background: #f8fafc;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.bms-party-col h4 {
+  margin: 0 0 6px 0;
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bms-party-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.bms-party-info {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+/* Itemized Table */
+.bms-receipt-table-wrapper {
+  margin-top: 20px;
+}
+
+.bms-receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bms-receipt-table th {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bms-receipt-table th:last-child {
+  text-align: right;
+}
+
+.bms-receipt-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+.bms-receipt-table tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.bms-receipt-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+/* Summary Grid */
+.bms-receipt-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+
+.bms-payment-info-box {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  font-size: 11.5px;
+}
+
+.bms-payment-info-box h5 {
+  margin: 0 0 8px 0;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bms-pay-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  color: #475569;
+}
+
+.bms-pay-row strong {
+  color: #0f172a;
+}
+
+.bms-calc-box {
+  font-size: 12px;
+}
+
+.bms-calc-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  color: #475569;
+}
+
+.bms-calc-row.bms-discount-row {
+  color: #166534;
+  font-weight: 600;
+}
+
+.bms-calc-divider {
+  height: 1px;
+  background: #cbd5e1;
+  margin: 6px 0;
+}
+
+.bms-total-row {
+  font-weight: 800;
+  font-size: 13.5px;
+  color: #0f766e;
+  padding-top: 4px;
+  border-top: 2px solid #0f766e;
+}
+
+/* Disclaimer Footer */
+.bms-receipt-footer {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+  text-align: center;
+  font-size: 10.5px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+/* Loading & Error States */
+.bms-receipt-loading,
+.bms-receipt-error {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.bms-receipt-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: bmsSpin 0.7s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes bmsSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Button to view receipt in MyBookings */
+.bk-btn-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-btn-receipt:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+
+.bk-receipt-locked-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-style: italic;
+}
+
+/* Print Optimization */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .bms-receipt-container,
+  .bms-receipt-container * {
+    visibility: visible;
+  }
+  .bms-receipt-backdrop {
+    position: static;
+    background: transparent;
+    padding: 0;
+  }
+  .bms-receipt-container {
+    box-shadow: none;
+    border: none;
+    max-width: 100%;
+  }
+  .bms-receipt-topbar {
+    display: none;
+  }
+}
+

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Booking, SalonReview, WorkerReview
+from .models import Booking, SalonReview, WorkerReview, ServiceReceipt
 from .pricing import calculate_pricing, COUPON_RULES
 from salons.models import WorkerProfile, SalonOffDay, WorkerLeave
 from services.models import SalonService
@@ -27,7 +27,7 @@ class BookingCreateSerializer(serializers.Serializer):
     client_phone = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
     client_email = serializers.EmailField(required=False, allow_blank=True, default='')
     payment_method = serializers.ChoiceField(
-        choices=['PAY_AT_SALON', 'ONLINE'],
+        choices=['PAY_AT_SALON', 'ONLINE', 'WALLET'],
         default='PAY_AT_SALON',
         required=False,
     )
@@ -154,6 +154,8 @@ class BookingReadSerializer(serializers.ModelSerializer):
     has_worker_review = serializers.SerializerMethodField()
     worker_review = serializers.SerializerMethodField()
     can_review = serializers.SerializerMethodField()
+    receipt_available = serializers.SerializerMethodField()
+    receipt_number = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -175,6 +177,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'has_salon_review', 'salon_review',
             'has_worker_review', 'worker_review',
             'can_review',
+            'receipt_available', 'receipt_number',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
@@ -272,6 +275,22 @@ class BookingReadSerializer(serializers.ModelSerializer):
 
     def get_can_review(self, obj):
         return obj.status == Booking.Status.COMPLETED
+
+    def get_receipt_available(self, obj):
+        # Eligible only when service is COMPLETED and payment is PAID/fully paid, or already exists
+        if hasattr(obj, "service_receipt") and obj.service_receipt is not None:
+            return True
+        is_completed = (obj.status == Booking.Status.COMPLETED)
+        is_paid = (obj.payment_status == Booking.PaymentStatus.PAID or obj.is_fully_paid)
+        return is_completed and is_paid
+
+    def get_receipt_number(self, obj):
+        if hasattr(obj, "service_receipt") and obj.service_receipt is not None:
+            return obj.service_receipt.receipt_number
+        if obj.status == Booking.Status.COMPLETED and (obj.payment_status == Booking.PaymentStatus.PAID or obj.is_fully_paid):
+            from django.utils import timezone
+            return f"BMS-REC-{timezone.now().year}-{obj.id:05d}"
+        return None
 
 
 class WorkerAppointmentSerializer(BookingReadSerializer):
@@ -421,6 +440,102 @@ class WorkerAppointmentSerializer(BookingReadSerializer):
             diff = timezone.now() - obj.service_started_at
             return max(0, int(diff.total_seconds() / 60))
         return 0
+
+
+class ServiceReceiptSerializer(serializers.ModelSerializer):
+    salon_details = serializers.SerializerMethodField()
+    customer_details = serializers.SerializerMethodField()
+    appointment_details = serializers.SerializerMethodField()
+    pricing_details = serializers.SerializerMethodField()
+    payment_details = serializers.SerializerMethodField()
+    audit_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceReceipt
+        fields = [
+            "id",
+            "receipt_number",
+            "booking",
+            "booking_id",
+            "salon_details",
+            "customer_details",
+            "appointment_details",
+            "services_snapshot",
+            "pricing_details",
+            "payment_details",
+            "audit_details",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_salon_details(self, obj):
+        return {
+            "id": obj.salon_id,
+            "name": obj.salon_name,
+            "address": obj.salon_address,
+            "city": obj.salon_city,
+            "state": obj.salon_state,
+            "zip_code": obj.salon_zip_code,
+            "phone": obj.salon_phone,
+            "email": obj.salon_email,
+            "gst_number": obj.salon_gst_number,
+        }
+
+    def get_customer_details(self, obj):
+        return {
+            "id": obj.customer_id,
+            "name": obj.customer_name,
+            "email": obj.customer_email,
+            "phone": obj.customer_phone,
+        }
+
+    def get_appointment_details(self, obj):
+        return {
+            "booking_date": str(obj.booking_date),
+            "booking_time": obj.booking_time,
+            "start_time": str(obj.start_time) if obj.start_time else "",
+            "end_time": str(obj.end_time) if obj.end_time else "",
+            "duration": obj.duration,
+            "station": obj.station,
+            "specialist_name": obj.specialist_name,
+        }
+
+    def get_pricing_details(self, obj):
+        def fmt_val(v):
+            try:
+                return f"{Decimal(str(v or '0.00')):.2f}"
+            except Exception:
+                return str(v or "0.00")
+
+        return {
+            "subtotal": fmt_val(obj.subtotal),
+            "discount_amount": fmt_val(obj.discount_amount),
+            "applied_offer_title": obj.applied_offer_title,
+            "voucher_code": obj.voucher_code,
+            "tax_amount": fmt_val(obj.tax_amount),
+            "total_amount": fmt_val(obj.total_amount),
+            "advance_amount": fmt_val(obj.advance_amount),
+            "remaining_amount": fmt_val(obj.remaining_amount),
+            "amount_paid": fmt_val(obj.amount_paid),
+        }
+
+    def get_payment_details(self, obj):
+        return {
+            "payment_method": obj.payment_method,
+            "payment_status": obj.payment_status,
+            "transaction_id": obj.transaction_id,
+            "paid_at": obj.paid_at.isoformat() if obj.paid_at else "",
+        }
+
+    def get_audit_details(self, obj):
+        return {
+            "is_cancelled": obj.is_cancelled,
+            "is_refunded": obj.is_refunded,
+            "refund_amount": str(obj.refund_amount),
+            "refund_date": obj.refund_date.isoformat() if obj.refund_date else None,
+            "cancellation_reason": obj.cancellation_reason,
+        }
+
 
 
 

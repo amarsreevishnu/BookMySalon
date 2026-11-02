@@ -13,7 +13,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.shortcuts import render
 from rest_framework.views import APIView
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.signing import TimestampSigner
@@ -1056,6 +1056,134 @@ class OwnerDashboardView(APIView):
                         "created_at": wr.created_at.isoformat(),
                     })
 
+        # ----------------------------------------------------------------------
+        # Real Revenue Progression Calculation for Salon Owner
+        # ----------------------------------------------------------------------
+        def _get_booking_hour(b):
+            if b.start_time:
+                return b.start_time.hour
+            if b.booking_time:
+                t_str = b.booking_time.strip().upper()
+                if "AM" in t_str or "PM" in t_str:
+                    t_clean = t_str.replace(" ", "")
+                    for fmt in ("%I:%M%p", "%I%p", "%I:%M:%S%p"):
+                        try:
+                            return datetime.strptime(t_clean, fmt).hour
+                        except ValueError:
+                            pass
+                else:
+                    parts = t_str.split(":")
+                    if parts and parts[0].isdigit():
+                        h = int(parts[0])
+                        if 0 <= h <= 23:
+                            return h
+            if b.created_at:
+                try:
+                    return timezone.localtime(b.created_at).hour
+                except Exception:
+                    return b.created_at.hour
+            return 9
+
+        valid_revenue_bookings = []
+        if salon:
+            valid_revenue_bookings = list(
+                salon_bookings.exclude(status=Booking.Status.CANCELLED)
+            )
+
+        # Check today's active/revenue bookings first
+        today_valid = [b for b in valid_revenue_bookings if b.booking_date == today]
+        today_rev = sum(
+            float(b.total_amount if (b.total_amount and b.total_amount > 0) else (b.service_price or 0))
+            for b in today_valid
+        )
+
+        if today_rev > 0 or (today_valid and total_revenue == 0):
+            source_progression_bookings = today_valid
+            daily_accrued_num = today_rev
+        else:
+            source_progression_bookings = valid_revenue_bookings
+            daily_accrued_num = float(total_revenue)
+
+        # Define hour slots: standard 9 AM to 6 PM, expanding if real bookings extend earlier/later
+        valid_hours = [_get_booking_hour(b) for b in source_progression_bookings if _get_booking_hour(b) is not None]
+        min_h = min([9] + [h for h in valid_hours if 7 <= h < 9])
+        max_h = max([18] + [h for h in valid_hours if 18 < h <= 21])
+        hour_slots = list(range(min_h, max_h + 1))
+
+        bucket = {h: {"amount": 0.0, "pos": 0.0, "online": 0.0} for h in hour_slots}
+
+        for b in source_progression_bookings:
+            h = _get_booking_hour(b)
+            if h is not None:
+                if h < min_h:
+                    h = min_h
+                elif h > max_h:
+                    h = max_h
+            price = float(b.total_amount if (b.total_amount and b.total_amount > 0) else (b.service_price or 0))
+            is_online = (
+                (b.payment_method and b.payment_method.upper() in ["ONLINE", "RAZORPAY"])
+                or bool(b.is_advance_paid)
+                or bool(b.razorpay_payment_id)
+            )
+            if h in bucket:
+                bucket[h]["amount"] += price
+                if is_online:
+                    bucket[h]["online"] += price
+                else:
+                    bucket[h]["pos"] += price
+
+        max_amt = max((bucket[h]["amount"] for h in hour_slots), default=0.0)
+
+        # Determine peak hour
+        peak_h = None
+        if max_amt > 0:
+            for h in hour_slots:
+                if bucket[h]["amount"] == max_amt:
+                    peak_h = h
+                    break
+
+        if peak_h is not None:
+            peak_start = f"{peak_h % 12 or 12} {'AM' if peak_h < 12 else 'PM'}"
+            next_h = peak_h + 1
+            peak_end = f"{next_h % 12 or 12} {'AM' if next_h < 12 else 'PM'}"
+            peak_window = f"{peak_start} - {peak_end}"
+        else:
+            peak_window = "11 AM - 1 PM"
+
+        target_num = max(12000, ((int(daily_accrued_num) // 5000) + 1) * 5000)
+
+        hours_progression = []
+        for h in hour_slots:
+            amt = int(round(bucket[h]["amount"]))
+            pos = int(round(bucket[h]["pos"]))
+            online = int(round(bucket[h]["online"]))
+            time_str = f"{h % 12 or 12} {'AM' if h < 12 else 'PM'}"
+
+            if max_amt > 0 and amt > 0:
+                height_pct = int(round(20 + (amt / max_amt) * 75))
+            else:
+                height_pct = 6 if max_amt > 0 else 10
+
+            is_peak = (h == peak_h and amt > 0)
+
+            if online > pos:
+                bar_color = "#b37d4e"
+            elif pos > 0:
+                bar_color = "#3b755d"
+            else:
+                bar_color = "#cbd5e1"
+
+            hours_progression.append({
+                "time": time_str,
+                "amount": amt,
+                "height": f"{height_pct}%",
+                "height_pct": height_pct,
+                "is_peak": is_peak,
+                "pos_amount": pos,
+                "online_amount": online,
+                "color": bar_color,
+            })
+
         data = {
             "salon_info": {
                 "id": salon.id if salon else 1,
@@ -1083,17 +1211,10 @@ class OwnerDashboardView(APIView):
             "all_bookings": all_bookings,
             "staff_on_duty": staff_on_duty,
             "revenue_progression": {
-                "peak_window": "11 AM - 1 PM",
-                "daily_accrued": f"₹{int(total_revenue):,}",
-                "target": "₹12,000",
-                "hours": [
-                    {"time": "9 AM", "amount": 650, "height_pct": 35, "is_peak": False, "pos_amount": 450, "online_amount": 200},
-                    {"time": "10 AM", "amount": 1400, "height_pct": 60, "is_peak": False, "pos_amount": 900, "online_amount": 500},
-                    {"time": "11 AM", "amount": 2600, "height_pct": 95, "is_peak": True, "pos_amount": 1800, "online_amount": 800},
-                    {"time": "12 PM", "amount": 2100, "height_pct": 82, "is_peak": False, "pos_amount": 1400, "online_amount": 700},
-                    {"time": "1 PM", "amount": 1100, "height_pct": 50, "is_peak": False, "pos_amount": 700, "online_amount": 400},
-                    {"time": "2 PM", "amount": 600, "height_pct": 25, "is_peak": False, "pos_amount": 400, "online_amount": 200},
-                ],
+                "peak_window": peak_window,
+                "daily_accrued": f"₹{int(daily_accrued_num):,}",
+                "target": f"₹{int(target_num):,}",
+                "hours": hours_progression,
             },
             "popular_services": popular_services,
             "wallet": wallet_data,

@@ -12,7 +12,6 @@ export const DEFAULT_NAV_TABS = [
   "Workers",
   "Worker Leaves",
   "Salon Schedule",
-  "Customers",
   "Offers",
   "Support",
   "Revenue",

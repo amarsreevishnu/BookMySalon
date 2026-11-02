@@ -10,6 +10,7 @@ class Payment(models.Model):
         CASH = "CASH", "Cash"
         UPI = "UPI", "UPI"
         CARD = "CARD", "Credit / Debit Card"
+        WALLET = "WALLET", "Wallet Payment"
 
     class PaymentStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"

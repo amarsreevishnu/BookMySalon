@@ -493,7 +493,7 @@ export default function OwnerDashboard() {
       const token = localStorage.getItem("access_token");
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
       const res = await api.get("/salons/owner/dashboard/", config);
-      if (res.data) {
+      if (res.data) {       
         setDashboardData((prev) => ({
           ...prev,
           salon_info: { ...prev.salon_info, ...(res.data.salon_info || {}) },

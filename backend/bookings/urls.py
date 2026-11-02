@@ -10,12 +10,15 @@ from .views import (
     BookingReleaseView,
     BookingCreateRazorpayOrderView,
     BookingVerifyRazorpayView,
+    BookingPaymentFailedView,
     MyBookingsView,
     BookingCancelView,
     BookingReviewCreateView,
     SalonReviewsListView,
     WorkerReviewsListView,
     BookingStatusUpdateView,
+    BookingReceiptView,
+    BookingReceiptPdfView,
 )
 
 urlpatterns = [
@@ -30,11 +33,17 @@ urlpatterns = [
     path('create-razorpay-order/', BookingCreateRazorpayOrderView.as_view(), name='booking-create-razorpay-order'),
     path('verify-razorpay/', BookingVerifyRazorpayView.as_view(), name='booking-verify-razorpay-direct'),
     path('<int:pk>/verify-razorpay/', BookingVerifyRazorpayView.as_view(), name='booking-verify-razorpay'),
+    path('payment-failed/', BookingPaymentFailedView.as_view(), name='booking-payment-failed-direct'),
+    path('<int:pk>/payment-failed/', BookingPaymentFailedView.as_view(), name='booking-payment-failed'),
     path('<int:pk>/confirm-payment/', BookingConfirmPaymentView.as_view(), name='booking-confirm-payment'),
     path('<int:pk>/release/', BookingReleaseView.as_view(), name='booking-release'),
     path('my/', MyBookingsView.as_view(), name='booking-my'),
     path('<int:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('<int:pk>/status/', BookingStatusUpdateView.as_view(), name='booking-status-update'),
+
+    path('<int:pk>/receipt/', BookingReceiptView.as_view(), name='booking-receipt'),
+    path('<int:pk>/receipt/pdf/', BookingReceiptPdfView.as_view(), name='booking-receipt-pdf'),
+    
     path('<int:pk>/reviews/', BookingReviewCreateView.as_view(), name='booking-review-create'),
     path('<int:pk>/salon-review/', BookingReviewCreateView.as_view(), name='booking-salon-review-create'),
     path('<int:pk>/worker-review/', BookingReviewCreateView.as_view(), name='booking-worker-review-create'),

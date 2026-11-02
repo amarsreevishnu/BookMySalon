@@ -5,6 +5,7 @@ import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/booking.css";
+import { Link } from "react-router-dom";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 function fmt12(hhmm) {
@@ -177,9 +178,10 @@ export default function BookingPage() {
 
   /* payment modal & options */
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("ONLINE"); // "PAY_AT_SALON" or "ONLINE"
-  const [onlineTab, setOnlineTab] = useState("upi"); // "upi", "cards", "netbanking"
-  const [isTokenOnly, setIsTokenOnly] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("ONLINE"); 
+  const [walletBalance, setWalletBalance] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [onlineTab, setOnlineTab] = useState("upi");
   const [upiIdInput, setUpiIdInput] = useState("");
   const [isVpaVerified, setIsVpaVerified] = useState(false);
 
@@ -241,11 +243,9 @@ export default function BookingPage() {
   }, [appliedVoucher, serviceSubtotal, taxAmount, discountAmount]);
 
   const payableNowAmount = useMemo(() => {
-    if (isTokenOnly && paymentMethod === "ONLINE") {
-      return Math.min(100, totalPayable);
-    }
+    if (paymentMethod === "PAY_AT_SALON") return 0;
     return totalPayable;
-  }, [isTokenOnly, paymentMethod, totalPayable]);
+  }, [paymentMethod, totalPayable]);
 
   function handleToggleService(svc) {
     setSelectedServices((prev) => {
@@ -663,6 +663,27 @@ export default function BookingPage() {
     }
   }, [loading, initialCoupon, selectedServices.length, appliedVoucher, voucherError]);
 
+  useEffect(() => {
+    let isMounted = true;
+    setWalletLoading(true);
+    api
+      .get("/wallet/")
+      .then((res) => {
+        if (isMounted && res.data) {
+          setWalletBalance(Number(res.data.balance || 0));
+        }
+      })
+      .catch(() => {
+        // Customer might be unauthenticated or wallet not created
+      })
+      .finally(() => {
+        if (isMounted) setWalletLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   function getOfferEligibility(offer) {
     if (!offer) return { eligible: false, isCombo: false, missingCombo: [], reason: "Invalid offer" };
 
@@ -861,8 +882,8 @@ export default function BookingPage() {
       client_email: clientEmail.trim(),
       notes: notes.trim(),
       payment_method: paymentMethod,
-      is_token_only: Boolean(isTokenOnly && paymentMethod === "ONLINE"),
-      payment_type: (isTokenOnly && paymentMethod === "ONLINE") ? "ADVANCE" : "FULL",
+      is_token_only: false,
+      payment_type: "FULL",
       voucher_code: appliedVoucher?.code || "",
     };
     if (selectedWorker && selectedWorker !== "any" && selectedWorker !== "auto") {
@@ -871,13 +892,12 @@ export default function BookingPage() {
       payload.worker_id = Number(selectedSlot.assigned_worker.id);
     }
 
-    // 1. PAY AT SALON
+    // PAY AT SALON
     if (paymentMethod === "PAY_AT_SALON") {
       try {
         const r = await api.post("/bookings/create/", payload);
         setBookingResult(r.data.booking);
         setShowPaymentModal(false);
-        // Show celebration animation before navigating to confirmed page
         setShowSuccessAnimation(true);
         setTimeout(() => {
           setShowSuccessAnimation(false);
@@ -895,6 +915,37 @@ export default function BookingPage() {
       return;
     }
 
+    // CUSTOMER WALLET PAYMENT
+    if (paymentMethod === "WALLET") {
+      try {
+        const r = await api.post("/bookings/create/", payload);
+        setBookingResult(r.data.booking);
+        // Refresh wallet balance
+        api
+          .get("/wallet/")
+          .then((res) => {
+            if (res.data) setWalletBalance(Number(res.data.balance || 0));
+          })
+          .catch(() => {});
+
+        setShowPaymentModal(false);
+        setShowSuccessAnimation(true);
+        setTimeout(() => {
+          setShowSuccessAnimation(false);
+          setStep(5); // confirmed receipt screen
+        }, 2200);
+      } catch (e) {
+        const detail =
+          e?.response?.data?.error ||
+          e?.response?.data?.detail ||
+          "Wallet payment failed. Please verify your wallet balance or select another payment option.";
+        setError(detail);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     // 2. ONLINE PAYMENT (Razorpay)
     try {
       const isLoaded = await loadRazorpayScript();
@@ -902,9 +953,26 @@ export default function BookingPage() {
         throw new Error("Unable to load Razorpay checkout SDK. Please choose Pay at Salon or check your connection.");
       }
 
-      // Create Razorpay Order & reserve slot
+      // Create Razorpay Order & reserve slot (status: PENDING)
       const orderRes = await api.post("/bookings/create-razorpay-order/", payload);
       const orderData = orderRes.data;
+
+      const handlePaymentFailure = async (reason, errorCode) => {
+        setSubmitting(false);
+        const failMsg = reason || "Online payment was declined or cancelled";
+        setError(`Payment failed: ${failMsg}. Booking cancelled.`);
+        if (orderData.booking_id) {
+          try {
+            await api.post(`/bookings/${orderData.booking_id}/payment-failed/`, {
+              razorpay_order_id: orderData.razorpay_order_id,
+              reason: failMsg,
+              error_code: errorCode || "",
+            });
+          } catch (failErr) {
+            console.warn("Could not notify backend of payment failure:", failErr);
+          }
+        }
+      };
 
       const options = {
         key: orderData.razorpay_key_id,
@@ -954,16 +1022,16 @@ export default function BookingPage() {
         },
         modal: {
           ondismiss: function () {
-            setSubmitting(false);
-            setError("Online payment was cancelled or closed. You can retry with Razorpay or select Pay at Salon.");
+            handlePaymentFailure("Online payment window was closed or cancelled by customer");
           },
         },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.on("payment.failed", function (response) {
-        setError(`Payment failed: ${response.error?.description || "Transaction declined"}`);
-        setSubmitting(false);
+        const desc = response.error?.description || "Transaction declined by bank/gateway";
+        const code = response.error?.code || "";
+        handlePaymentFailure(desc, code);
       });
       rzp.open();
     } catch (e) {
@@ -1022,16 +1090,13 @@ export default function BookingPage() {
 
     // Payment calculations & breakdown
     const totalAmount = Number(bookingResult.total_amount != null ? bookingResult.total_amount : bookingResult.service_price || 0);
-    const advancePaid = Number(bookingResult.advance_amount || (isTokenOnly ? 100 : totalAmount));
-    const isAdvanceOnly = Boolean(bookingResult.is_advance_paid && !bookingResult.is_fully_paid);
-    const remainingAmount = Number(bookingResult.remaining_amount || Math.max(0, totalAmount - advancePaid));
 
     const paymentValText = bookingResult.payment_method === "ONLINE"
-      ? (isAdvanceOnly ? `Paid Advance: ₹${advancePaid.toLocaleString("en-IN")}` : `Paid Online: ₹${totalAmount.toLocaleString("en-IN")}`)
+      ? `Paid Online: ₹${totalAmount.toLocaleString("en-IN")}`
       : `Pay at Salon: ₹${totalAmount.toLocaleString("en-IN")}`;
 
     const paymentSubText = bookingResult.payment_method === "ONLINE"
-      ? (isAdvanceOnly ? `Advance Paid • ₹${remainingAmount.toLocaleString("en-IN")} at salon` : "Total Paid in Full")
+      ? "Total Paid in Full"
       : "Pay at counter after service";
 
     // Salon cover photo & map
@@ -1066,7 +1131,6 @@ export default function BookingPage() {
 
             {/* Main Headline */}
             <h1 className="bk-confirm-title">
-              Booking Confirmed!
               <span className="bk-confirm-title-check">✓</span> Booking Confirmed!
             </h1>
 
@@ -2064,9 +2128,7 @@ export default function BookingPage() {
 
             {/* Modal Body: Two Columns */}
             <div className="bk-pay-modal-body">
-              {/* Left Column: Payment Options */}
               <div className="bk-pay-modal-left">
-                {/* Option 1: Pay at Salon */}
                 <div
                   className={`bk-pay-opt-card ${paymentMethod === "PAY_AT_SALON" ? "bk-pay-opt-card--selected" : ""}`}
                   onClick={() => {
@@ -2199,26 +2261,74 @@ export default function BookingPage() {
                   )}
                 </div>
 
-                {/* Optional Advance Checkbox Box */}
-                <div className="bk-token-box">
-                  <input
-                    type="checkbox"
-                    id="tokenOnlyCheckbox"
-                    className="bk-token-checkbox"
-                    checked={isTokenOnly}
-                    onChange={(e) => setIsTokenOnly(e.target.checked)}
-                  />
-                  <label htmlFor="tokenOnlyCheckbox" className="bk-token-text" style={{ cursor: "pointer" }}>
-                    <span className="bk-token-title">Pay token advance only (₹100 now)</span>
-                    <p className="bk-token-desc">
-                      Reserve the stylist for ₹100 today. Settle the remaining ₹
-                      {Math.max(0, totalPayable - 100)} comfortably at salon counter after your service.
-                    </p>
-                  </label>
+                {/* Option 3: Customer Wallet */}
+                <div
+                  className={`bk-pay-opt-card ${paymentMethod === "WALLET" ? "bk-pay-opt-card--selected" : ""}`}
+                  onClick={() => {
+                    if (walletBalance !== null && walletBalance < totalPayable) {
+                      setError(
+                        `Insufficient wallet balance (₹${walletBalance.toLocaleString("en-IN")}). Total required is ₹${totalPayable.toLocaleString("en-IN")}. Please top up your wallet or select another payment method.`
+                      );
+                      return;
+                    }
+                    setPaymentMethod("WALLET");
+                    setError("");
+                  }}
+                  style={{
+                    opacity: walletBalance !== null && walletBalance < totalPayable ? 0.78 : 1,
+                    cursor: walletBalance !== null && walletBalance < totalPayable ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <div className="bk-pay-opt-top">
+                    <div className="bk-pay-opt-radio-wrap">
+                      <div className="bk-pay-radio-dot">
+                        {paymentMethod === "WALLET" && <div className="bk-pay-radio-inner" />}
+                      </div>
+                      <span className="bk-pay-opt-title">Customer Wallet</span>
+                      <span
+                        className={`bk-pay-opt-badge ${
+                          walletBalance !== null && walletBalance >= totalPayable
+                            ? "bk-pay-opt-badge--green"
+                            : "bk-pay-opt-badge--gray"
+                        }`}
+                      >
+                        {walletBalance !== null
+                          ? `BAL: ₹${walletBalance.toLocaleString("en-IN")}`
+                          : "WALLET"}
+                      </span>
+                    </div>
+                    <span className="bk-pay-opt-icon">👛</span>
+                  </div>
+
+                  <p className="bk-pay-opt-desc">
+                    Instant 1-click booking confirmation debited directly from your available BookMySalon wallet.
+                  </p>
+
+                  {walletBalance !== null && walletBalance >= totalPayable ? (
+                    <div className="bk-pay-opt-bullet" style={{ color: "#059669", fontWeight: 600 }}>
+                      ✓ Sufficient balance available (₹{walletBalance.toLocaleString("en-IN")}). Zero gateway waiting.
+                    </div>
+                  ) : walletBalance !== null ? (
+                    <div className="bk-pay-opt-bullet" style={{ color: "#dc2626", fontSize: "0.78rem" }}>
+                      ✕ Shortfall: ₹{(totalPayable - walletBalance).toLocaleString("en-IN")}.{" "}
+                      <Link
+                        to="/customer/wallet"
+                        target="_blank"
+                        style={{ color: "#0f766e", textDecoration: "underline", fontWeight: 700 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Top Up Wallet ↗
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="bk-pay-opt-bullet">
+                      Checking available balance…
+                    </div>
+                  )}
                 </div>
 
                 {/* Assurance notes */}
-                <div style={{ display: "flex", gap: "16px", fontSize: "0.74rem", color: "#64748b", marginTop: "4px" }}>
+                <div style={{ display: "flex", gap: "16px", fontSize: "0.74rem", color: "#64748b", marginTop: "12px" }}>
                   <span>✓ Free cancellation up to 2 hours prior</span>
                   <span>✓ 100% Purity & Botanical Guarantee</span>
                 </div>
@@ -2329,6 +2439,8 @@ export default function BookingPage() {
                     ? "Processing…"
                     : paymentMethod === "ONLINE"
                     ? `🔒 Pay ₹${payableNowAmount.toLocaleString("en-IN")} & Confirm Booking`
+                    : paymentMethod === "WALLET"
+                    ? `👛 Pay ₹${totalPayable.toLocaleString("en-IN")} via Wallet`
                     : "✓ Confirm Booking (Pay at Salon)"}
                 </button>
 
@@ -2401,10 +2513,10 @@ export default function BookingPage() {
                 <span className="bk-cp-label">Payment Mode</span>
                 <span className="bk-cp-val bk-cp-val--badge">
                   {paymentMethod === "PAY_AT_SALON"
-                    ? "🏪 Pay at Salon (Zero Advance)"
-                    : isTokenOnly
-                    ? "💳 Online Token Advance (₹100)"
-                    : `💳 Online Full Payment (₹${payableNowAmount.toLocaleString("en-IN")})`}
+                    ? "🏪 Pay at Salon"
+                    : paymentMethod === "WALLET"
+                    ? `👛 Customer Wallet (₹${totalPayable.toLocaleString("en-IN")})`
+                    : `💳 Online Payment (₹${payableNowAmount.toLocaleString("en-IN")})`}
                 </span>
               </div>
               <div className="bk-cp-row bk-cp-row--total">
@@ -2412,6 +2524,8 @@ export default function BookingPage() {
                 <span className="bk-cp-val bk-cp-val--price">
                   {paymentMethod === "PAY_AT_SALON"
                     ? "₹0 (Pay after service)"
+                    : paymentMethod === "WALLET"
+                    ? `₹${totalPayable.toLocaleString("en-IN")} (From Wallet)`
                     : `₹${payableNowAmount.toLocaleString("en-IN")}`}
                 </span>
               </div>
@@ -2440,9 +2554,7 @@ export default function BookingPage() {
         </div>
       )}
 
-      {/* ==========================================================================
-          BOOKING CONFIRMATION ANIMATION OVERLAY (Shown for Pay at Salon & Online)
-          ========================================================================== */}
+      
       {showSuccessAnimation && (
         <div className="bk-success-anim-backdrop">
           <div className="bk-success-anim-card">
@@ -2490,8 +2602,10 @@ export default function BookingPage() {
 
             <div className="bk-success-anim-badge">
               {paymentMethod === "PAY_AT_SALON"
-                ? "🏪 Pay at Salon Verified • Zero Advance"
-                : "💳 Online Payment Successful"}
+                ? "🏪 Pay at Salon Confirmed"
+                : paymentMethod === "WALLET"
+                ? "👛 Debited from Wallet • Instant Confirmation"
+                : "💳 Online Payment Successful • Paid in Full"}
             </div>
 
             {/* Animated Progress Bar */}
@@ -2503,9 +2617,6 @@ export default function BookingPage() {
         </div>
       )}
 
-      {/* ==========================================================================
-          ADD MORE SERVICES MODAL
-          ========================================================================== */}
       {showAddServicesModal && (
         <div className="bk-service-modal-backdrop" onClick={() => setShowAddServicesModal(false)}>
           <div className="bk-service-modal-card" onClick={(e) => e.stopPropagation()}>

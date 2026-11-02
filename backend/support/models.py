@@ -94,9 +94,7 @@ class SupportTicket(models.Model):
 
     @classmethod
     def generate_next_ticket_number(cls):
-        """
-        Generates next sequential ticket number like TKT-1001, TKT-1002, etc.
-        """
+        
         last_ticket = cls.objects.order_by("-id").first()
         if not last_ticket:
             return "TKT-1001"

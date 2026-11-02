@@ -4,6 +4,7 @@ import json
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Avg, Count, Sum
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -11,14 +12,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.authentication import CustomJWTAuthentication as JWTAuthentication
-from bookings.models import Booking, SalonReview, WorkerReview
+from bookings.models import Booking, SalonReview, WorkerReview, ServiceReceipt
 from bookings.serializers import (
     BookingCreateSerializer,
     BookingReadSerializer,
     SalonReviewSerializer,
     WorkerReviewSerializer,
     ReviewSubmissionSerializer,
+    ServiceReceiptSerializer,
 )
+from bookings.receipt_pdf import generate_receipt_pdf
 from salons.models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
 from services.models import SalonService
 
@@ -111,11 +114,25 @@ RESERVATION_TIMEOUT_MINUTES = 10
 
 
 def _clean_expired_reservations():
-    Booking.objects.filter(
-        status=Booking.Status.PENDING,
-        expires_at__isnull=False,
-        expires_at__lt=timezone.now(),
-    ).update(status=Booking.Status.CANCELLED)
+    expired_ids = list(
+        Booking.objects.filter(
+            status=Booking.Status.PENDING,
+            expires_at__isnull=False,
+            expires_at__lt=timezone.now(),
+        ).values_list('id', flat=True)
+    )
+    if expired_ids:
+        Booking.objects.filter(id__in=expired_ids).update(
+            status=Booking.Status.CANCELLED,
+            payment_status=Booking.PaymentStatus.FAILED,
+            expires_at=None,
+            updated_at=timezone.now(),
+        )
+        from payments.models import Payment
+        Payment.objects.filter(booking_id__in=expired_ids).update(
+            payment_status=Payment.PaymentStatus.FAILED,
+            updated_at=timezone.now(),
+        )
 
 
 def _generate_slots(open_time, close_time, duration_minutes, interval_minutes=30):
@@ -968,7 +985,29 @@ class BookingCreateView(APIView):
 
                 customer = request.user if request.user and request.user.is_authenticated else None
 
-                
+                payment_method = data.get('payment_method', Booking.PaymentMethod.PAY_AT_SALON)
+                is_pay_at_salon = (payment_method == Booking.PaymentMethod.PAY_AT_SALON)
+                is_wallet = (payment_method == Booking.PaymentMethod.WALLET)
+
+                if is_wallet:
+                    if not customer:
+                        return Response(
+                            {'error': 'You must be logged in to pay with your wallet.'},
+                            status=status.HTTP_401_UNAUTHORIZED,
+                        )
+                    from wallet.services import validate_wallet_balance
+                    balance_info = validate_wallet_balance(customer, total_amount)
+                    if not balance_info["has_sufficient_funds"]:
+                        return Response(
+                            {
+                                'error': f"Insufficient wallet balance (Available: ₹{balance_info['available_balance']}). Please top up your wallet or choose another payment method."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                booking_status = Booking.Status.CONFIRMED if is_pay_at_salon else Booking.Status.PENDING
+                booking_payment_status = Booking.PaymentStatus.PENDING
+
                 booking = Booking.objects.create(
                     salon=salon,
                     service=service,
@@ -995,9 +1034,9 @@ class BookingCreateView(APIView):
                     end_time=end_time,
                     duration=f'{total_duration} mins',
                     station=assigned_worker.station if assigned_worker else 'Station 01',
-                    status=Booking.Status.CONFIRMED,
-                    payment_method=data.get('payment_method', Booking.PaymentMethod.PAY_AT_SALON),
-                    payment_status=Booking.PaymentStatus.PENDING if data.get('payment_method') != Booking.PaymentMethod.ONLINE else Booking.PaymentStatus.PAID,
+                    status=booking_status,
+                    payment_method=payment_method,
+                    payment_status=booking_payment_status,
                     notes=data.get('notes', ''),
                 )
                 booking.services.set(services_list)
@@ -1009,24 +1048,35 @@ class BookingCreateView(APIView):
                     except Exception as red_err:
                         logger.warning("Could not record offer redemption: %s", red_err)
 
-                from payments.models import Payment
-                Payment.objects.update_or_create(
-                    booking=booking,
-                    defaults={
-                        'customer': customer,
-                        'salon': salon,
-                        'amount': total_amount,
-                        'payment_method': booking.payment_method,
-                        'payment_status': booking.payment_status,
-                        'notes': data.get('notes', ''),
-                    }
-                )
+                if is_wallet:
+                    from wallet.services import process_wallet_booking_payment
+                    process_wallet_booking_payment(booking, customer)
+                else:
+                    from payments.models import Payment
+                    Payment.objects.update_or_create(
+                        booking=booking,
+                        defaults={
+                            'customer': customer,
+                            'salon': salon,
+                            'amount': total_amount,
+                            'payment_method': booking.payment_method,
+                            'payment_status': booking.payment_status,
+                            'notes': data.get('notes', ''),
+                        }
+                    )
 
-                try:
-                    from notifications.services import notify_booking_confirmed
-                    notify_booking_confirmed(booking)
-                except Exception:
-                    pass
+                if booking.status == Booking.Status.CONFIRMED:
+                    try:
+                        from notifications.services import notify_booking_confirmed
+                        notify_booking_confirmed(booking)
+                    except Exception:
+                        pass
+
+                    try:
+                        from bookings.tasks import trigger_booking_confirmation_email
+                        trigger_booking_confirmation_email(booking.id)
+                    except Exception as mail_err:
+                        logger.warning("Could not trigger booking confirmation email: %s", mail_err)
 
         except Exception as e:
             return Response(
@@ -1306,27 +1356,32 @@ class BookingConfirmPaymentView(APIView):
 
 class BookingReleaseView(APIView):
 
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [AllowAny]
 
     def post(self, request, pk):
         try:
             with transaction.atomic():
                 query = Booking.objects.select_for_update().filter(pk=pk)
-                if not request.user.is_staff:
-                    query = query.filter(customer=request.user)
-
                 booking = query.first()
                 if not booking:
                     return Response(
-                        {'error': 'Booking not found or you do not have permission to access it.'},
+                        {'error': 'Booking not found.'},
                         status=status.HTTP_404_NOT_FOUND,
                     )
+
+                if booking.customer and request.user and request.user.is_authenticated:
+                    if booking.customer != request.user and not request.user.is_staff:
+                        return Response(
+                            {'error': 'You do not have permission to access this booking.'},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
 
                 if booking.status == Booking.Status.PENDING:
                     booking.status = Booking.Status.CANCELLED
                     booking.payment_status = Booking.PaymentStatus.FAILED
-                    booking.save(update_fields=['status', 'payment_status', 'updated_at'])
+                    booking.expires_at = None
+                    booking.save(update_fields=['status', 'payment_status', 'expires_at', 'updated_at'])
                     from payments.models import Payment
                     Payment.objects.filter(booking=booking).update(
                         payment_status=Payment.PaymentStatus.FAILED,
@@ -1362,6 +1417,19 @@ class BookingVerifyRazorpayView(APIView):
     def post(self, request, pk=None, *args, **kwargs):
         from payments.views import VerifyRazorpayPaymentView
         return VerifyRazorpayPaymentView().post(request, pk=pk, *args, **kwargs)
+
+
+class BookingPaymentFailedView(APIView):
+    """
+    Handle online payment failure or dismissal from customer side checkout.
+    Transitions PENDING booking to CANCELLED and payment_status to FAILED.
+    """
+    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk=None, *args, **kwargs):
+        from payments.views import PaymentFailedView
+        return PaymentFailedView().post(request, pk=pk, *args, **kwargs)
 
 
 
@@ -1598,3 +1666,152 @@ class BookingStatusUpdateView(APIView):
             "message": f"Booking status updated to {booking.status}.",
             "booking": BookingReadSerializer(booking, context={"request": request}).data,
         })
+
+
+def check_receipt_permission(user, booking):
+    """
+    Validates that user is authorized to view or download the receipt:
+    - Strictly for the customer who owns the booking
+    - Platform Super Admin
+    - Salon owner and staff do not access customer receipts
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or getattr(user, "role", "") == "ADMIN":
+        return True
+    if booking.customer_id and booking.customer_id == user.id:
+        return True
+    return False
+
+
+class BookingReceiptView(APIView):
+    """
+    Retrieve or idempotently generate the official ServiceReceipt for a booking.
+    Strict constraints enforced:
+    - Service must be COMPLETED.
+    - Payment must be verified as PAID (backend verification, never client-trust).
+    - Accessible ONLY by the booking's customer, the salon owner/worker, or super admin.
+    - Idempotent: returns the exact historical receipt on subsequent calls.
+    - Preserves receipts for audit even if later cancelled/refunded.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            booking = Booking.objects.select_related(
+                "salon", "salon__owner", "customer", "worker", "worker__user", "applied_offer"
+            ).prefetch_related("services", "payments").get(pk=pk)
+        except Booking.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not check_receipt_permission(request.user, booking):
+            return Response(
+                {"error": "You do not have permission to view this receipt."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check existing receipt first
+        existing_receipt = ServiceReceipt.objects.filter(booking=booking).first()
+        if existing_receipt:
+            # Sync audit flags if changed
+            existing_receipt, _ = ServiceReceipt.get_or_create_for_booking(booking)
+            serializer = ServiceReceiptSerializer(existing_receipt)
+            return Response({"receipt": serializer.data})
+
+        # If not already created, enforce strict eligibility constraints
+        if booking.status != Booking.Status.COMPLETED:
+            return Response(
+                {
+                    "error": (
+                        f"Receipt cannot be generated yet: Appointment status is '{booking.get_status_display()}'. "
+                        "The service must be completed before generating a final receipt."
+                    ),
+                    "eligible": False,
+                    "status": booking.status,
+                    "payment_status": booking.payment_status,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_paid = (
+            booking.payment_status == Booking.PaymentStatus.PAID
+            or booking.is_fully_paid
+        )
+        if not is_paid:
+            return Response(
+                {
+                    "error": (
+                        f"Receipt cannot be generated yet: Payment status is '{booking.get_payment_status_display()}'. "
+                        "Payment must be fully confirmed before generating a final receipt."
+                    ),
+                    "eligible": False,
+                    "status": booking.status,
+                    "payment_status": booking.payment_status,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            receipt, _ = ServiceReceipt.get_or_create_for_booking(booking)
+            serializer = ServiceReceiptSerializer(receipt)
+            return Response({"receipt": serializer.data}, status=status.HTTP_200_OK)
+        except Exception as err:
+            return Response(
+                {"error": f"Failed to generate receipt: {str(err)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class BookingReceiptPdfView(APIView):
+    
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            booking = Booking.objects.select_related(
+                "salon", "salon__owner", "customer", "worker", "worker__user", "applied_offer"
+            ).prefetch_related("services", "payments").get(pk=pk)
+        except Booking.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not check_receipt_permission(request.user, booking):
+            return Response(
+                {"error": "You do not have permission to download this receipt."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check existing receipt first
+        receipt = ServiceReceipt.objects.filter(booking=booking).first()
+        if not receipt:
+            if booking.status != Booking.Status.COMPLETED or not (
+                booking.payment_status == Booking.PaymentStatus.PAID or booking.is_fully_paid
+            ):
+                return Response(
+                    {
+                        "error": "Receipt PDF is not available until appointment is completed and payment is confirmed.",
+                        "eligible": False,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                receipt, _ = ServiceReceipt.get_or_create_for_booking(booking)
+            except Exception as err:
+                return Response(
+                    {"error": f"Failed to generate receipt: {str(err)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        try:
+            pdf_bytes = generate_receipt_pdf(receipt)
+            response = HttpResponse(pdf_bytes, content_type="application/pdf")
+            filename = f"BookMySalon-Receipt-{receipt.receipt_number}.pdf"
+            response["Content-Disposition"] = f'inline; filename="{filename}"'
+            return response
+        except Exception as err:
+            return Response(
+                {"error": f"Failed to render receipt PDF: {str(err)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+

@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     CreateRazorpayOrderView,
     VerifyRazorpayPaymentView,
+    PaymentFailedView,
     ConfirmPaymentView,
     PaymentDetailView,
     OwnerRevenueSummaryView,
@@ -23,6 +24,8 @@ urlpatterns = [
     path('verify-razorpay/', VerifyRazorpayPaymentView.as_view(), name='payment-verify-razorpay-direct'),
     
     path('<int:pk>/verify-razorpay/', VerifyRazorpayPaymentView.as_view(), name='payment-verify-razorpay'),
+    path('payment-failed/', PaymentFailedView.as_view(), name='payment-payment-failed-direct'),
+    path('<int:pk>/payment-failed/', PaymentFailedView.as_view(), name='payment-payment-failed'),
     
     path('<int:pk>/confirm-payment/', ConfirmPaymentView.as_view(), name='payment-confirm-payment'),
    

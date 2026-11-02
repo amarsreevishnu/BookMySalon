@@ -35,10 +35,7 @@ from .services import (
 # ==============================================================================
 
 class SalonOwnerTicketListCreateView(APIView):
-    """
-    GET: List tickets belonging strictly to the authenticated salon owner's salon.
-    POST: Create a new support ticket for the owner's salon.
-    """
+    
     permission_classes = [IsAuthenticated, IsSalonOwner]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 

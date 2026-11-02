@@ -60,10 +60,7 @@ class ServiceCategory(models.Model):
 
 
 class Service(models.Model):
-    """
-    Standard platform service under a category (e.g., Precision Haircut, Hydra Glow Facial).
-    Governed by Super Admin to maintain consistency across the platform.
-    """
+   
     GENDER_CHOICES = [
         ("ALL", "Unisex / All"),
         ("MALE", "Men"),
@@ -124,10 +121,7 @@ class Service(models.Model):
 
 
 class SalonService(models.Model):
-    """
-    A salon's specific offering of a standard platform service.
-    Allows Salon Owners to customize their own price, duration, and branding notes.
-    """
+    
     salon = models.ForeignKey(
         "salons.Salon",
         on_delete=models.CASCADE,

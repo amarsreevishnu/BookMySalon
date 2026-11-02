@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'notifications',
     'offers',
     'support',
+    'wallet',
 ]
 
 MIDDLEWARE = [
@@ -278,3 +279,14 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or "BookMySalon <noreply@bookmysalon.com>"
 # Razorpay Configuration
 RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID", default="rzp_test_TOiPL6fBLGzhAD")
 RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET", default="v30VNXxs9ndbc3nbiltGgCce")
+
+# Celery Configuration
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_TASK_ALWAYS_EAGER = config("CELERY_TASK_ALWAYS_EAGER", default=False, cast=bool)
