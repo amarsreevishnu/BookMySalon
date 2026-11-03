@@ -163,7 +163,9 @@ class OwnerWalletTransaction(models.Model):
         ADVANCE_RECEIVED = "ADVANCE_RECEIVED", "Advance Received"
         REMAINING_RECEIVED = "REMAINING_RECEIVED", "Remaining Service Amount Received"
         FULL_PAYMENT_RECEIVED = "FULL_PAYMENT_RECEIVED", "Full Payment Received"
+        CUSTOMER_PAYMENT_RECEIVED = "CUSTOMER_PAYMENT_RECEIVED", "Customer Payment Received"
         WORKER_ALLOCATION = "WORKER_ALLOCATION", "Worker Earning Allocation"
+        WORKER_COMMISSION_PAYOUT = "WORKER_COMMISSION_PAYOUT", "Worker Commission Payout"
         REFUND_ISSUED = "REFUND_ISSUED", "Refund Issued"
         ADJUSTMENT = "ADJUSTMENT", "Adjustment / Expense"
 

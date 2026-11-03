@@ -28,6 +28,7 @@ export default function MyBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancellingId, setCancellingId] = useState(null);
+  const [cancelModalBooking, setCancelModalBooking] = useState(null);
   const [toast, setToast] = useState("");
 
   // Review Modal State
@@ -79,12 +80,23 @@ export default function MyBookings() {
     fetchBookings();
   }, []);
 
-  async function handleCancel(id) {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+  function handleCancel(bookingOrId) {
+    if (typeof bookingOrId === "object" && bookingOrId !== null) {
+      setCancelModalBooking(bookingOrId);
+    } else {
+      const b = bookings.find((item) => item.id === bookingOrId);
+      setCancelModalBooking(b || { id: bookingOrId });
+    }
+  }
+
+  async function confirmCancel() {
+    if (!cancelModalBooking) return;
+    const id = cancelModalBooking.id;
     setCancellingId(id);
     try {
       await api.patch(`/bookings/${id}/cancel/`);
       showToast("Booking cancelled successfully.");
+      setCancelModalBooking(null);
       fetchBookings();
     } catch (e) {
       showToast(e?.response?.data?.error || "Failed to cancel booking.");
@@ -248,7 +260,7 @@ export default function MyBookings() {
                         <button
                           className="bk-btn-cancel"
                           disabled={cancellingId === b.id}
-                          onClick={() => handleCancel(b.id)}
+                          onClick={() => handleCancel(b)}
                         >
                           {cancellingId === b.id ? "Cancelling…" : "Cancel Booking"}
                         </button>
@@ -462,6 +474,176 @@ export default function MyBookings() {
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Modal */}
+      {cancelModalBooking && (
+        <div
+          className="bk-modal-backdrop"
+          onClick={() => {
+            if (!cancellingId) setCancelModalBooking(null);
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              maxWidth: "460px",
+              width: "100%",
+              padding: "24px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-modal-title"
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    borderRadius: "50%",
+                    background: "#fee2e2",
+                    color: "#dc2626",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: "20px",
+                    flexShrink: 0,
+                  }}
+                >
+                  ⚠️
+                </div>
+                <div>
+                  <h3 id="cancel-modal-title" style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#1f2937" }}>
+                    Cancel Booking
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#6b7280" }}>
+                    Are you sure you want to cancel this booking?
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#9ca3af",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  lineHeight: 1,
+                }}
+                disabled={Boolean(cancellingId)}
+                onClick={() => setCancelModalBooking(null)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                fontSize: "13px",
+                color: "#374151",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}
+            >
+              {cancelModalBooking.salon_name && (
+                <div>
+                  <span style={{ color: "#6b7280" }}>Salon: </span>
+                  <strong>{cancelModalBooking.salon_name}</strong>
+                </div>
+              )}
+              {cancelModalBooking.service_name && (
+                <div>
+                  <span style={{ color: "#6b7280" }}>Service: </span>
+                  <strong>{cancelModalBooking.service_name}</strong>
+                </div>
+              )}
+              {cancelModalBooking.booking_date && (
+                <div>
+                  <span style={{ color: "#6b7280" }}>Appointment: </span>
+                  <strong>
+                    {cancelModalBooking.booking_date}
+                    {cancelModalBooking.booking_time ? ` at ${fmt12(cancelModalBooking.booking_time)}` : ""}
+                  </strong>
+                </div>
+              )}
+              {cancelModalBooking.total_amount && (
+                <div>
+                  <span style={{ color: "#6b7280" }}>Total Amount: </span>
+                  <strong>₹{cancelModalBooking.total_amount}</strong>
+                </div>
+              )}
+            </div>
+
+            <p style={{ margin: 0, fontSize: "13px", color: "#4b5563", lineHeight: 1.5 }}>
+              This appointment slot will be released. If you made an online or wallet payment, any eligible refund will be credited directly to your BookMySalon Wallet.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "10px",
+                marginTop: "4px",
+              }}
+            >
+              <button
+                type="button"
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: Boolean(cancellingId) ? "not-allowed" : "pointer",
+                }}
+                disabled={Boolean(cancellingId)}
+                onClick={() => setCancelModalBooking(null)}
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  border: "1px solid #dc2626",
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: Boolean(cancellingId) ? "not-allowed" : "pointer",
+                  opacity: Boolean(cancellingId) ? 0.7 : 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+                disabled={Boolean(cancellingId)}
+                onClick={confirmCancel}
+              >
+                {cancellingId ? "Cancelling…" : "Yes, Cancel Booking"}
+              </button>
+            </div>
           </div>
         </div>
       )}

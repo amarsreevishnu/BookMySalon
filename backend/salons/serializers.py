@@ -62,7 +62,7 @@ class SalonSerializer(serializers.ModelSerializer):
         try:
             from reviews.models import SalonReview
             from django.db.models import Avg
-            agg = SalonReview.objects.filter(salon=obj).aggregate(avg=Avg('rating'))
+            agg = SalonReview.objects.filter(salon=obj, is_hidden=False).aggregate(avg=Avg('rating'))
             if agg['avg'] is not None:
                 return round(float(agg['avg']), 2)
         except Exception:
@@ -72,7 +72,7 @@ class SalonSerializer(serializers.ModelSerializer):
     def get_reviews_count(self, obj):
         try:
             from reviews.models import SalonReview
-            return SalonReview.objects.filter(salon=obj).count()
+            return SalonReview.objects.filter(salon=obj, is_hidden=False).count()
         except Exception:
             return 0
     

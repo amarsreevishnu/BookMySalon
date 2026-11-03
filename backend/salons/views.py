@@ -1002,13 +1002,14 @@ class OwnerDashboardView(APIView):
 
             if salon:
                 salon_reviews_qs = SalonReview.objects.filter(salon=salon).select_related('customer', 'booking').order_by('-created_at')
-                salon_agg = salon_reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
+                visible_reviews_qs = salon_reviews_qs.filter(is_hidden=False)
+                salon_agg = visible_reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
                 salon_reviews_count = salon_agg['count'] or 0
                 if salon_reviews_count > 0 and salon_agg['avg'] is not None:
                     salon_rating = round(float(salon_agg['avg']), 2)
 
                 breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
-                for r in salon_reviews_qs:
+                for r in visible_reviews_qs:
                     if r.rating in breakdown:
                         breakdown[r.rating] += 1
 
@@ -1033,6 +1034,7 @@ class OwnerDashboardView(APIView):
                         "comment": r.comment,
                         "treatment": treatment,
                         "booking_id": r.booking_id,
+                        "is_hidden": r.is_hidden,
                         "date": r.created_at.strftime("%b %d, %Y"),
                         "created_at": r.created_at.isoformat(),
                     })
@@ -2264,10 +2266,10 @@ class CustomerSalonExploreView(APIView):
             }
 
             # Compute real rating & review_count
-            avg_review_dict = SalonReview.objects.filter(salon=s).aggregate(avg=Avg('rating'))
+            avg_review_dict = SalonReview.objects.filter(salon=s, is_hidden=False).aggregate(avg=Avg('rating'))
             avg_review_val = avg_review_dict['avg']
             salon_rating = round(float(avg_review_val), 1) if avg_review_val is not None else None
-            review_count = SalonReview.objects.filter(salon=s).count()
+            review_count = SalonReview.objects.filter(salon=s, is_hidden=False).count()
 
             # Compute dynamic price tier based on actual service prices
             numeric_prices = []
@@ -2603,7 +2605,7 @@ class CustomerSalonDetailView(APIView):
                 data["off_days"] = []
 
             # Dynamic Salon Reviews and Rating Breakdown
-            salon_reviews_qs = SalonReview.objects.filter(salon=salon).select_related('customer', 'booking').order_by('-created_at')
+            salon_reviews_qs = SalonReview.objects.filter(salon=salon, is_hidden=False).select_related('customer', 'booking').order_by('-created_at')
             salon_agg = salon_reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
             salon_reviews_count = salon_agg['count'] or 0
             salon_rating = round(float(salon_agg['avg']), 2) if (salon_agg['avg'] is not None and salon_reviews_count > 0) else 5.0

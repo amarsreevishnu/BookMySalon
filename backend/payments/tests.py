@@ -13,6 +13,7 @@ from payments.models import (
     Payment,
     OwnerWallet,
     OwnerWalletTransaction,
+    WorkerWallet,
     WorkerEarning,
     WorkerWalletTransaction,
     Refund,
@@ -183,12 +184,23 @@ class OwnerRevenueFinancialTests(TestCase):
         self.assertEqual(wallet.total_completed_services, Decimal("500.00"))
         self.assertEqual(wallet.total_worker_payout, Decimal("300.00"))
 
-        # Verify exact descriptive narrative
-        expected_desc = (
-            f"Booking #{booking.id} — Pooja Sharma paid ₹400 remaining service amount; "
-            f"total service price ₹500; Worker Arjun Kapoor earned ₹300; Salon share ₹200."
-        )
-        self.assertEqual(owner_tx.description, expected_desc)
+        # Verify separate transactions exist: remaining payment received and worker commission payout
+        rem_tx = OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
+            transaction_type=OwnerWalletTransaction.TransactionType.CUSTOMER_PAYMENT_RECEIVED,
+        ).first()
+        self.assertIsNotNone(rem_tx)
+        self.assertEqual(rem_tx.amount, Decimal("400.00"))
+
+        debit_tx = OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.DEBIT,
+            transaction_type=OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+        ).first()
+        self.assertIsNotNone(debit_tx)
+        self.assertEqual(debit_tx.amount, Decimal("300.00"))
+        self.assertIn("Worker commission payout of ₹300 (60%) deducted for Arjun Kapoor", debit_tx.description)
 
         # Booking final state
         booking.refresh_from_db()
@@ -351,12 +363,12 @@ class OwnerRevenueFinancialTests(TestCase):
         self.assertEqual(res_collect.status_code, 200)
         self.assertEqual(res_collect.data["wallet_balance"], "200.00")
         self.assertIsNotNone(res_collect.data["transaction"])
-        self.assertIn("Worker Arjun Kapoor earned ₹300", res_collect.data["transaction"]["description"])
+        self.assertIn("deducted for Arjun Kapoor", res_collect.data["transaction"]["description"])
 
-        # 4. Check transactions list endpoint
+        # 4. Check transactions list endpoint (advance + remaining + worker commission deduction)
         res_txs = self.client.get("/api/v1/payments/owner/transactions/")
         self.assertEqual(res_txs.status_code, 200)
-        self.assertEqual(res_txs.data["count"], 2) # advance + remaining
+        self.assertEqual(res_txs.data["count"], 3)
 
         # 5. Check worker-earnings endpoint
         res_workers = self.client.get("/api/v1/payments/owner/worker-earnings/")
@@ -626,3 +638,422 @@ class RevenueAtomicityAndReconciliationTests(TestCase):
         res_owner_list = self.client.get("/api/v1/payments/owner/unreconciled-bookings/")
         self.assertEqual(res_owner_list.status_code, 200)
         self.assertEqual(res_owner_list.data["count"], 0)  # Already reconciled!
+
+
+class SalonOwnerWalletPaymentFlowTests(TestCase):
+    """
+    Comprehensive verification of Salon Owner payment and wallet management flow:
+    - NO advance payment functionality
+    - 60% worker commission rate
+    - Online payment: full credit upon verification, commission deducted only after completion
+    - Wallet payment: customer wallet deducted, owner wallet credited, commission deducted after completion
+    - Pay at salon: zero wallet credits before completion; at completion customer payment (+1000)
+      and worker commission (-600) both processed as separate atomic operations
+    - Final financial invariance: all 3 methods yield identical final settlements
+    - Cancellation before completion does not process worker commission
+    - Idempotency prevents duplicate credits/deductions
+    """
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="salon_owner_test@domain.com",
+            password="Password123!",
+            first_name="Rajesh",
+            last_name="Khanna",
+            role="OWNER",
+        )
+        self.salon = Salon.objects.create(
+            owner=self.owner,
+            name="Grand Elegance Salon",
+            city="Mumbai",
+            address="Linking Road, Bandra",
+            approval_status=Salon.ApprovalStatus.APPROVED,
+        )
+
+        self.worker_user = User.objects.create_user(
+            email="specialist_test@domain.com",
+            password="Password123!",
+            first_name="Karan",
+            last_name="Malhotra",
+            role="WORKER",
+        )
+        self.worker = WorkerProfile.objects.create(
+            user=self.worker_user,
+            salon=self.salon,
+            specialization="Senior Stylist",
+            station="Station 01",
+            commission_rate=Decimal("60.00"),
+            is_active=True,
+        )
+
+        self.customer = User.objects.create_user(
+            email="customer_test@domain.com",
+            password="Password123!",
+            first_name="Ananya",
+            last_name="Roy",
+            role="CUSTOMER",
+        )
+
+        self.category = ServiceCategory.objects.create(name="Hair Styling")
+        self.base_service = Service.objects.create(
+            name="Deluxe Hair Treatment",
+            category=self.category,
+            standard_price=Decimal("1000.00"),
+            standard_duration=60,
+        )
+        self.salon_service = SalonService.objects.create(
+            salon=self.salon,
+            service=self.base_service,
+            custom_name="Deluxe Hair Treatment",
+            price=Decimal("1000.00"),
+            duration=60,
+            is_active=True,
+        )
+
+        self.client = APIClient()
+
+    def test_online_payment_end_to_end_flow(self):
+        """
+        A. Online Payment Flow:
+        1. When customer successfully completes online payment, credit received booking amount (+₹1,000)
+           to respective Salon Owner's wallet.
+        2. Before service completion, worker commission is NOT processed.
+        3. Once service is marked as completed:
+           - Worker commission (60% = ₹600) is deducted from Salon Owner's wallet (-₹600).
+           - Worker wallet is credited (+₹600).
+           - Net in Salon Owner wallet from this booking: ₹400.
+        """
+        from payments.services import (
+            record_customer_payment_to_owner,
+            record_service_completion_and_final_payment,
+        )
+
+        booking = Booking.objects.create(
+            salon=self.salon,
+            worker=self.worker,
+            customer=self.customer,
+            service=self.salon_service,
+            client_name="Ananya Roy",
+            service_name="Deluxe Hair Treatment",
+            service_price=Decimal("1000.00"),
+            total_amount=Decimal("1000.00"),
+            booking_date=date.today() + timedelta(days=1),
+            booking_time="11:00",
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            payment_method=Booking.PaymentMethod.ONLINE,
+            status=Booking.Status.CONFIRMED,
+            payment_status=Booking.PaymentStatus.PENDING,
+            razorpay_order_id="order_online_1000",
+            razorpay_payment_id="pay_online_1000",
+        )
+
+        # 1. Successful verified online payment credits owner wallet
+        pay_tx = record_customer_payment_to_owner(
+            booking=booking,
+            amount=Decimal("1000.00"),
+            payment_method=Payment.PaymentMethod.ONLINE,
+            razorpay_order_id="order_online_1000",
+            razorpay_payment_id="pay_online_1000",
+            notes="Verified Razorpay payment",
+        )
+        self.assertIsNotNone(pay_tx)
+        self.assertEqual(pay_tx.flow, OwnerWalletTransaction.FlowType.CREDIT)
+        self.assertEqual(pay_tx.amount, Decimal("1000.00"))
+
+        owner_wallet = OwnerWallet.objects.get(salon=self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("1000.00"))
+
+        # Verify worker has NOT received any commission yet
+        worker_earning = WorkerEarning.objects.filter(booking=booking).first()
+        self.assertIsNone(worker_earning)
+
+        # 2. Service completion settles worker commission
+        owner_tx, earning = record_service_completion_and_final_payment(
+            booking=booking,
+            completed_by_user=self.owner,
+        )
+        self.assertIsNotNone(earning)
+        self.assertEqual(earning.earning_amount, Decimal("600.00"))
+        self.assertEqual(earning.commission_rate, Decimal("60.00"))
+        self.assertEqual(earning.salon_share, Decimal("400.00"))
+
+        # Check worker wallet
+        worker_wallet = self.worker.wallet
+        self.assertEqual(worker_wallet.balance, Decimal("600.00"))
+
+        # Check Salon Owner wallet:
+        # Received: +₹1,000. Commission deducted: -₹600. Remaining: ₹400.
+        owner_wallet.refresh_from_db()
+        self.assertEqual(owner_wallet.balance, Decimal("400.00"))
+        self.assertEqual(owner_wallet.total_collected, Decimal("1000.00"))
+        self.assertEqual(owner_wallet.total_worker_payout, Decimal("600.00"))
+        self.assertEqual(owner_wallet.total_completed_services, Decimal("1000.00"))
+
+        # Verify two distinct transactions exist on owner wallet: +1000 credit and -600 debit
+        txs = OwnerWalletTransaction.objects.filter(booking=booking).order_by("created_at")
+        self.assertEqual(txs.count(), 2)
+        credit_op = txs.filter(flow=OwnerWalletTransaction.FlowType.CREDIT).first()
+        debit_op = txs.filter(flow=OwnerWalletTransaction.FlowType.DEBIT).first()
+        self.assertEqual(credit_op.amount, Decimal("1000.00"))
+        self.assertEqual(debit_op.amount, Decimal("600.00"))
+        self.assertEqual(debit_op.amount, earning.earning_amount)
+
+    def test_customer_wallet_payment_end_to_end_flow(self):
+        """
+        B. BookMySalon Customer Wallet Payment Flow:
+        1. When customer pays using wallet, deduct ₹1,000 from customer wallet.
+        2. Credit received ₹1,000 to Salon Owner's wallet.
+        3. Settle worker commission only after service completion (-₹600 owner debit, +₹600 worker credit).
+        4. Net Salon Owner wallet: ₹400.
+        """
+        from wallet.services import credit_wallet, process_wallet_booking_payment
+        from payments.services import record_service_completion_and_final_payment
+
+        # Pre-fund customer wallet with ₹2,000
+        credit_wallet(self.customer, Decimal("2000.00"), reason="Initial wallet balance")
+
+        booking = Booking.objects.create(
+            salon=self.salon,
+            worker=self.worker,
+            customer=self.customer,
+            service=self.salon_service,
+            client_name="Ananya Roy",
+            service_name="Deluxe Hair Treatment",
+            service_price=Decimal("1000.00"),
+            total_amount=Decimal("1000.00"),
+            booking_date=date.today() + timedelta(days=2),
+            booking_time="14:00",
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            payment_method=Booking.PaymentMethod.WALLET,
+            status=Booking.Status.PENDING,
+            payment_status=Booking.PaymentStatus.PENDING,
+        )
+
+        # 1. Customer wallet payment processing
+        bkg, cust_tx = process_wallet_booking_payment(booking, self.customer)
+        self.assertEqual(cust_tx.amount, Decimal("1000.00"))
+
+        # Verify customer wallet debited
+        from wallet.services import get_customer_wallet
+        cust_wallet = get_customer_wallet(self.customer)
+        cust_wallet.refresh_from_db()
+        self.assertEqual(cust_wallet.balance, Decimal("1000.00"))
+
+        # Verify Salon Owner wallet credited +₹1,000
+        owner_wallet = OwnerWallet.objects.get(salon=self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("1000.00"))
+
+        # 2. Complete service -> worker commission settled
+        record_service_completion_and_final_payment(booking, completed_by_user=self.owner)
+
+        # Salon Owner wallet: +1000 - 600 = ₹400
+        owner_wallet.refresh_from_db()
+        self.assertEqual(owner_wallet.balance, Decimal("400.00"))
+
+        # Worker wallet: +₹600
+        self.worker.wallet.refresh_from_db()
+        self.assertEqual(self.worker.wallet.balance, Decimal("600.00"))
+
+    def test_pay_at_salon_end_to_end_flow(self):
+        """
+        C. Pay at Salon Flow:
+        1. When booking created, ZERO credit or deduction to Salon Owner wallet.
+        2. Once service marked COMPLETED:
+           - Record customer payment received (+₹1,000 credit).
+           - Settle worker commission (-₹600 debit).
+           - Credit worker wallet (+₹600 credit).
+           - Net Salon Owner wallet: ₹400.
+        """
+        from payments.services import record_service_completion_and_final_payment
+
+        booking = Booking.objects.create(
+            salon=self.salon,
+            worker=self.worker,
+            customer=self.customer,
+            service=self.salon_service,
+            client_name="Ananya Roy",
+            service_name="Deluxe Hair Treatment",
+            service_price=Decimal("1000.00"),
+            total_amount=Decimal("1000.00"),
+            booking_date=date.today() + timedelta(days=3),
+            booking_time="16:00",
+            start_time=time(16, 0),
+            end_time=time(17, 0),
+            payment_method=Booking.PaymentMethod.PAY_AT_SALON,
+            status=Booking.Status.CONFIRMED,
+            payment_status=Booking.PaymentStatus.PENDING,
+        )
+
+        # Before completion: Salon Owner wallet has ZERO balance and zero transactions
+        owner_wallet = OwnerWallet.get_or_create_for_salon(self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("0.00"))
+        self.assertEqual(OwnerWalletTransaction.objects.filter(booking=booking).count(), 0)
+
+        # Complete service
+        record_service_completion_and_final_payment(booking, completed_by_user=self.owner)
+
+        # Salon Owner wallet receives customer payment (+1000) and worker commission (-600)
+        owner_wallet.refresh_from_db()
+        self.assertEqual(owner_wallet.balance, Decimal("400.00"))
+        self.assertEqual(owner_wallet.total_collected, Decimal("1000.00"))
+        self.assertEqual(owner_wallet.total_worker_payout, Decimal("600.00"))
+
+        # Worker wallet receives +₹600
+        self.worker.wallet.refresh_from_db()
+        self.assertEqual(self.worker.wallet.balance, Decimal("600.00"))
+
+        # Booking finalized to COMPLETED and PAID
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.COMPLETED)
+        self.assertEqual(booking.payment_status, Booking.PaymentStatus.PAID)
+        self.assertTrue(booking.is_fully_paid)
+
+    def test_financial_settlement_invariance_across_all_payment_methods(self):
+        """
+        Final Requirement: All three payment methods must produce the same final financial settlement
+        for a completed booking:
+        - Customer payment received: ₹1,000
+        - Salon Owner wallet credit: +₹1,000
+        - Worker commission: ₹600 (60%)
+        - Salon Owner wallet deduction: -₹600
+        - Worker earnings credit: +₹600
+        - Remaining amount in Salon Owner wallet: ₹400
+        """
+        from wallet.services import credit_wallet, process_wallet_booking_payment
+        from payments.services import (
+            record_customer_payment_to_owner,
+            record_service_completion_and_final_payment,
+        )
+
+        credit_wallet(self.customer, Decimal("1000.00"), reason="Wallet funding")
+
+        # Booking 1: Online
+        bkg_online = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.ONLINE, status=Booking.Status.CONFIRMED,
+            booking_date=date.today(), start_time=time(10, 0), end_time=time(11, 0),
+        )
+        record_customer_payment_to_owner(bkg_online)
+        record_service_completion_and_final_payment(bkg_online)
+
+        # Booking 2: Customer Wallet
+        bkg_wallet = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.WALLET, status=Booking.Status.PENDING,
+            booking_date=date.today(), start_time=time(12, 0), end_time=time(13, 0),
+        )
+        process_wallet_booking_payment(bkg_wallet, self.customer)
+        record_service_completion_and_final_payment(bkg_wallet)
+
+        # Booking 3: Pay at Salon
+        bkg_offline = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.PAY_AT_SALON, status=Booking.Status.CONFIRMED,
+            booking_date=date.today(), start_time=time(14, 0), end_time=time(15, 0),
+        )
+        record_service_completion_and_final_payment(bkg_offline)
+
+        # Final Financial Check across all 3:
+        # Salon Owner net per booking = ₹400. Total for 3 bookings = ₹1,200.
+        owner_wallet = OwnerWallet.objects.get(salon=self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("1200.00"))
+        self.assertEqual(owner_wallet.total_collected, Decimal("3000.00"))
+        self.assertEqual(owner_wallet.total_worker_payout, Decimal("1800.00"))
+
+        # Worker total earned = 3 x ₹600 = ₹1,800
+        self.worker.wallet.refresh_from_db()
+        self.assertEqual(self.worker.wallet.balance, Decimal("1800.00"))
+
+    def test_cancellation_before_completion_does_not_process_commission(self):
+        """
+        If a booking is cancelled before service completion, do not process worker commission.
+        """
+        from payments.services import (
+            record_customer_payment_to_owner,
+            process_booking_cancellation_and_refund,
+        )
+
+        # 1. Online booking cancelled before completion
+        booking_online = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.ONLINE, status=Booking.Status.CONFIRMED,
+            booking_date=date.today() + timedelta(days=2), start_time=time(10, 0), end_time=time(11, 0),
+        )
+        record_customer_payment_to_owner(booking_online)
+        owner_wallet = OwnerWallet.objects.get(salon=self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("1000.00"))
+
+        refund, owner_tx = process_booking_cancellation_and_refund(
+            booking=booking_online, reason="Customer had to travel"
+        )
+        self.assertIsNotNone(refund)
+        self.assertEqual(refund.amount, Decimal("1000.00"))
+        self.assertEqual(refund.worker_reversal_amount, Decimal("0.00"))
+
+        # Owner wallet debited ₹1,000 back to 0
+        owner_wallet.refresh_from_db()
+        self.assertEqual(owner_wallet.balance, Decimal("0.00"))
+
+        # Customer wallet credited with refund
+        from wallet.services import get_customer_wallet
+        cust_wallet = get_customer_wallet(self.customer)
+        cust_wallet.refresh_from_db()
+        self.assertEqual(cust_wallet.balance, Decimal("1000.00"))
+
+        # Worker commission was NEVER processed
+        self.assertFalse(WorkerEarning.objects.filter(booking=booking_online).exists())
+        self.assertFalse(WorkerWallet.objects.filter(worker=self.worker).exists())
+
+        # 2. Pay at Salon booking cancelled before completion
+        booking_offline = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.PAY_AT_SALON, status=Booking.Status.CONFIRMED,
+            booking_date=date.today() + timedelta(days=3), start_time=time(15, 0), end_time=time(16, 0),
+        )
+        refund2, _ = process_booking_cancellation_and_refund(booking=booking_offline)
+        self.assertIsNone(refund2)
+        self.assertFalse(WorkerEarning.objects.filter(booking=booking_offline).exists())
+        owner_wallet.refresh_from_db()
+        self.assertEqual(owner_wallet.balance, Decimal("0.00"))
+
+    def test_completion_idempotency_prevents_duplicate_credits_and_deductions(self):
+        """
+        Calling completion multiple times must not produce duplicate credits or deductions.
+        """
+        from payments.services import (
+            record_customer_payment_to_owner,
+            record_service_completion_and_final_payment,
+        )
+
+        booking = Booking.objects.create(
+            salon=self.salon, worker=self.worker, customer=self.customer,
+            service=self.salon_service, service_price=Decimal("1000.00"), total_amount=Decimal("1000.00"),
+            payment_method=Booking.PaymentMethod.ONLINE, status=Booking.Status.CONFIRMED,
+            booking_date=date.today(), start_time=time(10, 0), end_time=time(11, 0),
+        )
+        record_customer_payment_to_owner(booking)
+
+        # Call completion 3 times
+        for _ in range(3):
+            record_service_completion_and_final_payment(booking)
+
+        # Balances must remain exactly ₹400 (owner) and ₹600 (worker)
+        owner_wallet = OwnerWallet.objects.get(salon=self.salon)
+        self.assertEqual(owner_wallet.balance, Decimal("400.00"))
+
+        self.worker.wallet.refresh_from_db()
+        self.assertEqual(self.worker.wallet.balance, Decimal("600.00"))
+
+        # Exactly 1 credit and 1 debit for this booking
+        credits = OwnerWalletTransaction.objects.filter(booking=booking, flow=OwnerWalletTransaction.FlowType.CREDIT).count()
+        debits = OwnerWalletTransaction.objects.filter(booking=booking, flow=OwnerWalletTransaction.FlowType.DEBIT).count()
+        self.assertEqual(credits, 1)
+        self.assertEqual(debits, 1)
+        self.assertEqual(WorkerEarning.objects.filter(booking=booking).count(), 1)
+

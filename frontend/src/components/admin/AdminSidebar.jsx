@@ -78,6 +78,7 @@ export default function AdminSidebar({
 
   const isUsersActive = location.pathname.startsWith("/admin/users");
   const isServicesActive = location.pathname.startsWith("/admin/services");
+  const isReviewsActive = location.pathname.startsWith("/admin/reviews");
   const isSupportActive =
     location.pathname.startsWith("/admin/support") ||
     location.pathname.startsWith("/admin/tickets");
@@ -203,7 +204,7 @@ export default function AdminSidebar({
           )}
         </Link>
 
-        <button type="button" className="admin-nav-item">
+        {/* <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>📅</span>
             <span>Bookings</span>
@@ -211,7 +212,7 @@ export default function AdminSidebar({
           {effectiveBookingsCount > 0 && (
             <span className="admin-nav-badge">{effectiveBookingsCount}</span>
           )}
-        </button>
+        </button> */}
 
         <Link
           to="/admin/services"
@@ -226,34 +227,37 @@ export default function AdminSidebar({
           )}
         </Link>
 
-        <button type="button" className="admin-nav-item">
+        {/* <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>💰</span>
             <span>Earnings</span>
           </div>
           <span className="admin-nav-badge">₹45K</span>
-        </button>
+        </button> */}
 
-        <button type="button" className="admin-nav-item">
+        {/* <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>📈</span>
             <span>Analytics</span>
           </div>
-        </button>
+        </button> */}
 
-        <button type="button" className="admin-nav-item">
+        <Link
+          to="/admin/reviews"
+          className={`admin-nav-item ${isReviewsActive ? "active" : ""}`}
+        >
           <div className="admin-nav-left">
             <span>⭐</span>
             <span>Reviews</span>
           </div>
-        </button>
+        </Link>
 
-        <button type="button" className="admin-nav-item">
+        {/* <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>🏷️</span>
             <span>Offers</span>
           </div>
-        </button>
+        </button> */}
 
         <Link
           to="/admin/support"

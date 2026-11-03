@@ -36,6 +36,7 @@ import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
 import AdminServicesList from "../pages/admin/AdminServicesList";
 import AdminSupport from "../pages/admin/AdminSupport";
+import AdminReviewsManagement from "../pages/admin/AdminReviewsManagement";
 import OwnerSupport from "../pages/owner/OwnerSupport";
 
 import PrivateRoute from "./PrivateRoute";
@@ -83,6 +84,7 @@ function AppRoutes() {
         <Route path="/admin/salons" element={<AdminSalonsList />} />
         <Route path="/admin/users" element={<AdminUserList />} />
         <Route path="/admin/services" element={<AdminServicesList />} />
+        <Route path="/admin/reviews" element={<AdminReviewsManagement />} />
         <Route path="/admin/support" element={<AdminSupport />} />
         <Route path="/admin/tickets" element={<AdminSupport />} />
         <Route path="/admin" element={<AdminDashboard />} />

@@ -138,20 +138,17 @@ class Booking(models.Model):
 
     def calculate_remaining_amount(self):
         """
-        Calculates remaining service balance due based on total_amount, advance_amount,
+        Calculates remaining service balance due based on total_amount,
         payment method, and payment status.
+        - There is no advance payment.
         - If fully paid or payment_status is PAID: returns Decimal('0.00').
-        - If an advance token was paid: returns max(Decimal('0.00'), total_amount - advance_amount).
-        - If Pay at Salon and not yet completed: returns total_amount.
-        - If Online payment: returns Decimal('0.00') (full amount is settled online).
+        - If Pay at Salon and not yet completed/paid: returns total_amount.
+        - If Online payment or Wallet payment: returns Decimal('0.00') (full amount is settled).
         """
         if self.is_fully_paid or self.payment_status == self.PaymentStatus.PAID:
             return Decimal("0.00")
 
         total = Decimal(str(self.total_amount if self.total_amount is not None else self.service_price or "0.00"))
-
-        if self.is_advance_paid and self.advance_amount and self.advance_amount > Decimal("0.00"):
-            return max(Decimal("0.00"), total - Decimal(str(self.advance_amount)))
 
         if self.payment_method == self.PaymentMethod.PAY_AT_SALON:
             return total
@@ -160,36 +157,31 @@ class Booking(models.Model):
 
     def calculate_advance_amount(self):
         """
-        Returns the advance amount paid online.
-        If payment was full online or pay at salon, returns Decimal('0.00').
+        There is no advance payment system in BookMySalon. Always returns Decimal('0.00').
         """
-        if self.is_advance_paid and self.advance_amount and self.advance_amount > Decimal("0.00"):
-            return Decimal(str(self.advance_amount))
         return Decimal("0.00")
 
     def recalculate_payment_amounts(self):
         """
         Recalculates advance_amount, remaining_amount, and payment flags based on current state.
+        There is no advance payment:
+        - advance_amount is always Decimal('0.00').
+        - Pay at Salon: remaining_amount = total_amount until completed/paid.
+        - Online / Wallet payment: remaining_amount = Decimal('0.00').
         """
         total = Decimal(str(self.total_amount if self.total_amount is not None else self.service_price or "0.00"))
+        self.advance_amount = Decimal("0.00")
+        self.is_advance_paid = False
+
         if self.payment_status == self.PaymentStatus.PAID or self.is_fully_paid:
             self.remaining_amount = Decimal("0.00")
             self.is_fully_paid = True
-            if self.payment_method == self.PaymentMethod.ONLINE and not self.is_advance_paid:
-                self.advance_amount = Decimal("0.00")
-        elif self.is_advance_paid and self.advance_amount and self.advance_amount > Decimal("0.00"):
-            self.remaining_amount = max(Decimal("0.00"), total - Decimal(str(self.advance_amount)))
-            self.is_fully_paid = (self.remaining_amount == Decimal("0.00"))
         elif self.payment_method == self.PaymentMethod.PAY_AT_SALON:
-            self.advance_amount = Decimal("0.00")
             self.remaining_amount = total
-            self.is_advance_paid = False
             self.is_fully_paid = False
-        elif self.payment_method == self.PaymentMethod.ONLINE:
-            self.advance_amount = Decimal("0.00")
+        else:
             self.remaining_amount = Decimal("0.00")
-            self.is_advance_paid = False
-            self.is_fully_paid = False
+            self.is_fully_paid = (self.payment_status == self.PaymentStatus.PAID)
 
 
 class ServiceReceipt(models.Model):
@@ -325,8 +317,11 @@ class ServiceReceipt(models.Model):
                     or (recomputed_subtot - discount_val + tax_val if (recomputed_subtot - discount_val + tax_val) > Decimal("0.00") else None)
                     or recomputed_subtot
                 )
-                adv_amt = Decimal(str(booking.advance_amount or "0.00"))
-                rem_amt = max(Decimal("0.00"), recomputed_total - adv_amt) if adv_amt > Decimal("0.00") else Decimal("0.00")
+                adv_amt = Decimal("0.00")
+                if booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON and booking.payment_status != Booking.PaymentStatus.PAID:
+                    rem_amt = recomputed_total
+                else:
+                    rem_amt = Decimal("0.00")
 
                 existing.subtotal = recomputed_subtot.quantize(Decimal("0.01"))
                 existing.discount_amount = discount_val.quantize(Decimal("0.01"))
@@ -450,10 +445,10 @@ class ServiceReceipt(models.Model):
         else:
             amt_paid = subtot
 
-        # 4. Advance and Counter settlement amounts
-        adv_amt = Decimal(str(booking.advance_amount or "0.00"))
-        if adv_amt > Decimal("0.00"):
-            rem_amt = max(Decimal("0.00"), tot_amt - adv_amt)
+        # 4. Settlement amounts (No advance payment)
+        adv_amt = Decimal("0.00")
+        if booking.payment_method == Booking.PaymentMethod.PAY_AT_SALON and booking.payment_status != Booking.PaymentStatus.PAID:
+            rem_amt = tot_amt
         else:
             rem_amt = Decimal("0.00")
 

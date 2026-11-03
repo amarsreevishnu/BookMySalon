@@ -311,8 +311,8 @@ def process_wallet_booking_payment(booking, customer_user):
 
     # 4. Credit salon owner's revenue wallet
     try:
-        from payments.services import record_booking_advance_payment
-        record_booking_advance_payment(
+        from payments.services import record_customer_payment_to_owner
+        record_customer_payment_to_owner(
             booking=booking,
             amount=amount,
             payment_method="WALLET",

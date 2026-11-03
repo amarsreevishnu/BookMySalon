@@ -19,6 +19,9 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_WORKER_COMMISSION_RATE = Decimal("60.00")
+
+
 def format_currency_amount(val):
     """Format decimal/numeric amount without unnecessary trailing zeroes (e.g. ₹100, ₹400)."""
     try:
@@ -36,23 +39,31 @@ def get_or_create_owner_wallet(salon):
 
 
 @transaction.atomic
-def record_booking_advance_payment(
+def record_customer_payment_to_owner(
     booking,
-    amount,
-    payment_method=Payment.PaymentMethod.ONLINE,
+    amount=None,
+    payment_method=None,
     razorpay_order_id="",
     razorpay_payment_id="",
     notes="",
 ):
     """
-    Records an advance token payment (e.g. ₹100) toward a booking.
-    - Updates Booking advance and remaining balances.
-    - Creates/updates a Payment record for the advance.
-    - Credits the salon's OwnerWallet.
-    - Creates an OwnerWalletTransaction with human-readable description.
-    Idempotent: will not duplicate if an ADVANCE_RECEIVED transaction already exists for this booking.
+    Credits customer payment in full to the Salon Owner's wallet.
+    - Used for:
+        1. Online Payment (when verified)
+        2. BookMySalon Customer Wallet Payment (when booking confirmed)
+        3. Pay at Salon (when service is marked COMPLETED)
+    - Enforces idempotency: if customer payment credit already exists for this booking,
+      does not duplicate the credit.
+    - Updates Booking payment status to PAID and is_fully_paid to True.
+    - Creates OwnerWalletTransaction with flow=CREDIT and type=CUSTOMER_PAYMENT_RECEIVED.
     """
-    amount = Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if amount is None:
+        total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+        amount = Decimal(str(total or "0.00"))
+    else:
+        amount = Decimal(str(amount))
+    amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     if amount <= Decimal("0.00"):
         return None
 
@@ -61,44 +72,65 @@ def record_booking_advance_payment(
         defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
     )[0]
 
-    # Idempotency check: don't double credit advance
-    existing_tx = OwnerWalletTransaction.objects.filter(
-        booking=booking,
-        transaction_type=OwnerWalletTransaction.TransactionType.ADVANCE_RECEIVED,
-    ).first()
-    if existing_tx:
-        logger.info("Advance payment for Booking #%s already recorded. Skipping duplicate.", booking.id)
-        return existing_tx
+    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    total_price = Decimal(str(booking.total_amount if booking.total_amount is not None else booking.service_price))
-    remaining = max(Decimal("0.00"), total_price - amount)
-
-    is_full = (remaining == Decimal("0.00"))
-    payment_type = Payment.PaymentType.FULL if is_full else Payment.PaymentType.ADVANCE
-
-    # 1. Create Payment record for payment
-    payment = Payment.objects.create(
-        booking=booking,
-        customer=booking.customer,
-        salon=booking.salon,
-        amount=amount,
-        payment_type=payment_type,
-        payment_method=payment_method,
-        payment_status=Payment.PaymentStatus.PAID,
-        razorpay_order_id=razorpay_order_id or booking.razorpay_order_id,
-        razorpay_payment_id=razorpay_payment_id or booking.razorpay_payment_id,
-        notes=notes or (f"Full online payment of ₹{amount:g} received" if is_full else f"Advance token payment of ₹{amount:g} received"),
-        paid_at=timezone.now(),
+    # Idempotency check: don't double credit customer payment if already fully credited
+    total_credited = sum(
+        Decimal(str(a))
+        for a in OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
+        ).values_list("amount", flat=True)
     )
+    if total_price > Decimal("0.00") and total_credited >= total_price:
+        logger.info(
+            "Customer payment for Booking #%s already fully credited to owner wallet. Skipping duplicate.",
+            booking.id,
+        )
+        return OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
+        ).first()
+
+    method = payment_method or booking.payment_method or Payment.PaymentMethod.ONLINE
+
+    # 1. Update or create Payment record
+    payment = Payment.objects.filter(booking=booking).first()
+    if not payment:
+        payment = Payment.objects.create(
+            booking=booking,
+            customer=booking.customer,
+            salon=booking.salon,
+            amount=amount,
+            payment_type=Payment.PaymentType.FULL,
+            payment_method=method,
+            payment_status=Payment.PaymentStatus.PAID,
+            razorpay_order_id=razorpay_order_id or booking.razorpay_order_id or "",
+            razorpay_payment_id=razorpay_payment_id or booking.razorpay_payment_id or "",
+            notes=notes or f"Full payment of ₹{format_currency_amount(amount)} received via {method}",
+            paid_at=timezone.now(),
+        )
+    else:
+        payment.amount = amount
+        payment.payment_type = Payment.PaymentType.FULL
+        payment.payment_method = method
+        payment.payment_status = Payment.PaymentStatus.PAID
+        if razorpay_order_id:
+            payment.razorpay_order_id = razorpay_order_id
+        if razorpay_payment_id:
+            payment.razorpay_payment_id = razorpay_payment_id
+        if notes:
+            payment.notes = notes
+        payment.paid_at = timezone.now()
+        payment.save()
 
     # 2. Update booking states
-    booking.advance_amount = Decimal("0.00") if is_full else amount
-    booking.remaining_amount = remaining
-    booking.is_advance_paid = False if is_full else True
-    booking.is_fully_paid = is_full
-    booking.payment_status = (
-        Booking.PaymentStatus.PAID if is_full else Booking.PaymentStatus.PARTIALLY_PAID
-    )
+    booking.advance_amount = Decimal("0.00")
+    booking.remaining_amount = Decimal("0.00")
+    booking.is_advance_paid = False
+    booking.is_fully_paid = True
+    booking.payment_status = Booking.PaymentStatus.PAID
     if payment_method:
         booking.payment_method = payment_method
     if razorpay_order_id:
@@ -113,10 +145,252 @@ def record_booking_advance_payment(
     # 3. Credit OwnerWallet
     wallet.balance += amount
     wallet.total_collected += amount
+    wallet.save(update_fields=["balance", "total_collected", "updated_at"])
+
+    # 4. Formulate human-readable description
+    customer_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Customer")
+    service_name = booking.service_name or "Salon Service"
+    method_display = dict(Payment.PaymentMethod.choices).get(method, method)
+    description = f"Booking #{booking.id} — Customer payment received: ₹{format_currency_amount(amount)} via {method_display} for {service_name} ({customer_name})."
+
+    tx = OwnerWalletTransaction.objects.create(
+        wallet=wallet,
+        salon=booking.salon,
+        booking=booking,
+        payment=payment,
+        transaction_type=OwnerWalletTransaction.TransactionType.CUSTOMER_PAYMENT_RECEIVED,
+        flow=OwnerWalletTransaction.FlowType.CREDIT,
+        amount=amount,
+        balance_after=wallet.balance,
+        description=description,
+        metadata={
+            "customer_name": customer_name,
+            "service_name": service_name,
+            "total_service_price": str(amount),
+            "payment_method": method,
+            "payment_type": "FULL",
+            "operation": "CUSTOMER_PAYMENT_COLLECTION",
+            "razorpay_payment_id": razorpay_payment_id or booking.razorpay_payment_id,
+        },
+    )
+    logger.info("Recorded customer payment tx #%s for booking #%s", tx.id, booking.id)
+    return tx
+
+
+@transaction.atomic
+def settle_worker_commission_for_completed_booking(booking, completed_by_user=None, notes=""):
+    """
+    Settles the worker commission (default 60%) for a completed booking as an independent operation:
+    1. Deducts commission from Salon Owner's wallet (flow=DEBIT, type=WORKER_COMMISSION_PAYOUT).
+    2. Credits the exact matching commission to worker's earnings & wallet (flow=CREDIT).
+    - Idempotent: executed at most once per completed booking.
+    - If booking has no worker assigned, returns (None, None).
+    """
+    if not booking or not booking.worker:
+        return None, None
+
+    worker = booking.worker
+    salon = booking.salon
+
+    # Acquire row locks
+    owner_wallet = OwnerWallet.objects.select_for_update().get_or_create(
+        salon=salon,
+        defaults={"owner": salon.owner, "balance": Decimal("0.00")},
+    )[0]
+    worker_wallet = WorkerWallet.objects.select_for_update().get_or_create(
+        worker=worker,
+        defaults={"balance": Decimal("0.00"), "total_earned": Decimal("0.00")},
+    )[0]
+
+    # Idempotency check:
+    existing_owner_debit = OwnerWalletTransaction.objects.filter(
+        booking=booking,
+        flow=OwnerWalletTransaction.FlowType.DEBIT,
+        transaction_type__in=[
+            OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+            OwnerWalletTransaction.TransactionType.WORKER_ALLOCATION,
+        ],
+    ).first()
+
+    existing_earning = WorkerEarning.objects.filter(
+        booking=booking,
+        status=WorkerEarning.Status.CREDITED,
+    ).first()
+
+    if existing_owner_debit and existing_earning:
+        logger.info("Worker commission for Booking #%s already fully settled. Skipping duplicate.", booking.id)
+        return existing_owner_debit, existing_earning
+
+    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # Commission rate: defaults to 60.00%
+    rate = Decimal(str(getattr(worker, "commission_rate", None) or DEFAULT_WORKER_COMMISSION_RATE)).quantize(Decimal("0.01"))
+    if rate <= Decimal("0.00"):
+        rate = DEFAULT_WORKER_COMMISSION_RATE
+
+    worker_share = ((total_price * rate) / Decimal("100.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    salon_share = max(Decimal("0.00"), total_price - worker_share)
+
+    rate_str = f"{int(rate)}%" if rate == rate.to_integral() else f"{rate}%"
+
+    worker_name = worker.user.get_full_name() if worker.user else f"Worker #{worker.id}"
+    customer_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Customer")
+    service_name = booking.service_name or "Salon Service"
+
+    # 1. Credit Worker Earning and Worker Wallet
+    worker_earning = existing_earning
+    if not worker_earning and worker_share > Decimal("0.00"):
+        worker_earning, created = WorkerEarning.objects.get_or_create(
+            worker=worker,
+            booking=booking,
+            defaults={
+                "salon": salon,
+                "service_price": total_price,
+                "commission_rate": rate,
+                "earning_amount": worker_share,
+                "salon_share": salon_share,
+                "status": WorkerEarning.Status.CREDITED,
+                "description": f"Commission for Booking #{booking.id} — {service_name} ({rate_str})",
+            },
+        )
+        if created:
+            worker_wallet.balance += worker_share
+            worker_wallet.total_earned += worker_share
+            worker_wallet.save(update_fields=["balance", "total_earned", "updated_at"])
+
+            WorkerWalletTransaction.objects.create(
+                wallet=worker_wallet,
+                worker=worker,
+                salon=salon,
+                booking=booking,
+                earning=worker_earning,
+                transaction_type=WorkerWalletTransaction.TransactionType.COMMISSION_CREDIT,
+                flow="CREDIT",
+                amount=worker_share,
+                balance_after=worker_wallet.balance,
+                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} ({rate_str}) commission credited for {service_name} ({customer_name}).",
+            )
+
+    # 2. Deduct Worker Commission from Salon Owner Wallet
+    owner_debit_tx = existing_owner_debit
+    if not owner_debit_tx and worker_share > Decimal("0.00"):
+        owner_wallet.balance -= worker_share
+        owner_wallet.total_worker_payout += worker_share
+        owner_wallet.total_completed_services += total_price
+        owner_wallet.save(update_fields=[
+            "balance", "total_worker_payout", "total_completed_services", "updated_at"
+        ])
+
+        description = (
+            f"Booking #{booking.id} — Worker commission payout of ₹{format_currency_amount(worker_share)} "
+            f"({rate_str}) deducted for {worker_name} ({service_name})."
+        )
+        owner_debit_tx = OwnerWalletTransaction.objects.create(
+            wallet=owner_wallet,
+            salon=salon,
+            booking=booking,
+            transaction_type=OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+            flow=OwnerWalletTransaction.FlowType.DEBIT,
+            amount=worker_share,
+            balance_after=owner_wallet.balance,
+            description=description,
+            metadata={
+                "worker_id": worker.id,
+                "worker_name": worker_name,
+                "customer_name": customer_name,
+                "service_name": service_name,
+                "total_service_price": str(total_price),
+                "commission_rate": str(rate),
+                "worker_share": str(worker_share),
+                "salon_share": str(salon_share),
+                "operation": "WORKER_COMMISSION_SETTLEMENT",
+            },
+        )
+
+    logger.info("Settled worker commission for booking #%s: ₹%s to %s", booking.id, worker_share, worker_name)
+    return owner_debit_tx, worker_earning
+
+
+@transaction.atomic
+def record_booking_advance_payment(
+    booking,
+    amount,
+    payment_method=Payment.PaymentMethod.ONLINE,
+    razorpay_order_id="",
+    razorpay_payment_id="",
+    notes="",
+):
+    """
+    Records customer payment credit toward booking.
+    Maintained for compatibility with legacy test harness; in BookMySalon,
+    payments are full service payments without advance token deductions.
+    """
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if amount <= Decimal("0.00"):
+        return None
+
+    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    is_partial = (amount < total_price)
+
+    # If full payment, use standard record_customer_payment_to_owner
+    if not is_partial:
+        return record_customer_payment_to_owner(
+            booking=booking,
+            amount=amount,
+            payment_method=payment_method,
+            razorpay_order_id=razorpay_order_id,
+            razorpay_payment_id=razorpay_payment_id,
+            notes=notes or "Customer payment in full",
+        )
+
+    # If partial amount was explicitly passed in legacy test:
+    wallet = OwnerWallet.objects.select_for_update().get_or_create(
+        salon=booking.salon,
+        defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
+    )[0]
+
+    existing_tx = OwnerWalletTransaction.objects.filter(
+        booking=booking,
+        flow=OwnerWalletTransaction.FlowType.CREDIT,
+    ).first()
+    if existing_tx:
+        return existing_tx
+
+    payment = Payment.objects.create(
+        booking=booking,
+        customer=booking.customer,
+        salon=booking.salon,
+        amount=amount,
+        payment_type=Payment.PaymentType.ADVANCE,
+        payment_method=payment_method,
+        payment_status=Payment.PaymentStatus.PAID,
+        razorpay_order_id=razorpay_order_id or booking.razorpay_order_id,
+        razorpay_payment_id=razorpay_payment_id or booking.razorpay_payment_id,
+        notes=notes or f"Advance token payment of ₹{amount:g} received",
+        paid_at=timezone.now(),
+    )
+
+    remaining = max(Decimal("0.00"), total_price - amount)
+    booking.advance_amount = amount
+    booking.remaining_amount = remaining
+    booking.is_advance_paid = True
+    booking.is_fully_paid = False
+    booking.payment_status = Booking.PaymentStatus.PARTIALLY_PAID
+    if payment_method:
+        booking.payment_method = payment_method
+    booking.save(update_fields=[
+        "advance_amount", "remaining_amount", "is_advance_paid", "is_fully_paid",
+        "payment_status", "payment_method", "updated_at"
+    ])
+
+    wallet.balance += amount
+    wallet.total_collected += amount
     wallet.total_advances += amount
     wallet.save(update_fields=["balance", "total_collected", "total_advances", "updated_at"])
 
-    # 4. Formulate human-readable description
     customer_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Customer")
     service_name = booking.service_name or "Salon Service"
     description = f"Booking #{booking.id} — {customer_name} paid ₹{format_currency_amount(amount)} advance for {service_name}"
@@ -141,7 +415,6 @@ def record_booking_advance_payment(
             "razorpay_payment_id": razorpay_payment_id,
         },
     )
-    logger.info("Recorded advance payment tx #%s for booking #%s", tx.id, booking.id)
     return tx
 
 
@@ -155,198 +428,79 @@ def record_service_completion_and_final_payment(
 ):
     """
     Invoked when customer completes service at salon.
-    - Deducts advance already paid and calculates remaining amount.
-    - Confirms full payment (e.g. ₹500 total, ₹100 advance, ₹400 remaining).
-    - Calculates worker's agreed share (e.g. 60% = ₹300) and salon's share (₹200).
-    - Records WorkerEarning and WorkerWalletTransaction.
-    - Updates OwnerWallet with net salon share and registers total completed & worker payouts.
-    - Records OwnerWalletTransaction with human-readable description matching user requirements.
-    - Fully idempotent: checks existing transactions and earnings to avoid duplicate credits.
+    1. If customer payment has not yet been credited to Salon Owner's wallet
+       (e.g. for Pay at Salon bookings):
+       Records full customer payment receipt (+₹1,000 credit).
+    2. Settles worker commission (60%):
+       Deducts ₹600 from Salon Owner's wallet (-₹600 debit).
+       Credits ₹600 to Worker's earning & wallet (+₹600 credit).
+    3. Finalizes booking status to COMPLETED and payment status to PAID.
+    4. Auto-generates immutable ServiceReceipt.
+    - Fully idempotent: will not double credit customer payment or double settle worker commission.
+    - Returns (owner_transaction, worker_earning).
     """
-    wallet = OwnerWallet.objects.select_for_update().get_or_create(
-        salon=booking.salon,
-        defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
-    )[0]
+    # 1. Customer Payment Collection (if not already collected)
+    pay_method = payment_method or booking.payment_method or Payment.PaymentMethod.PAY_AT_SALON
 
-    # Idempotency check: don't duplicate completion if both owner tx and worker earning exist
-    existing_owner_tx = OwnerWalletTransaction.objects.filter(
-        booking=booking,
-        transaction_type__in=[
-            OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
-            OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED,
-        ],
-    ).first()
+    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    existing_earning = None
-    if booking.worker:
-        existing_earning = WorkerEarning.objects.filter(
+    total_credited = sum(
+        Decimal(str(a))
+        for a in OwnerWalletTransaction.objects.filter(
             booking=booking,
-            status=WorkerEarning.Status.CREDITED,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
+        ).values_list("amount", flat=True)
+    )
+
+    remaining_to_collect = max(Decimal("0.00"), total_price - total_credited)
+    if remaining_amount_paid is not None:
+        rem_param = Decimal(str(remaining_amount_paid)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if rem_param > Decimal("0.00"):
+            remaining_to_collect = rem_param
+
+    customer_payment_tx = None
+    if remaining_to_collect > Decimal("0.00"):
+        customer_payment_tx = record_customer_payment_to_owner(
+            booking=booking,
+            amount=remaining_to_collect,
+            payment_method=pay_method,
+            notes=notes or f"Service payment received at salon upon completion ({pay_method})",
+        )
+    else:
+        customer_payment_tx = OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
         ).first()
 
-    if existing_owner_tx and (existing_earning or booking.worker is None):
-        logger.info("Service completion, owner revenue, and worker earning already fully recorded for Booking #%s.", booking.id)
-        if booking.status != Booking.Status.COMPLETED or not booking.is_fully_paid:
-            booking.status = Booking.Status.COMPLETED
-            booking.payment_status = Booking.PaymentStatus.PAID
-            booking.is_fully_paid = True
-            booking.remaining_amount = Decimal("0.00")
-            booking.save(update_fields=["status", "payment_status", "is_fully_paid", "remaining_amount", "updated_at"])
-        return existing_owner_tx, existing_earning
-
-    total_price = Decimal(str(booking.total_amount if booking.total_amount is not None else booking.service_price)).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
-    )
-    advance_paid = Decimal(str(booking.advance_amount or "0.00")).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
+    # 2. Worker Commission Settlement (separate operation)
+    owner_debit_tx, worker_earning = settle_worker_commission_for_completed_booking(
+        booking=booking,
+        completed_by_user=completed_by_user,
+        notes=notes,
     )
 
-    if remaining_amount_paid is None:
-        remaining_to_pay = max(Decimal("0.00"), total_price - advance_paid)
-    else:
-        remaining_to_pay = Decimal(str(remaining_amount_paid)).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-
-    # Worker Commission calculation
-    worker = booking.worker
-    if worker:
-        rate = Decimal(str(getattr(worker, "commission_rate", 60.00))).quantize(Decimal("0.01"))
-        worker_share = ((total_price * rate) / Decimal("100.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    else:
-        rate = Decimal("0.00")
-        worker_share = Decimal("0.00")
-    salon_share = max(Decimal("0.00"), total_price - worker_share)
-
-    # 1. Record remaining payment if applicable and not already recorded
-    payment_rec = Payment.objects.filter(booking=booking, payment_type=Payment.PaymentType.REMAINING).first()
-    if not payment_rec and remaining_to_pay > Decimal("0.00"):
-        payment_rec = Payment.objects.create(
-            booking=booking,
-            customer=booking.customer,
-            salon=booking.salon,
-            amount=remaining_to_pay,
-            payment_type=Payment.PaymentType.REMAINING,
-            payment_method=payment_method,
-            payment_status=Payment.PaymentStatus.PAID,
-            notes=notes or f"Remaining service balance paid at counter (₹{remaining_to_pay:g})",
-            paid_at=timezone.now(),
-        )
-
-    # 2. Record WorkerEarning & WorkerWalletTransaction if worker assigned and earning not yet recorded
-    worker_earning = existing_earning
-    if worker and not existing_earning:
-        worker_name = worker.user.get_full_name() if worker.user else f"Worker #{worker.id}"
-        worker_wallet = WorkerWallet.objects.select_for_update().get_or_create(
-            worker=worker,
-            defaults={"balance": Decimal("0.00"), "total_earned": Decimal("0.00")},
-        )[0]
-
-        worker_earning, created = WorkerEarning.objects.get_or_create(
-            worker=worker,
-            booking=booking,
-            defaults={
-                "salon": booking.salon,
-                "service_price": total_price,
-                "commission_rate": rate,
-                "earning_amount": worker_share,
-                "salon_share": salon_share,
-                "status": WorkerEarning.Status.CREDITED,
-                "description": f"Commission for Booking #{booking.id} — {booking.service_name} ({rate:g}%)",
-            },
-        )
-
-        if created:
-            worker_wallet.balance += worker_share
-            worker_wallet.total_earned += worker_share
-            worker_wallet.save(update_fields=["balance", "total_earned", "updated_at"])
-
-            client_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Client")
-            WorkerWalletTransaction.objects.create(
-                wallet=worker_wallet,
-                worker=worker,
-                salon=booking.salon,
-                booking=booking,
-                earning=worker_earning,
-                transaction_type=WorkerWalletTransaction.TransactionType.COMMISSION_CREDIT,
-                flow="CREDIT",
-                amount=worker_share,
-                balance_after=worker_wallet.balance,
-                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} commission credited for {booking.service_name} ({client_name}).",
-            )
-    else:
-        worker_name = (worker.user.get_full_name() if worker and worker.user else f"Worker #{worker.id}") if worker else "Unassigned Staff"
-
-    # 3. Update OwnerWallet and record OwnerWalletTransaction if not yet recorded
-    owner_tx = existing_owner_tx
-    if not existing_owner_tx:
-        # Note on balance: Advance (e.g. 100) was previously added to wallet.balance.
-        # Now customer pays remaining (e.g. 400).
-        # Worker share (e.g. 300) is deducted as worker obligation.
-        # Net change to wallet balance: + remaining_to_pay - worker_share.
-        net_wallet_change = remaining_to_pay - worker_share
-        wallet.balance += net_wallet_change
-        wallet.total_collected += remaining_to_pay
-        wallet.total_completed_services += total_price
-        wallet.total_worker_payout += worker_share
-        wallet.save(update_fields=[
-            "balance", "total_collected", "total_completed_services", "total_worker_payout", "updated_at"
-        ])
-
-        customer_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Customer")
-        if advance_paid > Decimal("0.00"):
-            description = (
-                f"Booking #{booking.id} — {customer_name} paid ₹{format_currency_amount(remaining_to_pay)} remaining service amount; "
-                f"total service price ₹{format_currency_amount(total_price)}; Worker {worker_name} earned ₹{format_currency_amount(worker_share)}; "
-                f"Salon share ₹{format_currency_amount(salon_share)}."
-            )
-            tx_type = OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED
-        else:
-            description = (
-                f"Booking #{booking.id} — {customer_name} paid ₹{format_currency_amount(total_price)} service amount; "
-                f"Worker {worker_name} earned ₹{format_currency_amount(worker_share)}; Salon share ₹{format_currency_amount(salon_share)}."
-            )
-            tx_type = OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED
-
-        owner_tx = OwnerWalletTransaction.objects.create(
-            wallet=wallet,
-            salon=booking.salon,
-            booking=booking,
-            payment=payment_rec,
-            transaction_type=tx_type,
-            flow=OwnerWalletTransaction.FlowType.CREDIT,
-            amount=remaining_to_pay if remaining_to_pay > Decimal("0.00") else total_price,
-            balance_after=wallet.balance,
-            description=description,
-            metadata={
-                "customer_name": customer_name,
-                "worker_name": worker_name,
-                "service_name": booking.service_name,
-                "total_service_price": str(total_price),
-                "advance_paid": str(advance_paid),
-                "remaining_paid": str(remaining_to_pay),
-                "worker_share": str(worker_share),
-                "salon_share": str(salon_share),
-                "commission_rate": str(rate),
-                "payment_method": payment_method,
-            },
-        )
-
-    # 4. Mark booking finalized and completed
+    # 3. Mark booking finalized and completed
     booking.status = Booking.Status.COMPLETED
     booking.payment_status = Booking.PaymentStatus.PAID
     booking.is_fully_paid = True
     booking.remaining_amount = Decimal("0.00")
-    booking.save(update_fields=["status", "payment_status", "is_fully_paid", "remaining_amount", "updated_at"])
+    booking.advance_amount = Decimal("0.00")
+    update_flds = ["status", "payment_status", "is_fully_paid", "remaining_amount", "advance_amount", "updated_at"]
+    if not booking.total_amount or booking.total_amount <= Decimal("0.00"):
+        booking.total_amount = total_price
+        update_flds.append("total_amount")
+    booking.save(update_fields=update_flds)
 
-    # Auto-generate immutable ServiceReceipt
+    # 4. Auto-generate immutable ServiceReceipt
     try:
         from bookings.models import ServiceReceipt
         ServiceReceipt.get_or_create_for_booking(booking)
     except Exception as receipt_err:
         logger.warning("Could not auto-generate receipt for booking #%s: %s", booking.id, receipt_err)
 
-    return owner_tx, worker_earning
+    primary_owner_tx = owner_debit_tx or customer_payment_tx
+    return primary_owner_tx, worker_earning
 
 
 @transaction.atomic
@@ -354,28 +508,35 @@ def reconcile_booking_revenue(booking, reconciled_by=None):
     """
     Audits and synchronizes the financial ledger for a booking.
     - If already synchronized, returns without duplicate ledger entries.
-    - If any entries (WorkerEarning or OwnerWalletTransaction) are missing,
+    - If any entries (customer payment credit or worker commission deduction/earning) are missing,
       records them atomically and updates balances.
     - Updates booking status to COMPLETED and payment status to PAID.
     """
-    has_owner_tx = OwnerWalletTransaction.objects.filter(
+    has_owner_credit = OwnerWalletTransaction.objects.filter(
         booking=booking,
-        transaction_type__in=[
-            OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
-            OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED,
-        ],
+        flow=OwnerWalletTransaction.FlowType.CREDIT,
     ).exists()
 
     has_worker_earning = False
+    has_owner_debit = False
     if booking.worker:
-        has_worker_earning = WorkerEarning.objects.filter(
+        has_earning = WorkerEarning.objects.filter(
             booking=booking,
             status=WorkerEarning.Status.CREDITED,
         ).exists()
+        has_owner_debit = OwnerWalletTransaction.objects.filter(
+            booking=booking,
+            flow=OwnerWalletTransaction.FlowType.DEBIT,
+            transaction_type__in=[
+                OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+                OwnerWalletTransaction.TransactionType.WORKER_ALLOCATION,
+            ],
+        ).exists()
+        has_worker_earning = has_earning and has_owner_debit
     else:
         has_worker_earning = True
 
-    was_already_synced = has_owner_tx and has_worker_earning and booking.status == Booking.Status.COMPLETED
+    was_already_synced = has_owner_credit and has_worker_earning and booking.status == Booking.Status.COMPLETED
 
     owner_tx, worker_earning = record_service_completion_and_final_payment(
         booking=booking,
@@ -393,7 +554,7 @@ def reconcile_booking_revenue(booking, reconciled_by=None):
             if was_already_synced
             else f"Booking #{booking.id} revenue successfully reconciled and credited to ledger."
         ),
-        "owner_transaction_created": not has_owner_tx,
+        "owner_transaction_created": not has_owner_credit,
         "worker_earning_created": not has_worker_earning and bool(booking.worker),
         "owner_transaction": owner_tx,
         "worker_earning": worker_earning,
@@ -402,8 +563,9 @@ def reconcile_booking_revenue(booking, reconciled_by=None):
 
 def get_unreconciled_bookings(salon=None, worker=None):
     """
-    Returns a queryset of COMPLETED bookings missing either OwnerWalletTransaction
-    or WorkerEarning (when a worker is assigned).
+    Returns a queryset of COMPLETED bookings missing either:
+    - Customer payment credit transaction on OwnerWallet
+    - Worker commission settlement (OwnerWallet debit & WorkerEarning)
     """
     from django.db.models import Q
 
@@ -413,21 +575,22 @@ def get_unreconciled_bookings(salon=None, worker=None):
     if worker:
         qs = qs.filter(worker=worker)
 
-    completed_owner_tx_bids = OwnerWalletTransaction.objects.filter(
-        booking__isnull=False,
-        transaction_type__in=[
-            OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
-            OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED,
-        ],
-    ).values_list("booking_id", flat=True)
+    credit_owner_bids = list(
+        OwnerWalletTransaction.objects.filter(
+            booking__isnull=False,
+            flow=OwnerWalletTransaction.FlowType.CREDIT,
+        ).values_list("booking_id", flat=True)
+    )
 
-    credited_worker_bids = WorkerEarning.objects.filter(
-        booking__isnull=False,
-        status=WorkerEarning.Status.CREDITED,
-    ).values_list("booking_id", flat=True)
+    credited_worker_bids = list(
+        WorkerEarning.objects.filter(
+            booking__isnull=False,
+            status=WorkerEarning.Status.CREDITED,
+        ).values_list("booking_id", flat=True)
+    )
 
     unreconciled = qs.filter(
-        ~Q(id__in=completed_owner_tx_bids) |
+        ~Q(id__in=credit_owner_bids) |
         (Q(worker__isnull=False) & ~Q(id__in=credited_worker_bids))
     ).select_related("salon", "worker", "worker__user", "customer").order_by("-booking_date", "-booking_time")
 
@@ -636,7 +799,8 @@ def credit_worker_for_completed_booking(booking, completed_by_user=None):
     if existing_earning:
         return existing_earning, None
 
-    return record_service_completion_and_final_payment(
+    owner_debit_tx, worker_earning = settle_worker_commission_for_completed_booking(
         booking=booking,
         completed_by_user=completed_by_user,
     )
+    return worker_earning, owner_debit_tx

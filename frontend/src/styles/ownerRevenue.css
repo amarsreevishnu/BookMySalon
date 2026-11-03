@@ -430,6 +430,11 @@
   color: #b91c1c;
 }
 
+.rev-badge--commission {
+  background: #fdf2f8;
+  color: #9d174d;
+}
+
 /* Narrative cell */
 .rev-narrative-cell {
   max-width: 420px;

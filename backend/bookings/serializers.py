@@ -364,17 +364,28 @@ class WorkerAppointmentSerializer(BookingReadSerializer):
         if obj.status != Booking.Status.COMPLETED:
             return True
         try:
+            from payments.models import OwnerWalletTransaction
             if obj.worker_id:
                 from payments.models import WorkerEarning
                 has_earning = WorkerEarning.objects.filter(booking_id=obj.id, status=WorkerEarning.Status.CREDITED).exists()
-                if not has_earning:
+                has_worker_debit = OwnerWalletTransaction.objects.filter(
+                    booking_id=obj.id,
+                    flow=OwnerWalletTransaction.FlowType.DEBIT,
+                    transaction_type__in=[
+                        OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+                        OwnerWalletTransaction.TransactionType.WORKER_ALLOCATION,
+                    ],
+                ).exists()
+                if not (has_earning and has_worker_debit):
                     return False
-            from payments.models import OwnerWalletTransaction
             has_owner_tx = OwnerWalletTransaction.objects.filter(
                 booking_id=obj.id,
+                flow=OwnerWalletTransaction.FlowType.CREDIT,
                 transaction_type__in=[
-                    OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
+                    OwnerWalletTransaction.TransactionType.CUSTOMER_PAYMENT_RECEIVED,
                     OwnerWalletTransaction.TransactionType.FULL_PAYMENT_RECEIVED,
+                    OwnerWalletTransaction.TransactionType.REMAINING_RECEIVED,
+                    OwnerWalletTransaction.TransactionType.ADVANCE_RECEIVED,
                 ],
             ).exists()
             return has_owner_tx

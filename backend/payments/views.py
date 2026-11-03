@@ -553,9 +553,9 @@ class VerifyRazorpayPaymentView(APIView):
                 ])
 
                 # Record in Owner Revenue ledger
-                from payments.services import record_booking_advance_payment
+                from payments.services import record_customer_payment_to_owner
                 expected_charge = booking.total_amount if booking.total_amount is not None else booking.service_price
-                record_booking_advance_payment(
+                record_customer_payment_to_owner(
                     booking=booking,
                     amount=expected_charge,
                     payment_method=Payment.PaymentMethod.ONLINE,
@@ -857,11 +857,13 @@ class OwnerRevenueSummaryView(APIView):
 
         wallet = OwnerWallet.get_or_create_for_salon(salon)
 
+        from django.db.models import Q
         pending_settlements_count = Booking.objects.filter(
             salon=salon,
-            is_advance_paid=True,
-            is_fully_paid=False,
             status__in=[Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
+        ).filter(
+            Q(payment_status=Booking.PaymentStatus.PENDING) |
+            Q(is_advance_paid=True, is_fully_paid=False)
         ).count()
 
         completed_bookings_count = Booking.objects.filter(
@@ -936,7 +938,12 @@ class OwnerTransactionsListView(APIView):
 
         tx_type = request.query_params.get("type", "").strip()
         if tx_type:
-            qs = qs.filter(transaction_type=tx_type)
+            if tx_type in ["FULL_PAYMENT_RECEIVED", "CUSTOMER_PAYMENT_RECEIVED"]:
+                qs = qs.filter(transaction_type__in=["FULL_PAYMENT_RECEIVED", "CUSTOMER_PAYMENT_RECEIVED"])
+            elif tx_type in ["WORKER_ALLOCATION", "WORKER_COMMISSION_PAYOUT"]:
+                qs = qs.filter(transaction_type__in=["WORKER_ALLOCATION", "WORKER_COMMISSION_PAYOUT"])
+            else:
+                qs = qs.filter(transaction_type=tx_type)
 
         flow = request.query_params.get("flow", "").strip().upper()
         if flow:

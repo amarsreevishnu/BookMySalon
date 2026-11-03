@@ -619,6 +619,18 @@ export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
               <button
                 type="button"
                 className={`rev-filter-pill ${
+                  txFilterType === "WORKER_COMMISSION_PAYOUT" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setTxFilterType("WORKER_COMMISSION_PAYOUT");
+                  setTxPage(1);
+                }}
+              >
+                Staff Commissions
+              </button>
+              <button
+                type="button"
+                className={`rev-filter-pill ${
                   txFilterType === "REFUND_ISSUED" ? "active" : ""
                 }`}
                 onClick={() => {
@@ -693,6 +705,8 @@ export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
                                 ? "rev-badge--remaining"
                                 : tx.transaction_type === "REFUND_ISSUED"
                                 ? "rev-badge--refund"
+                                : tx.transaction_type === "WORKER_COMMISSION_PAYOUT" || tx.transaction_type === "WORKER_ALLOCATION"
+                                ? "rev-badge--commission"
                                 : "rev-badge--full"
                             }`}
                           >

@@ -904,7 +904,7 @@ class CustomerFavoritesListView(APIView):
         results = []
         for s in salons:
             is_approved = (s.approval_status == Salon.ApprovalStatus.APPROVED)
-            rev_agg = SalonReview.objects.filter(salon=s).aggregate(avg=Avg("rating"), count=Count("id"))
+            rev_agg = SalonReview.objects.filter(salon=s, is_hidden=False).aggregate(avg=Avg("rating"), count=Count("id"))
             rating_val = round(float(rev_agg["avg"]), 1) if rev_agg["avg"] is not None else 4.9
             reviews_cnt = rev_agg["count"] or 0
 
