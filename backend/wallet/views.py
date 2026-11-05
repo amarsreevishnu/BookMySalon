@@ -9,6 +9,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from django.core.exceptions import ValidationError
 from .models import CustomerWallet, WalletTransaction, WalletTopUpPayment
+logger = logging.getLogger(__name__)
 from .serializers import (
     CustomerWalletSerializer,
     WalletTransactionSerializer,
@@ -32,8 +33,6 @@ from .services import (
     WalletInactiveError,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class StandardPagination(PageNumberPagination):
     page_size = 15
@@ -42,10 +41,7 @@ class StandardPagination(PageNumberPagination):
 
 
 class CustomerWalletDetailView(APIView):
-    """
-    Retrieves the customer's wallet overview, current available INR balance,
-    aggregate metrics, and recent transactions.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -62,12 +58,7 @@ class CustomerWalletDetailView(APIView):
 
 
 class CustomerWalletTransactionsView(APIView):
-    """
-    Returns filterable, paginated transaction history for the customer's wallet.
-    Query params:
-      - type: filter by transaction_type (CREDIT, DEBIT, REFUND, BOOKING_PAYMENT)
-      - search: search query in transaction_id, reason, booking service/salon name
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -102,10 +93,7 @@ class CustomerWalletTransactionsView(APIView):
 
 
 class CustomerWalletBalanceCheckView(APIView):
-    """
-    Validates if customer has sufficient available funds for a specified booking amount.
-    Query param: amount
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -132,10 +120,7 @@ class CustomerWalletBalanceCheckView(APIView):
 
 
 class CustomerWalletTopUpCreateOrderView(APIView):
-    """
-    Creates a dedicated Razorpay order specifically for adding money to the customer's wallet.
-    Validates amount boundaries (positive, <= ₹10,000, 2 decimals max).
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -160,10 +145,7 @@ class CustomerWalletTopUpCreateOrderView(APIView):
 
 
 class CustomerWalletTopUpVerifyView(APIView):
-    """
-    Verifies the Razorpay payment signature after successful checkout and atomically credits the customer wallet.
-    Records a CREDIT transaction with reason WALLET_TOPUP.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -225,10 +207,7 @@ class CustomerWalletTopUpVerifyView(APIView):
 
 
 class CustomerWalletTopUpFailedView(APIView):
-    """
-    Records payment failures or customer cancellations.
-    Ensures wallet is never credited and returns appropriate failure response.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -260,9 +239,7 @@ class CustomerWalletTopUpFailedView(APIView):
 
 
 class CustomerWalletTopUpView(APIView):
-    """
-    Adds funds to customer wallet via secure top-up service.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -295,9 +272,7 @@ class CustomerWalletTopUpView(APIView):
 
 
 class CustomerWalletPayBookingView(APIView):
-    """
-    Deducts full booking amount from customer wallet to confirm an existing pending booking.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 

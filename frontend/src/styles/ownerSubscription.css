@@ -1,0 +1,485 @@
+/* Salon Owner Subscription & Billing Page Styling */
+
+.owner-subs-page {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f6f8f6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  color: #1a2e22;
+}
+
+.owner-subs-main {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 1360px;
+  margin: 0 auto;
+  overflow-y: auto;
+}
+
+/* Header */
+.owner-subs-header {
+  margin-bottom: 28px;
+}
+
+.owner-subs-header h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #153822;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.5px;
+}
+
+.owner-subs-header p {
+  color: #557260;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Current Status Hero Banner */
+.owner-subs-status-card {
+  border-radius: 16px;
+  padding: 26px 30px;
+  margin-bottom: 32px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  border: 1.5px solid transparent;
+}
+
+.owner-subs-status-card.trial {
+  background: linear-gradient(135deg, #eef9f2 0%, #dff2e6 100%);
+  border-color: #9cd1af;
+}
+
+.owner-subs-status-card.active {
+  background: linear-gradient(135deg, #1b452b 0%, #11331e 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 28px rgba(27, 69, 43, 0.25);
+}
+
+.owner-subs-status-card.expiring {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: #fcd34d;
+}
+
+.owner-subs-status-card.expired {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fca5a5;
+}
+
+.owner-subs-status-left {
+  max-width: 620px;
+}
+
+.owner-subs-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+}
+
+.owner-subs-status-card.active .owner-subs-status-badge {
+  background: rgba(255, 255, 255, 0.16);
+  color: #a4e6ba;
+}
+
+.owner-subs-status-card.trial .owner-subs-status-badge {
+  background: #234d34;
+  color: #ffffff;
+}
+
+.owner-subs-status-card.expiring .owner-subs-status-badge {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.owner-subs-status-card.expired .owner-subs-status-badge {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.owner-subs-status-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+}
+
+.owner-subs-status-card.active .owner-subs-status-title {
+  color: #ffffff;
+}
+
+.owner-subs-status-card.trial .owner-subs-status-title {
+  color: #153822;
+}
+
+.owner-subs-status-card.expiring .owner-subs-status-title {
+  color: #78350f;
+}
+
+.owner-subs-status-card.expired .owner-subs-status-title {
+  color: #7f1d1d;
+}
+
+.owner-subs-status-desc {
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.owner-subs-status-card.active .owner-subs-status-desc {
+  color: #c4e4ce;
+}
+
+.owner-subs-status-card.trial .owner-subs-status-desc {
+  color: #3f5947;
+}
+
+.owner-subs-status-card.expiring .owner-subs-status-desc {
+  color: #92400e;
+}
+
+.owner-subs-status-card.expired .owner-subs-status-desc {
+  color: #991b1b;
+}
+
+.owner-subs-status-dates {
+  display: flex;
+  gap: 20px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.owner-subs-status-dates span strong {
+  font-weight: 700;
+}
+
+/* Right side days countdown circle / meter */
+.owner-subs-countdown-box {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 16px 22px;
+  text-align: center;
+  min-width: 140px;
+}
+
+.owner-subs-status-card.active .owner-subs-countdown-box {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.owner-subs-countdown-num {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.owner-subs-countdown-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 4px;
+}
+
+/* Early Renewal Callout */
+.owner-early-renewal-tip {
+  background: #f0f7f3;
+  border-left: 4px solid #234d34;
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: #2e4d38;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Plans Grid */
+.owner-plans-section {
+  margin-bottom: 40px;
+}
+
+.owner-plans-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.owner-plans-header h2 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #163622;
+  margin: 0 0 6px 0;
+}
+
+.owner-plans-header p {
+  color: #557260;
+  font-size: 14px;
+  margin: 0;
+}
+
+.owner-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 22px;
+}
+
+.owner-plan-card {
+  background: #ffffff;
+  border: 1.5px solid #dce8df;
+  border-radius: 16px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.owner-plan-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(22, 54, 34, 0.08);
+}
+
+.owner-plan-card.featured {
+  border: 2px solid #234d34;
+  box-shadow: 0 10px 28px rgba(35, 77, 52, 0.12);
+}
+
+.owner-plan-badge {
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  background: #234d34;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 3px 12px;
+  border-radius: 12px;
+}
+
+.owner-plan-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #163622;
+  margin: 0 0 4px 0;
+}
+
+.owner-plan-duration {
+  font-size: 12.5px;
+  color: #607d6b;
+  margin-bottom: 18px;
+}
+
+.owner-plan-pricing {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #edf4ef;
+}
+
+.owner-plan-price-curr {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e5233;
+}
+
+.owner-plan-price-val {
+  font-size: 32px;
+  font-weight: 800;
+  color: #163622;
+  letter-spacing: -0.5px;
+}
+
+.owner-plan-price-orig {
+  font-size: 14px;
+  color: #92a89a;
+  text-decoration: line-through;
+  margin-left: 4px;
+}
+
+.owner-plan-price-cycle {
+  font-size: 12.5px;
+  color: #627c6c;
+}
+
+.owner-plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px 0;
+  flex: 1;
+}
+
+.owner-plan-features li {
+  font-size: 13px;
+  color: #3b5443;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.owner-plan-features li::before {
+  content: "✓";
+  color: #277943;
+  font-weight: 800;
+}
+
+.owner-plan-cta-btn {
+  background: #234d34;
+  color: #ffffff;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  width: 100%;
+}
+
+.owner-plan-cta-btn:hover {
+  background: #173824;
+  box-shadow: 0 4px 14px rgba(23, 56, 36, 0.25);
+}
+
+/* Invoices & History Section */
+.owner-history-section {
+  background: #ffffff;
+  border: 1px solid #e1ebe3;
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.owner-history-header {
+  margin-bottom: 18px;
+}
+
+.owner-history-header h3 {
+  font-size: 18px;
+  color: #163622;
+  margin: 0 0 4px 0;
+}
+
+.owner-history-header p {
+  font-size: 13px;
+  color: #557260;
+  margin: 0;
+}
+
+.owner-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.owner-history-table th {
+  background: #f7faf8;
+  color: #4b6855;
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 12px 14px;
+  border-bottom: 1.5px solid #dce8df;
+  text-align: left;
+}
+
+.owner-history-table td {
+  padding: 14px;
+  border-bottom: 1px solid #edf4ef;
+  color: #2a4734;
+}
+
+.owner-history-receipt-code {
+  font-family: monospace;
+  font-weight: 700;
+  color: #163622;
+}
+
+.owner-history-print-btn {
+  background: #f2f7f3;
+  border: 1px solid #cde0d2;
+  color: #1c472d;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.owner-history-print-btn:hover {
+  background: #234d34;
+  color: #ffffff;
+}
+
+/* Receipt Modal */
+.owner-receipt-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  padding: 30px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.owner-receipt-brand {
+  text-align: center;
+  border-bottom: 1px dashed #c9ded0;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.owner-receipt-brand h2 {
+  font-size: 20px;
+  color: #163622;
+  margin: 0 0 4px 0;
+}
+
+.owner-receipt-brand p {
+  font-size: 12px;
+  color: #627c6c;
+  margin: 0;
+}
+
+.owner-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+}
+
+.owner-receipt-row .label {
+  color: #557260;
+}
+
+.owner-receipt-row .val {
+  font-weight: 700;
+  color: #163622;
+}
+
+.owner-receipt-total {
+  border-top: 1.5px solid #163622;
+  border-bottom: 1.5px solid #163622;
+  padding: 12px 0;
+  margin: 18px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 800;
+  color: #163622;
+}
+

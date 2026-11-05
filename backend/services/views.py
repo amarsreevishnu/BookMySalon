@@ -536,7 +536,13 @@ class PublicSalonServicesListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, salon_id):
-        salon = get_object_or_404(Salon, pk=salon_id)
+        salon = get_object_or_404(Salon.objects.select_related("subscription"), pk=salon_id)
+        sub = getattr(salon, "subscription", None)
+        if salon.approval_status != Salon.ApprovalStatus.APPROVED or not sub or not sub.is_currently_active:
+            return Response(
+                {"error": "This salon is currently unavailable on BookMySalon.", "is_expired": True},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         offerings = SalonService.objects.filter(
             salon=salon,
             is_active=True,

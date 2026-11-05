@@ -477,10 +477,12 @@ export default function OwnerDashboard() {
       upcoming: { value: 0, trend: "0 active slots", trend_type: "positive" },
     },
     today_schedule: [], all_bookings: [], staff_on_duty: [], reviews: [], worker_reviews: [],
-    rating: 5.0, reviews_count: 0, rating_breakdown: null,
+    rating: 0.0, reviews_count: 0, rating_breakdown: null,
     revenue_progression: { peak_window: "--", daily_accrued: "₹0", target: "₹0", hours: [] },
     popular_services: [],
   });
+
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -505,12 +507,18 @@ export default function OwnerDashboard() {
           all_bookings: Array.isArray(res.data.all_bookings) ? res.data.all_bookings : [],
           reviews: Array.isArray(res.data.reviews) ? res.data.reviews : [],
           worker_reviews: Array.isArray(res.data.worker_reviews) ? res.data.worker_reviews : [],
-          rating: typeof res.data.rating === "number" ? res.data.rating : parseFloat(res.data.rating) || 5.0,
+          rating: typeof res.data.rating === "number" ? res.data.rating : parseFloat(res.data.rating) || 0.0,
           reviews_count: typeof res.data.reviews_count === "number" ? res.data.reviews_count : parseInt(res.data.reviews_count, 10) || 0,
           rating_breakdown: res.data.rating_breakdown || null,
         }));
         if (Array.isArray(res.data.all_bookings)) setAllBookings(res.data.all_bookings);
       }
+
+      api.get("/subscriptions/owner/current/", config)
+        .then((sRes) => {
+          if (sRes.data) setSubscriptionInfo(sRes.data);
+        })
+        .catch(() => {});
     } catch (err) {
       console.log("Failed to fetch owner dashboard data:", err);
     }
@@ -643,6 +651,42 @@ export default function OwnerDashboard() {
         }}
         workersCount={workersList.length}
       />
+
+      {subscriptionInfo && (
+        <div style={{ maxWidth: "1400px", margin: "16px auto 0", padding: "0 28px" }}>
+          {!subscriptionInfo.is_currently_active ? (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #ef4444", borderRadius: "10px", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#991b1b", fontSize: "14px", fontWeight: 600 }}>
+                <span style={{ fontSize: "20px" }}>⚠️</span>
+                <span><strong>Subscription Expired:</strong> New customer bookings are currently paused. Renew your subscription to restore instant booking reception.</span>
+              </div>
+              <Link to="/owner/subscription" style={{ background: "#b91c1c", color: "#ffffff", padding: "8px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Renew Subscription &rarr;
+              </Link>
+            </div>
+          ) : subscriptionInfo.is_expiring_soon ? (
+            <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: "10px", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#92400e", fontSize: "14px", fontWeight: 600 }}>
+                <span style={{ fontSize: "20px" }}>⏳</span>
+                <span><strong>Subscription Expiring Soon:</strong> You have {subscriptionInfo.days_remaining} {subscriptionInfo.days_remaining === 1 ? "day" : "days"} remaining. Renew now to avoid booking interruptions. Early renewal appends seamlessly!</span>
+              </div>
+              <Link to="/owner/subscription" style={{ background: "#b45309", color: "#ffffff", padding: "8px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Renew Plan &rarr;
+              </Link>
+            </div>
+          ) : subscriptionInfo.subscription_type === "TRIAL" ? (
+            <div style={{ background: "#f0fdf4", border: "1.5px solid #22c55e", borderRadius: "10px", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#166534", fontSize: "13.5px", fontWeight: 600 }}>
+                <span style={{ fontSize: "18px" }}>🎁</span>
+                <span><strong>30-Day Free Trial Active:</strong> You have {subscriptionInfo.days_remaining} days left of 100% zero-commission booking reception.</span>
+              </div>
+              <Link to="/owner/subscription" style={{ background: "#166534", color: "#ffffff", padding: "6px 14px", borderRadius: "6px", fontWeight: 700, fontSize: "12.5px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                View Plans &rarr;
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <main className="studio-main-body">
         {activeTab === "Settings" ? (
@@ -813,7 +857,7 @@ export default function OwnerDashboard() {
           <OwnerReviewsTab
             reviews={dashboardData.reviews || []}
             workerReviews={dashboardData.worker_reviews || []}
-            rating={dashboardData.rating || 5.0}
+            rating={dashboardData.rating || 0.0}
             reviewsCount={dashboardData.reviews_count || 0}
             ratingBreakdown={dashboardData.rating_breakdown}
             workers={workersList}
@@ -882,7 +926,7 @@ export default function OwnerDashboard() {
                   <KpiCard
                     label="SALON RATING"
                     icon="★"
-                    value={dashboardData.rating || 5.0}
+                    value={dashboardData.rating || 0.0}
                     isRating
                     isRatingDisplay
                     reviewsCount={dashboardData.reviews_count}
@@ -1099,7 +1143,7 @@ export default function OwnerDashboard() {
                           <h2 className="studio-widget-title">Customer Feedback</h2>
                         </div>
                         <span className="rating-pill-small">
-                          {dashboardData.rating || 5.0}★ ({dashboardData.reviews_count || 0})
+                          {dashboardData.rating || 0.0}★ ({dashboardData.reviews_count || 0})
                         </span>
                       </div>
 

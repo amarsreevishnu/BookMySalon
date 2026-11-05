@@ -137,5 +137,5 @@ urlpatterns = [
         "admin/users/<int:pk>/toggle-block/",
         AdminUserToggleBlockView.as_view(),
         name="admin_user_toggle_block",
-    ),
+    ),   
 ]

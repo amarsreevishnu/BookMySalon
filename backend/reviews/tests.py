@@ -16,7 +16,7 @@ class ReviewsManagementTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-        # Create Admin
+        
         self.admin_user = User.objects.create_superuser(
             email="admin@bookmysalon.com",
             password="adminpassword123",
@@ -25,7 +25,7 @@ class ReviewsManagementTests(TestCase):
             role="ADMIN",
         )
 
-        # Create Owner
+        
         self.owner_user = User.objects.create_user(
             email="owner@salona.com",
             password="ownerpassword123",
@@ -34,7 +34,7 @@ class ReviewsManagementTests(TestCase):
             role="OWNER",
         )
 
-        # Create Customer 1
+        
         self.customer1 = User.objects.create_user(
             email="customer1@example.com",
             password="customerpassword123",
@@ -43,7 +43,7 @@ class ReviewsManagementTests(TestCase):
             role="CUSTOMER",
         )
 
-        # Create Customer 2
+        
         self.customer2 = User.objects.create_user(
             email="customer2@example.com",
             password="customerpassword123",
@@ -52,7 +52,7 @@ class ReviewsManagementTests(TestCase):
             role="CUSTOMER",
         )
 
-        # Create Salon A
+        
         self.salon_a = Salon.objects.create(
             owner=self.owner_user,
             name="Luxe Glamour Salon",
@@ -61,7 +61,7 @@ class ReviewsManagementTests(TestCase):
             approval_status=Salon.ApprovalStatus.APPROVED,
         )
 
-        # Create Salon B
+        
         self.salon_b = Salon.objects.create(
             owner=self.owner_user,
             name="Urban Hair Studio",
@@ -70,7 +70,7 @@ class ReviewsManagementTests(TestCase):
             approval_status=Salon.ApprovalStatus.PENDING,
         )
 
-        # Create Bookings
+        
         self.booking_completed_1 = Booking.objects.create(
             salon=self.salon_a,
             customer=self.customer1,
@@ -124,12 +124,12 @@ class ReviewsManagementTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertTrue(SalonReview.objects.filter(booking=self.booking_completed_1).exists())
 
-        # Second submission should fail
+        
         res2 = self.client.post(url, {"salon_rating": 4, "salon_comment": "Trying again"})
         self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_super_admin_stats_and_salons_summary(self):
-        # Create reviews: one 5-star, one 1-star
+        
         r1 = SalonReview.objects.create(
             salon=self.salon_a,
             booking=self.booking_completed_1,

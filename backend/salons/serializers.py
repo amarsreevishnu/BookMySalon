@@ -17,6 +17,8 @@ class SalonSerializer(serializers.ModelSerializer):
     approval_status = serializers.ReadOnlyField()
     rating = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
+    subscription_status = serializers.SerializerMethodField()
+    is_subscription_active = serializers.SerializerMethodField()
     class Meta:
         model = Salon
         fields = [
@@ -53,6 +55,8 @@ class SalonSerializer(serializers.ModelSerializer):
             "admin_notes",
             "rating",
             "reviews_count",
+            "subscription_status",
+            "is_subscription_active",
             "created_at",
             "updated_at",
         ]
@@ -75,6 +79,18 @@ class SalonSerializer(serializers.ModelSerializer):
             return SalonReview.objects.filter(salon=obj, is_hidden=False).count()
         except Exception:
             return 0
+
+    def get_subscription_status(self, obj):
+        sub = getattr(obj, "subscription", None)
+        if sub:
+            return sub.status
+        return "EXPIRED"
+
+    def get_is_subscription_active(self, obj):
+        sub = getattr(obj, "subscription", None)
+        if sub:
+            return sub.is_currently_active
+        return False
     
     
     def to_internal_value(self, data):
@@ -167,6 +183,8 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             "assigned_bookings_count",
             "rating",
             "reviews_count",
+            "subscription_status",
+            "is_subscription_active",
             "created_at",
             "updated_at",
         ]

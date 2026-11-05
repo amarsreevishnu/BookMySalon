@@ -270,7 +270,7 @@ export default function CustomerWallet() {
         <div className="c-wallet-header">
           <div className="c-wallet-header-info">
             <h1>
-              <span>👛</span> My Salon Wallet
+              Wallet
             </h1>
             <p>Your unified balance for quick 1-click booking payments and instant cancellation refunds.</p>
           </div>
@@ -403,10 +403,7 @@ export default function CustomerWallet() {
               </div>
             </div>
 
-            <div className="c-wallet-security-banner">
-              <span>🔒</span>
-              <span>Encrypted atomic transactions with instant refund protection.</span>
-            </div>
+            
           </div>
         </div>
 

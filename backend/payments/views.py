@@ -209,7 +209,7 @@ class CreateRazorpayOrderView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
 
-                # Online payment is always full amount (no advance token)
+                # Online payment is always full amount 
                 amount_in_paise = max(100, int(round(float(total_amount) * 100)))
 
                 rzp_key = getattr(settings, 'RAZORPAY_KEY_ID', '')
@@ -371,14 +371,14 @@ class VerifyRazorpayPaymentView(APIView):
         payment_id = str(request.data.get('razorpay_payment_id', '')).strip()
         signature = str(request.data.get('razorpay_signature', '')).strip()
 
-        # Step 1: Require all three Razorpay fields unconditionally
+        
         if not order_id or not payment_id or not signature:
             return Response(
                 {'error': 'razorpay_order_id, razorpay_payment_id, and razorpay_signature are all strictly required.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Step 2: Mandatory HMAC-SHA256 signature verification
+        # signature verification
         rzp_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
         if not rzp_secret:
             return Response(
@@ -411,7 +411,7 @@ class VerifyRazorpayPaymentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Step 3: Look up the pending booking by its stored razorpay_order_id
+        # Look up the pending booking by its stored razorpay_order_id
         try:
             with transaction.atomic():
                 _clean_expired_reservations()
@@ -427,7 +427,7 @@ class VerifyRazorpayPaymentView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                # Idempotent response if already confirmed with this payment
+               
                 if booking.status == Booking.Status.CONFIRMED:
                     if booking.razorpay_payment_id == payment_id and booking.payment_status == Booking.PaymentStatus.PAID:
                         return Response({
@@ -454,7 +454,7 @@ class VerifyRazorpayPaymentView(APIView):
                         status=status.HTTP_410_GONE,
                     )
 
-                # Customer authorization check if customer is bound to booking
+                
                 if booking.customer and request.user and request.user.is_authenticated:
                     if booking.customer != request.user and not request.user.is_staff:
                         return Response(
@@ -462,7 +462,7 @@ class VerifyRazorpayPaymentView(APIView):
                             status=status.HTTP_403_FORBIDDEN,
                         )
 
-                # Step 4: Verify payment status & amount directly with Razorpay API (Server-to-Server)
+                
                 rzp_key = getattr(settings, 'RAZORPAY_KEY_ID', '')
                 if rzp_key and rzp_secret:
                     try:
@@ -536,7 +536,7 @@ class VerifyRazorpayPaymentView(APIView):
                     except requests.RequestException as api_err:
                         logging.getLogger(__name__).warning("Razorpay API check network warning: %s", api_err)
 
-                # Step 5: Finalize and confirm only that matching pending booking
+                # confirm only that matching pending booking
                 booking.status = Booking.Status.CONFIRMED
                 booking.payment_method = Booking.PaymentMethod.ONLINE
                 booking.razorpay_payment_id = payment_id
@@ -552,7 +552,6 @@ class VerifyRazorpayPaymentView(APIView):
                     'is_advance_paid', 'is_fully_paid', 'remaining_amount', 'updated_at'
                 ])
 
-                # Record in Owner Revenue ledger
                 from payments.services import record_customer_payment_to_owner
                 expected_charge = booking.total_amount if booking.total_amount is not None else booking.service_price
                 record_customer_payment_to_owner(
@@ -601,11 +600,7 @@ class VerifyRazorpayPaymentView(APIView):
 
 
 class PaymentFailedView(APIView):
-    """
-    Called when online payment fails (e.g. razorpay on('payment.failed') or customer cancels/dismisses checkout).
-    Immediately marks the pending booking as CANCELLED and payment_status as FAILED.
-    Frees the reserved slot for other customers or retries.
-    """
+  
     authentication_classes = [OptionalJWTAuthentication]
     permission_classes = [AllowAny]
 
@@ -824,17 +819,7 @@ class PaymentDetailView(APIView):
 
 
 class OwnerRevenueSummaryView(APIView):
-    """
-    Returns owner salon revenue metrics:
-    - Available balance (net funds available to salon)
-    - Total gross collected (advances + remaining + full)
-    - Total advances received
-    - Total completed service turnover
-    - Total worker earnings payout obligation
-    - Total refunds disbursed
-    - Net salon revenue
-    - Recent transactions and quick counts
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -908,9 +893,7 @@ class OwnerRevenueSummaryView(APIView):
 
 
 class OwnerTransactionsListView(APIView):
-    """
-    Paginated list of OwnerWalletTransactions with filtering by type, flow, search term.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -980,9 +963,7 @@ class OwnerTransactionsListView(APIView):
 
 
 class OwnerWorkerEarningsView(APIView):
-    """
-    Returns worker commission performance, earnings ledger, and salon retention.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -1044,10 +1025,7 @@ class OwnerWorkerEarningsView(APIView):
 
 
 class OwnerCollectRemainingPaymentView(APIView):
-    """
-    Confirms remaining payment at salon and finalizes service.
-    Calculates worker share, salon share, and records full descriptive ledger.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -1095,10 +1073,7 @@ class OwnerCollectRemainingPaymentView(APIView):
 
 
 class OwnerProcessRefundView(APIView):
-    """
-    Processes refund with reason, reverses worker commission if applicable,
-    and logs detailed refund ledger entry.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 

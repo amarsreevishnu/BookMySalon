@@ -13,7 +13,6 @@ from payments.models import (
     Payment,
     OwnerWallet,
     OwnerWalletTransaction,
-    WorkerWallet,
     WorkerEarning,
     WorkerWalletTransaction,
     Refund,
@@ -835,8 +834,7 @@ class SalonOwnerWalletPaymentFlowTests(TestCase):
         self.assertEqual(cust_tx.amount, Decimal("1000.00"))
 
         # Verify customer wallet debited
-        from wallet.services import get_customer_wallet
-        cust_wallet = get_customer_wallet(self.customer)
+        cust_wallet = self.customer.wallet
         cust_wallet.refresh_from_db()
         self.assertEqual(cust_wallet.balance, Decimal("1000.00"))
 
@@ -1000,14 +998,12 @@ class SalonOwnerWalletPaymentFlowTests(TestCase):
         self.assertEqual(owner_wallet.balance, Decimal("0.00"))
 
         # Customer wallet credited with refund
-        from wallet.services import get_customer_wallet
-        cust_wallet = get_customer_wallet(self.customer)
-        cust_wallet.refresh_from_db()
-        self.assertEqual(cust_wallet.balance, Decimal("1000.00"))
+        self.customer.wallet.refresh_from_db()
+        self.assertEqual(self.customer.wallet.balance, Decimal("1000.00"))
 
         # Worker commission was NEVER processed
         self.assertFalse(WorkerEarning.objects.filter(booking=booking_online).exists())
-        self.assertFalse(WorkerWallet.objects.filter(worker=self.worker).exists())
+        self.assertEqual(self.worker.wallet.balance, Decimal("0.00"))
 
         # 2. Pay at Salon booking cancelled before completion
         booking_offline = Booking.objects.create(

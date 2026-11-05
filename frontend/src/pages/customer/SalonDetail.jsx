@@ -146,6 +146,7 @@ export default function SalonDetail() {
   const [salon, setSalon] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isExpiredUnavailable, setIsExpiredUnavailable] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
   // Gallery Modal
@@ -577,7 +578,11 @@ export default function SalonDetail() {
       } catch (err) {
         console.error("Failed to load salon details for ID:", id, err);
         if (err.response?.status === 404) {
-          setNotFound(true);
+          if (err.response?.data?.is_expired) {
+            setIsExpiredUnavailable(true);
+          } else {
+            setNotFound(true);
+          }
         } else {
           setFetchError(
             err.response?.data?.error ||
@@ -984,6 +989,69 @@ export default function SalonDetail() {
           <p style={{ color: "#64748b", fontSize: "0.95rem", margin: 0 }}>
             Fetching verified treatments, specialists, and available appointment slots.
           </p>
+        </div>
+        <CustomerFooter />
+      </div>
+    );
+  }
+
+  if (isExpiredUnavailable) {
+    return (
+      <div className="salon-detail-page">
+        <CustomerHeader />
+        <div
+          className="salon-detail-not-found"
+          style={{
+            minHeight: "65vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: "60px 20px",
+          }}
+        >
+          <div style={{ fontSize: "3.5rem", marginBottom: "16px" }}>🌿</div>
+          <span
+            style={{
+              display: "inline-block",
+              background: "#fee2e2",
+              color: "#991b1b",
+              padding: "4px 14px",
+              borderRadius: "9999px",
+              fontSize: "0.82rem",
+              fontWeight: "600",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              marginBottom: "14px",
+            }}
+          >
+            Partner Salon Inactive
+          </span>
+          <h2 style={{ fontSize: "1.85rem", fontWeight: "700", color: "#1e293b", marginBottom: "10px" }}>
+            Salon Temporarily Unavailable
+          </h2>
+          <p style={{ color: "#64748b", maxWidth: "500px", marginBottom: "28px", lineHeight: "1.6", fontSize: "0.95rem" }}>
+            This salon partner is currently taking a break and cannot accept new bookings on BookMySalon at this time.
+            Explore other verified partner salons in your neighborhood.
+          </p>
+          <Link
+            to="/customer/salons"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#234d34",
+              color: "#ffffff",
+              padding: "12px 28px",
+              borderRadius: "10px",
+              fontWeight: "600",
+              textDecoration: "none",
+              boxShadow: "0 4px 14px rgba(35, 77, 52, 0.25)",
+            }}
+          >
+            ← Explore Active Salons
+          </Link>
         </div>
         <CustomerFooter />
       </div>

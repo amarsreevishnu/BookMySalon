@@ -548,6 +548,160 @@ class ServiceReceiptSerializer(serializers.ModelSerializer):
         }
 
 
+class AdminBookingSerializer(BookingReadSerializer):
+    """
+    Comprehensive read-only booking representation for Super Admin monitoring and audits.
+    """
+    formatted_booking_id = serializers.SerializerMethodField()
+    salon_city = serializers.ReadOnlyField(source='salon.city')
+    salon_address = serializers.ReadOnlyField(source='salon.address')
+    salon_phone = serializers.ReadOnlyField(source='salon.phone')
+    salon_owner_name = serializers.SerializerMethodField()
+    salon_owner_email = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    customer_email = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
+    customer_avatar = serializers.SerializerMethodField()
+    receipt_id = serializers.SerializerMethodField()
+    cancellation_details = serializers.SerializerMethodField()
+    refund_details = serializers.SerializerMethodField()
+    payments_history = serializers.SerializerMethodField()
+
+    class Meta(BookingReadSerializer.Meta):
+        fields = BookingReadSerializer.Meta.fields + [
+            'formatted_booking_id',
+            'salon_city',
+            'salon_address',
+            'salon_phone',
+            'salon_owner_name',
+            'salon_owner_email',
+            'customer_name',
+            'customer_email',
+            'customer_phone',
+            'customer_avatar',
+            'receipt_id',
+            'cancellation_details',
+            'refund_details',
+            'payments_history',
+            'razorpay_payment_id',
+        ]
+
+    def get_formatted_booking_id(self, obj):
+        return f"BK{obj.id:04d}"
+
+    def get_salon_owner_name(self, obj):
+        if obj.salon and obj.salon.owner:
+            return obj.salon.owner.get_full_name() or obj.salon.owner.email.split("@")[0].title()
+        return ""
+
+    def get_salon_owner_email(self, obj):
+        if obj.salon and obj.salon.owner:
+            return obj.salon.owner.email
+        return ""
+
+    def get_customer_name(self, obj):
+        if obj.customer:
+            return obj.customer.get_full_name() or obj.client_name or obj.customer.email.split("@")[0].title()
+        return obj.client_name or "Walk-in Client"
+
+    def get_customer_email(self, obj):
+        if obj.customer and obj.customer.email:
+            return obj.customer.email
+        return obj.client_email or ""
+
+    def get_customer_phone(self, obj):
+        if obj.customer and hasattr(obj.customer, 'customer_profile') and obj.customer.customer_profile:
+            phone = getattr(obj.customer.customer_profile, 'phone_number', '')
+            if phone:
+                return phone
+        return obj.client_phone or ""
+
+    def get_customer_avatar(self, obj):
+        if obj.customer and hasattr(obj.customer, 'customer_profile') and obj.customer.customer_profile:
+            return getattr(obj.customer.customer_profile, 'avatar', '') or ""
+        return ""
+
+    def get_receipt_id(self, obj):
+        receipt = getattr(obj, 'service_receipt', None)
+        return receipt.id if receipt else None
+
+    def get_cancellation_details(self, obj):
+        if obj.status != Booking.Status.CANCELLED:
+            return None
+        receipt = getattr(obj, 'service_receipt', None)
+        reason = (receipt.cancellation_reason if receipt and receipt.cancellation_reason else None) or obj.notes or "Cancelled"
+        return {
+            "is_cancelled": True,
+            "reason": reason,
+            "cancelled_at": obj.updated_at.isoformat() if obj.updated_at else None,
+        }
+
+    def get_refund_details(self, obj):
+        receipt = getattr(obj, 'service_receipt', None)
+        is_refunded = bool(
+            (receipt and receipt.is_refunded)
+            or (obj.payment_status == Booking.PaymentStatus.REFUNDED)
+        )
+        refund_amount = (
+            str(receipt.refund_amount)
+            if receipt and receipt.refund_amount
+            else (str(obj.total_amount) if is_refunded else "0.00")
+        )
+        refund_date = (
+            receipt.refund_date.isoformat()
+            if receipt and receipt.refund_date
+            else None
+        )
+        return {
+            "is_refunded": is_refunded,
+            "refund_amount": refund_amount,
+            "refund_date": refund_date,
+            "payment_status": obj.payment_status,
+        }
+
+    def get_payments_history(self, obj):
+        try:
+            payments = obj.payments.all().order_by("-created_at")
+            return [
+                {
+                    "id": p.id,
+                    "amount": str(p.amount),
+                    "payment_method": p.payment_method,
+                    "payment_status": p.payment_status,
+                    "payment_type": p.payment_type,
+                    "razorpay_order_id": getattr(p, "razorpay_order_id", ""),
+                    "razorpay_payment_id": getattr(p, "razorpay_payment_id", ""),
+                    "paid_at": p.paid_at.isoformat() if getattr(p, "paid_at", None) else None,
+                    "created_at": p.created_at.isoformat() if getattr(p, "created_at", None) else None,
+                }
+                for p in payments
+            ]
+        except Exception:
+            return []
+
+
+class AdminSalonBookingSummarySerializer(serializers.Serializer):
+    """
+    Aggregated salon performance summary for the Super Admin booking directory.
+    """
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    city = serializers.CharField(allow_blank=True, default="")
+    address = serializers.CharField(allow_blank=True, default="")
+    phone = serializers.CharField(allow_blank=True, default="")
+    email = serializers.EmailField(allow_blank=True, default="")
+    approval_status = serializers.CharField()
+    owner_name = serializers.CharField(allow_blank=True, default="")
+    owner_email = serializers.EmailField(allow_blank=True, default="")
+    total_bookings = serializers.IntegerField(default=0)
+    completed_bookings = serializers.IntegerField(default=0)
+    confirmed_bookings = serializers.IntegerField(default=0)
+    in_progress_bookings = serializers.IntegerField(default=0)
+    cancelled_bookings = serializers.IntegerField(default=0)
+    total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    latest_booking_date = serializers.DateField(allow_null=True, required=False)
+
+
 
 
 

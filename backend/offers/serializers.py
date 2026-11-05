@@ -61,6 +61,9 @@ class OfferOwnerSerializer(serializers.ModelSerializer):
             "terms_and_conditions",
             "show_on_platform",
             "is_active",
+            "is_hidden_by_admin",
+            "admin_hidden_reason",
+            "admin_hidden_at",
             "can_combine",
             "banner_image",
             "is_expired",
@@ -69,7 +72,16 @@ class OfferOwnerSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "salon", "usage_count", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "salon",
+            "usage_count",
+            "is_hidden_by_admin",
+            "admin_hidden_reason",
+            "admin_hidden_at",
+            "created_at",
+            "updated_at",
+        ]
 
     def validate_code(self, value):
         if value:
@@ -309,4 +321,78 @@ class OfferRedemptionSerializer(serializers.ModelSerializer):
         if obj.customer:
             return obj.customer.get_full_name() or obj.customer.email
         return obj.booking.client_name if obj.booking else "Customer"
+
+
+class OfferAdminSerializer(serializers.ModelSerializer):
+    salon_id = serializers.IntegerField(source="salon.id", read_only=True)
+    salon_name = serializers.CharField(source="salon.name", read_only=True)
+    salon_city = serializers.CharField(source="salon.city", read_only=True)
+    salon_cover_image = serializers.CharField(source="salon.cover_image", read_only=True)
+    salon_approval_status = serializers.CharField(source="salon.approval_status", read_only=True)
+    salon_owner_email = serializers.SerializerMethodField()
+    services_detail = SalonServiceMiniSerializer(source="services", many=True, read_only=True)
+    service_ids = serializers.PrimaryKeyRelatedField(source="services", many=True, read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    is_exhausted = serializers.BooleanField(read_only=True)
+    is_currently_valid = serializers.BooleanField(read_only=True)
+    offer_type_display = serializers.CharField(source="get_offer_type_display", read_only=True)
+    discount_type_display = serializers.CharField(source="get_discount_type_display", read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = [
+            "id",
+            "salon",
+            "salon_id",
+            "salon_name",
+            "salon_city",
+            "salon_cover_image",
+            "salon_approval_status",
+            "salon_owner_email",
+            "title",
+            "description",
+            "offer_type",
+            "offer_type_display",
+            "code",
+            "discount_type",
+            "discount_type_display",
+            "discount_value",
+            "max_discount_amount",
+            "min_spend",
+            "customer_eligibility",
+            "apply_to_all_services",
+            "services",
+            "service_ids",
+            "services_detail",
+            "total_usage_limit",
+            "per_customer_limit",
+            "usage_count",
+            "start_date",
+            "end_date",
+            "applicable_days",
+            "start_time",
+            "end_time",
+            "terms_and_conditions",
+            "show_on_platform",
+            "is_active",
+            "is_hidden_by_admin",
+            "admin_hidden_reason",
+            "admin_hidden_at",
+            "can_combine",
+            "banner_image",
+            "is_expired",
+            "is_exhausted",
+            "is_currently_valid",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_salon_owner_email(self, obj):
+        if obj.salon:
+            if getattr(obj.salon, "owner", None) and obj.salon.owner.email:
+                return obj.salon.owner.email
+            return getattr(obj.salon, "email", "") or ""
+        return ""
+
+
 

@@ -28,9 +28,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
 
 
 class IsAdminUserRole(BasePermission):
-    """
-    Allows access only to authenticated admin users (role='ADMIN', is_superuser, or is_staff).
-    """
+    
     def has_permission(self, request, view):
         return bool(
             request.user
@@ -101,14 +99,14 @@ class BookingReviewCreateView(APIView):
         except Booking.DoesNotExist:
             return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # 1. Enforce ownership: customer can only review their own booking
+        
         if not booking.customer or booking.customer != request.user:
             return Response(
                 {'error': 'You can only review bookings made from your own account.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 2. Enforce completion: customer can only review completed bookings
+        
         if booking.status != Booking.Status.COMPLETED:
             return Response(
                 {
@@ -126,14 +124,14 @@ class BookingReviewCreateView(APIView):
         worker_rating = data.get('worker_rating')
         worker_comment = data.get('worker_comment', '')
 
-        # 3. Exactly one salon review per booking
+        
         if salon_rating is not None and SalonReview.objects.filter(booking=booking).exists():
             return Response(
                 {'error': 'A salon review has already been submitted for this booking.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 4. Exactly one worker review per booking (must have assigned worker)
+        
         if worker_rating is not None:
             if not booking.worker:
                 return Response(
@@ -207,7 +205,7 @@ class SalonReviewsListView(APIView):
         except Salon.DoesNotExist:
             return Response({'error': 'Salon not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Public listing strictly excludes hidden reviews so they do not contribute to rating
+        
         reviews_qs = SalonReview.objects.filter(salon=salon, is_hidden=False).select_related('customer', 'booking').order_by('-created_at')
         agg = reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
         total_reviews = agg['count'] or 0
@@ -264,7 +262,7 @@ class WorkerReviewsListView(APIView):
         except WorkerProfile.DoesNotExist:
             return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Public specialist reviews exclude hidden reviews
+        
         reviews_qs = WorkerReview.objects.filter(worker=worker, is_hidden=False).select_related('customer', 'booking').order_by('-created_at')
         agg = reviews_qs.aggregate(avg=Avg('rating'), count=Count('id'))
         total_reviews = agg['count'] or 0
@@ -303,10 +301,7 @@ class WorkerReviewsListView(APIView):
 
 
 class AdminReviewsStatsView(APIView):
-    """
-    Returns platform-wide statistics for Super Admin dashboard:
-    total reviews, average platform rating, 5-star reviews, 1-star reviews, etc.
-    """
+   
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -351,10 +346,7 @@ class AdminReviewsStatsView(APIView):
 
 
 class AdminSalonsReviewsSummaryView(APIView):
-    """
-    Lists all registered salons with their average star rating, total review counts,
-    and moderation status for Super Admin.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -428,10 +420,7 @@ class AdminSalonsReviewsSummaryView(APIView):
 
 
 class AdminReviewsListView(APIView):
-    """
-    Lists customer reviews across the entire platform or for a selected salon,
-    with comprehensive filtering (salon name, rating, date, salon status) and sorting.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -450,14 +439,14 @@ class AdminReviewsListView(APIView):
             'salon', 'customer', 'booking', 'hidden_by'
         )
 
-        # 1. Salon filter
+        
         if salon_id and salon_id.lower() != 'all':
             try:
                 reviews_qs = reviews_qs.filter(salon_id=int(salon_id))
             except (ValueError, TypeError):
                 pass
 
-        # 2. Search
+       
         if search_query:
             reviews_qs = reviews_qs.filter(
                 Q(salon__name__icontains=search_query) |
@@ -467,7 +456,7 @@ class AdminReviewsListView(APIView):
                 Q(comment__icontains=search_query)
             )
 
-        # 3. Rating filter
+        
         if rating_param and rating_param != 'all':
             try:
                 rating_val = int(rating_param)
@@ -476,11 +465,11 @@ class AdminReviewsListView(APIView):
             except (ValueError, TypeError):
                 pass
 
-        # 4. Salon status filter
+        
         if status_param and status_param != 'ALL':
             reviews_qs = reviews_qs.filter(salon__approval_status=status_param)
 
-        # 5. Date filter
+        
         target_date_field = 'booking__booking_date' if date_type == 'appointment' else 'created_at__date'
         if start_date:
             try:
@@ -493,13 +482,13 @@ class AdminReviewsListView(APIView):
             except Exception:
                 pass
 
-        # 6. Hidden status filter
+        
         if hidden_param == 'true':
             reviews_qs = reviews_qs.filter(is_hidden=True)
         elif hidden_param == 'false':
             reviews_qs = reviews_qs.filter(is_hidden=False)
 
-        # 7. Sorting
+        
         if sort_by == 'oldest':
             reviews_qs = reviews_qs.order_by('created_at')
         elif sort_by == 'highest_rated':
@@ -521,10 +510,7 @@ class AdminReviewsListView(APIView):
 
 
 class AdminReviewModerationView(APIView):
-    """
-    Super Admin endpoint to hide inappropriate reviews without permanently deleting them,
-    or unhide previously hidden reviews. Maintains moderation history for auditing.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 

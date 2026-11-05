@@ -6,9 +6,7 @@ from .models import CustomerWallet
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def auto_create_customer_wallet(sender, instance, created, **kwargs):
-    """
-    Automatically creates a CustomerWallet for newly registered users with CUSTOMER role.
-    """
+    
     if created:
         role = getattr(instance, "role", None)
         if role == "CUSTOMER" or role is None:

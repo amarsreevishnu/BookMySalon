@@ -16,6 +16,7 @@ urlpatterns = [
     path("", CustomerWalletDetailView.as_view(), name="wallet-detail"),
     path("transactions/", CustomerWalletTransactionsView.as_view(), name="wallet-transactions"),
     path("check-balance/", CustomerWalletBalanceCheckView.as_view(), name="wallet-check-balance"),
+    
     path("topup/", CustomerWalletTopUpView.as_view(), name="wallet-topup"),
     path("topup/create-order/", CustomerWalletTopUpCreateOrderView.as_view(), name="wallet-topup-create-order"),
     path("topup/verify-payment/", CustomerWalletTopUpVerifyView.as_view(), name="wallet-topup-verify-payment"),

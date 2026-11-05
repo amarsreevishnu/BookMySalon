@@ -13,6 +13,7 @@ export const DEFAULT_NAV_TABS = [
   "Worker Leaves",
   "Salon Schedule",
   "Offers",
+  "Subscription",
   "Support",
   "Revenue",
   "Reviews",
@@ -75,6 +76,10 @@ export default function OwnerNavbar({
     } else if (tab === "Offers") {
       if (location.pathname !== "/owner/offers") {
         navigate("/owner/offers");
+      }
+    } else if (tab === "Subscription" || tab === "Billing") {
+      if (location.pathname !== "/owner/subscription") {
+        navigate("/owner/subscription");
       }
     } else if (tab === "Support" || tab === "Support Tickets" || tab === "Tickets") {
       if (location.pathname !== "/owner/support") {

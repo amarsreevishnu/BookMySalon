@@ -19,17 +19,29 @@ from .views import (
     BookingStatusUpdateView,
     BookingReceiptView,
     BookingReceiptPdfView,
+    AdminBookingsStatsView,
+    AdminSalonsBookingsSummaryView,
+    AdminBookingsListView,
+    AdminBookingDetailView,
 )
 
 urlpatterns = [
+    # Admin Super Admin Monitoring & History Endpoints
+    path('admin/stats/', AdminBookingsStatsView.as_view(), name='admin-bookings-stats'),
+    path('admin/salons-summary/', AdminSalonsBookingsSummaryView.as_view(), name='admin-salons-bookings-summary'),
+    path('admin/bookings/', AdminBookingsListView.as_view(), name='admin-bookings-list'),
+    path('admin/bookings/<int:pk>/', AdminBookingDetailView.as_view(), name='admin-booking-detail'),
+
     path('salons/<int:salon_id>/off-days/', SalonOffDaysView.as_view(), name='booking-salon-off-days'),
     path('salons/<int:salon_id>/services/', SalonServicesView.as_view(), name='booking-salon-services'),
     path('salons/<int:salon_id>/workers/', SalonWorkersView.as_view(), name='booking-salon-workers'),
     path('salons/<int:salon_id>/reviews/', SalonReviewsListView.as_view(), name='booking-salon-reviews'),
     path('workers/<int:worker_id>/reviews/', WorkerReviewsListView.as_view(), name='booking-worker-reviews'),
+
     path('slots/', AvailableSlotsView.as_view(), name='booking-slots'),
     path('create/', BookingCreateView.as_view(), name='booking-create'),
     path('reserve/', BookingReserveView.as_view(), name='booking-reserve'),
+
     path('create-razorpay-order/', BookingCreateRazorpayOrderView.as_view(), name='booking-create-razorpay-order'),
     path('verify-razorpay/', BookingVerifyRazorpayView.as_view(), name='booking-verify-razorpay-direct'),
     path('<int:pk>/verify-razorpay/', BookingVerifyRazorpayView.as_view(), name='booking-verify-razorpay'),
@@ -37,6 +49,7 @@ urlpatterns = [
     path('<int:pk>/payment-failed/', BookingPaymentFailedView.as_view(), name='booking-payment-failed'),
     path('<int:pk>/confirm-payment/', BookingConfirmPaymentView.as_view(), name='booking-confirm-payment'),
     path('<int:pk>/release/', BookingReleaseView.as_view(), name='booking-release'),
+    
     path('my/', MyBookingsView.as_view(), name='booking-my'),
     path('<int:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('<int:pk>/status/', BookingStatusUpdateView.as_view(), name='booking-status-update'),

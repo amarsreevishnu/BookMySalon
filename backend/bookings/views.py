@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 import json
+import math
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q, Avg, Count, Sum
+from django.db.models import Q, Avg, Count, Sum, Max
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,6 +21,8 @@ from bookings.serializers import (
     WorkerReviewSerializer,
     ReviewSubmissionSerializer,
     ServiceReceiptSerializer,
+    AdminBookingSerializer,
+    AdminSalonBookingSummarySerializer,
 )
 from bookings.receipt_pdf import generate_receipt_pdf
 from salons.models import Salon, WorkerProfile, SalonOffDay, WorkerLeave
@@ -817,6 +820,16 @@ class BookingCreateView(APIView):
         total_amount = data.get('total_amount', subtotal)
         service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
 
+        # Check Salon Subscription Status
+        salon_sub = getattr(salon, "subscription", None)
+        if salon_sub:
+            salon_sub.sync_status_with_time()
+            if not salon_sub.is_currently_active:
+                return Response(
+                    {'error': f'{salon.name} is currently not accepting new appointments because their subscription has expired.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         weekday = _get_weekday_key(booking_date)
         salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
         if is_salon_closed or not salon_open_time or not salon_close_time:
@@ -1117,6 +1130,16 @@ class BookingReserveView(APIView):
         voucher_code = data.get('voucher_code', '')
         total_amount = data.get('total_amount', subtotal)
         service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
+
+        # Check Salon Subscription Status
+        salon_sub = getattr(salon, "subscription", None)
+        if salon_sub:
+            salon_sub.sync_status_with_time()
+            if not salon_sub.is_currently_active:
+                return Response(
+                    {'error': f'{salon.name} is currently not accepting new appointments because their subscription has expired.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         salon_open_time, salon_close_time, is_salon_closed, closed_reason = _get_salon_day_hours(salon, booking_date)
         if is_salon_closed or not salon_open_time or not salon_close_time:
@@ -1782,7 +1805,6 @@ class BookingReceiptPdfView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Check existing receipt first
         receipt = ServiceReceipt.objects.filter(booking=booking).first()
         if not receipt:
             if booking.status != Booking.Status.COMPLETED or not (
@@ -1814,4 +1836,272 @@ class BookingReceiptPdfView(APIView):
                 {"error": f"Failed to render receipt PDF: {str(err)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class IsAdminUserRole(BasePermission):
+    """Permission check ensuring the requesting user has Super Admin or staff role."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                getattr(request.user, "role", "") == "ADMIN"
+                or request.user.is_superuser
+                or request.user.is_staff
+            )
+        )
+
+
+class AdminBookingsStatsView(APIView):
+    """
+    Returns platform-wide booking metrics for Super Admin dashboard and overview cards.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request):
+        today = timezone.localdate()
+        total_bookings = Booking.objects.count()
+        completed_bookings = Booking.objects.filter(status=Booking.Status.COMPLETED).count()
+        confirmed_bookings = Booking.objects.filter(status=Booking.Status.CONFIRMED).count()
+        in_progress_bookings = Booking.objects.filter(status=Booking.Status.IN_PROGRESS).count()
+        cancelled_bookings = Booking.objects.filter(status=Booking.Status.CANCELLED).count()
+        pending_bookings = Booking.objects.filter(status=Booking.Status.PENDING).count()
+
+        revenue_agg = Booking.objects.filter(
+            Q(status=Booking.Status.COMPLETED) | Q(payment_status=Booking.PaymentStatus.PAID)
+        ).aggregate(total_rev=Sum("total_amount"))
+        total_revenue = revenue_agg["total_rev"] or Decimal("0.00")
+
+        today_bookings = Booking.objects.filter(booking_date=today).count()
+        total_salons = Salon.objects.count()
+        salons_with_bookings = Booking.objects.values("salon_id").distinct().count()
+
+        return Response(
+            {
+                "total_bookings": total_bookings,
+                "completed_bookings": completed_bookings,
+                "confirmed_bookings": confirmed_bookings,
+                "in_progress_bookings": in_progress_bookings,
+                "cancelled_bookings": cancelled_bookings,
+                "pending_bookings": pending_bookings,
+                "total_revenue": str(total_revenue),
+                "today_bookings": today_bookings,
+                "total_salons": total_salons,
+                "salons_with_bookings": salons_with_bookings,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSalonsBookingsSummaryView(APIView):
+    """
+    Returns all partner salons with aggregate booking breakdown metrics:
+    Salon name | Total bookings | Completed | Cancelled | In Progress | Revenue
+    Allows Super Admin to select a salon and inspect all bookings.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request):
+        search = request.query_params.get("search", "").strip()
+        status_param = request.query_params.get("status", "").strip().upper()
+
+        qs = Salon.objects.select_related("owner")
+
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(city__icontains=search)
+                | Q(owner__email__icontains=search)
+                | Q(owner__first_name__icontains=search)
+                | Q(owner__last_name__icontains=search)
+            )
+
+        if status_param and status_param != "ALL":
+            qs = qs.filter(approval_status=status_param)
+
+        qs = qs.annotate(
+            total_bookings=Count("bookings"),
+            completed_bookings=Count("bookings", filter=Q(bookings__status=Booking.Status.COMPLETED)),
+            confirmed_bookings=Count("bookings", filter=Q(bookings__status=Booking.Status.CONFIRMED)),
+            in_progress_bookings=Count("bookings", filter=Q(bookings__status=Booking.Status.IN_PROGRESS)),
+            cancelled_bookings=Count("bookings", filter=Q(bookings__status=Booking.Status.CANCELLED)),
+            total_revenue=Sum(
+                "bookings__total_amount",
+                filter=Q(bookings__status=Booking.Status.COMPLETED) | Q(bookings__payment_status=Booking.PaymentStatus.PAID)
+            ),
+            latest_booking_date=Max("bookings__booking_date"),
+        ).order_by("-total_bookings", "name")
+
+        summaries = []
+        for s in qs:
+            summaries.append({
+                "id": s.id,
+                "name": s.name,
+                "city": s.city or "",
+                "address": s.address or "",
+                "phone": s.phone or "",
+                "email": s.email or "",
+                "cover_image": s.cover_image or "",
+                "approval_status": s.approval_status,
+                "owner_name": s.owner.get_full_name() or s.owner.email.split("@")[0].title() if s.owner else "",
+                "owner_email": s.owner.email if s.owner else "",
+                "total_bookings": s.total_bookings or 0,
+                "completed_bookings": s.completed_bookings or 0,
+                "confirmed_bookings": s.confirmed_bookings or 0,
+                "in_progress_bookings": s.in_progress_bookings or 0,
+                "cancelled_bookings": s.cancelled_bookings or 0,
+                "total_revenue": str(s.total_revenue or Decimal("0.00")),
+                "latest_booking_date": s.latest_booking_date.isoformat() if s.latest_booking_date else None,
+            })
+
+        return Response(summaries, status=status.HTTP_200_OK)
+
+
+class AdminBookingsListView(APIView):
+    """
+    Read-only paginated booking history for Super Admin.
+    Can be filtered by salon, status, payment status, payment method, date, or search query.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request):
+        salon_id = request.query_params.get("salon_id")
+        status_param = request.query_params.get("status", "").strip().upper()
+        payment_status_param = request.query_params.get("payment_status", "").strip().upper()
+        payment_method_param = request.query_params.get("payment_method", "").strip().upper()
+        search = request.query_params.get("search", "").strip()
+        date_range = request.query_params.get("date_range", "all").strip().lower()
+        date_from = request.query_params.get("date_from", "").strip()
+        date_to = request.query_params.get("date_to", "").strip()
+        sort_by = request.query_params.get("sort_by", "newest").strip().lower()
+        page_param = request.query_params.get("page", "1")
+        page_size_param = request.query_params.get("page_size", "20")
+
+        qs = Booking.objects.select_related(
+            "salon", "salon__owner", "worker", "worker__user", "customer", "applied_offer", "service_receipt"
+        ).prefetch_related("services", "services__service", "payments")
+
+        selected_salon = None
+        if salon_id:
+            try:
+                salon_obj = Salon.objects.get(pk=salon_id)
+                qs = qs.filter(salon=salon_obj)
+                selected_salon = {
+                    "id": salon_obj.id,
+                    "name": salon_obj.name,
+                    "city": salon_obj.city,
+                    "phone": salon_obj.phone,
+                }
+            except Salon.DoesNotExist:
+                return Response({"error": "Selected salon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if status_param and status_param != "ALL":
+            qs = qs.filter(status=status_param)
+
+        if payment_status_param and payment_status_param != "ALL":
+            qs = qs.filter(payment_status=payment_status_param)
+
+        if payment_method_param and payment_method_param != "ALL":
+            qs = qs.filter(payment_method=payment_method_param)
+
+        if search:
+            search_clean = search.replace("#", "").replace("BK", "").replace("bk", "").strip()
+            q_filter = (
+                Q(client_name__icontains=search)
+                | Q(client_email__icontains=search)
+                | Q(client_phone__icontains=search)
+                | Q(service_name__icontains=search)
+                | Q(salon__name__icontains=search)
+                | Q(worker__user__first_name__icontains=search)
+                | Q(worker__user__last_name__icontains=search)
+                | Q(razorpay_order_id__icontains=search)
+                | Q(razorpay_payment_id__icontains=search)
+            )
+            if search_clean.isdigit():
+                q_filter |= Q(id=int(search_clean))
+            qs = qs.filter(q_filter)
+
+        today = timezone.localdate()
+        if date_range == "today":
+            qs = qs.filter(booking_date=today)
+        elif date_range == "this_week":
+            start_of_week = today - timedelta(days=today.weekday())
+            qs = qs.filter(booking_date__gte=start_of_week, booking_date__lte=today + timedelta(days=7))
+        elif date_range == "this_month":
+            start_of_month = today.replace(day=1)
+            qs = qs.filter(booking_date__gte=start_of_month)
+        elif date_from or date_to:
+            if date_from:
+                qs = qs.filter(booking_date__gte=date_from)
+            if date_to:
+                qs = qs.filter(booking_date__lte=date_to)
+
+        if sort_by == "oldest":
+            qs = qs.order_by("booking_date", "start_time", "id")
+        elif sort_by == "amount_desc":
+            qs = qs.order_by("-total_amount", "-id")
+        elif sort_by == "amount_asc":
+            qs = qs.order_by("total_amount", "id")
+        else:
+            qs = qs.order_by("-booking_date", "-start_time", "-id")
+
+        total_count = qs.count()
+
+        try:
+            page = max(1, int(page_param))
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            page_size = min(100, max(1, int(page_size_param)))
+        except (ValueError, TypeError):
+            page_size = 20
+
+        total_pages = max(1, math.ceil(total_count / page_size)) if total_count > 0 else 1
+        if page > total_pages and total_count > 0:
+            page = total_pages
+
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        page_items = qs[start_index:end_index]
+
+        serializer = AdminBookingSerializer(page_items, many=True, context={"request": request})
+
+        return Response(
+            {
+                "count": total_count,
+                "total_pages": total_pages,
+                "current_page": page,
+                "page_size": page_size,
+                "selected_salon": selected_salon,
+                "results": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminBookingDetailView(APIView):
+    """
+    Read-only detailed audit view of a single appointment for Super Admin.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request, pk):
+        booking = (
+            Booking.objects.select_related(
+                "salon", "salon__owner", "worker", "worker__user", "customer", "applied_offer", "service_receipt"
+            )
+            .prefetch_related("services", "services__service", "payments")
+            .filter(pk=pk)
+            .first()
+        )
+        if not booking:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminBookingSerializer(booking, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 

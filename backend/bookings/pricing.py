@@ -9,15 +9,11 @@ COUPON_RULES = {
     "FLAT100": {"type": "fixed", "value": Decimal("100.00"), "min_spend": Decimal("350.00"), "label": "Flat ₹100 Off"},
 }
 
-GST_RATE = Decimal("0.05")  # 5% GST & Hygiene Safety
+GST_RATE = Decimal("0.05")  # this is for 5% GST & Hygiene Safety
 
 
 def calculate_pricing(services, voucher_code=None):
-    """
-    Calculate item subtotal, total duration, taxes, discounts, and total amount.
-    - services: iterable of SalonService instances (or dicts with 'price' and 'duration')
-    - voucher_code: optional coupon/voucher code string validated strictly against COUPON_RULES
-    """
+
     subtotal = Decimal("0.00")
     total_duration_minutes = 0
 
@@ -40,7 +36,7 @@ def calculate_pricing(services, voucher_code=None):
 
     subtotal = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Calculate 5% GST tax (rounded to nearest rupee as per GST Section 170 and standard checkout practice)
+    # Calculate 5% GST tax 
     tax_amount = (subtotal * GST_RATE).quantize(Decimal("1"), rounding=ROUND_HALF_UP).quantize(Decimal("0.01"))
 
     # Calculate discount from coupon or voucher

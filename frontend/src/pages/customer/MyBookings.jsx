@@ -1,17 +1,47 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
 import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
 import "../../styles/booking.css";
 
-const STATUS_COLORS = {
-  CONFIRMED: "#2d6a4f",
-  PENDING: "#b45309",
-  IN_PROGRESS: "#1d4ed8",
-  COMPLETED: "#374151",
-  CANCELLED: "#9ca3af",
+const STATUS_CONFIG = {
+  CONFIRMED: {
+    bg: "#ecfdf5",
+    color: "#065f46",
+    border: "#a7f3d0",
+    dot: "#10b981",
+    label: "Confirmed",
+  },
+  PENDING: {
+    bg: "#fffbeb",
+    color: "#92400e",
+    border: "#fde68a",
+    dot: "#f59e0b",
+    label: "Pending",
+  },
+  IN_PROGRESS: {
+    bg: "#eff6ff",
+    color: "#1e40af",
+    border: "#bfdbfe",
+    dot: "#3b82f6",
+    label: "In Progress",
+  },
+  COMPLETED: {
+    bg: "#f0fdf4",
+    color: "#166534",
+    border: "#bbf7d0",
+    dot: "#22c55e",
+    label: "Completed",
+  },
+  CANCELLED: {
+    bg: "#f3f4f6",
+    color: "#4b5563",
+    border: "#e5e7eb",
+    dot: "#9ca3af",
+    label: "Cancelled",
+  },
 };
 
 function fmt12(hhmm) {
@@ -22,6 +52,22 @@ function fmt12(hhmm) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+function parseDateBadge(dateStr) {
+  if (!dateStr) return { month: "APT", day: "•", weekday: "" };
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (!isNaN(d.getTime())) {
+      return {
+        month: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
+        day: String(d.getDate()).padStart(2, "0"),
+        weekday: d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
+      };
+    }
+  }
+  return { month: "APT", day: "•", weekday: "" };
+}
+
 export default function MyBookings() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
@@ -30,6 +76,12 @@ export default function MyBookings() {
   const [cancellingId, setCancellingId] = useState(null);
   const [cancelModalBooking, setCancelModalBooking] = useState(null);
   const [toast, setToast] = useState("");
+
+  // Interactive Filter & Search States
+  const [activeTab, setActiveTab] = useState("ALL"); // 'ALL' | 'UPCOMING' | 'COMPLETED' | 'CANCELLED'
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest"); // 'newest' | 'oldest'
+  const [expandedCards, setExpandedCards] = useState({});
 
   // Review Modal State
   const [activeReviewBooking, setActiveReviewBooking] = useState(null);
@@ -57,6 +109,17 @@ export default function MyBookings() {
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(""), 3500);
+  }
+
+  function toggleExpand(id) {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function handleCopyRef(refText) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(refText);
+      showToast(`Copied ${refText} to clipboard!`);
+    }
   }
 
   async function fetchBookings() {
@@ -161,119 +224,426 @@ export default function MyBookings() {
     }
   }
 
+  // Interactive Metrics Counts
+  const upcomingCount = useMemo(
+    () => bookings.filter((b) => ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(b.status)).length,
+    [bookings]
+  );
+  const completedCount = useMemo(
+    () => bookings.filter((b) => b.status === "COMPLETED").length,
+    [bookings]
+  );
+  const cancelledCount = useMemo(
+    () => bookings.filter((b) => b.status === "CANCELLED").length,
+    [bookings]
+  );
+  const totalCount = bookings.length;
+
+  // Filtered & Sorted Bookings List
+  const filteredBookings = useMemo(() => {
+    let list = [...bookings];
+
+    // Tab filter
+    if (activeTab === "UPCOMING") {
+      list = list.filter((b) => ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(b.status));
+    } else if (activeTab === "COMPLETED") {
+      list = list.filter((b) => b.status === "COMPLETED");
+    } else if (activeTab === "CANCELLED") {
+      list = list.filter((b) => b.status === "CANCELLED");
+    }
+
+    // Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (b) =>
+          (b.salon_name && b.salon_name.toLowerCase().includes(q)) ||
+          (b.service_name && b.service_name.toLowerCase().includes(q)) ||
+          (b.worker_name && b.worker_name.toLowerCase().includes(q)) ||
+          String(b.id).includes(q)
+      );
+    }
+
+    // Sort order
+    list.sort((a, b) => {
+      const dateA = new Date(`${a.booking_date}T${a.start_time || "00:00:00"}`).getTime();
+      const dateB = new Date(`${b.booking_date}T${b.start_time || "00:00:00"}`).getTime();
+      return sortOrder === "oldest" ? dateA - dateB : dateB - dateA;
+    });
+
+    return list;
+  }, [bookings, activeTab, searchQuery, sortOrder]);
+
   return (
     <div className="bk-page">
       <CustomerHeader />
 
       {toast && <div className="bk-toast">{toast}</div>}
 
-      <div className="bk-container">
+      <div className="bk-container" style={{ maxWidth: "980px" }}>
+        {/* Header Bar */}
         <div className="bk-mybookings-header">
-          <h1>My Bookings</h1>
+          <div className="bk-mybookings-title-group">
+            <h1>My Appointments</h1>
+            <p>View, manage, track, and review your salon reservations.</p>
+          </div>
           <button className="bk-btn-primary" onClick={() => navigate("/customer/salons")}>
-            + New Booking
+            <span>+</span> Book New Salon
           </button>
         </div>
 
-        {loading && (
-          <div className="bk-loading">
-            <div className="bk-spinner" />
-            <p>Loading your bookings…</p>
+        
+
+        {/* Interactive Filter Toolbar & Search */}
+        {!loading && bookings.length > 0 && (
+          <div className="bk-mb-toolbar">
+            {/* Tabs */}
+            <div className="bk-mb-tabs">
+              <button
+                type="button"
+                className={`bk-mb-tab-btn ${activeTab === "ALL" ? "active" : ""}`}
+                onClick={() => setActiveTab("ALL")}
+              >
+                <span>All</span>
+                <span className="bk-mb-tab-badge">{totalCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`bk-mb-tab-btn ${activeTab === "UPCOMING" ? "active" : ""}`}
+                onClick={() => setActiveTab("UPCOMING")}
+              >
+                <span>Upcoming</span>
+                <span className="bk-mb-tab-badge">{upcomingCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`bk-mb-tab-btn ${activeTab === "COMPLETED" ? "active" : ""}`}
+                onClick={() => setActiveTab("COMPLETED")}
+              >
+                <span>Completed</span>
+                <span className="bk-mb-tab-badge">{completedCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`bk-mb-tab-btn ${activeTab === "CANCELLED" ? "active" : ""}`}
+                onClick={() => setActiveTab("CANCELLED")}
+              >
+                <span>Cancelled</span>
+                <span className="bk-mb-tab-badge">{cancelledCount}</span>
+              </button>
+            </div>
+
+            {/* Controls Right: Search & Sort */}
+            <div className="bk-mb-controls-right">
+              <div className="bk-mb-search-box">
+                <span className="bk-mb-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="bk-mb-search-input"
+                  placeholder="Search salon, service, stylist..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="bk-mb-clear-search"
+                    onClick={() => setSearchQuery("")}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <select
+                className="bk-mb-sort-select"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                aria-label="Sort Bookings"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
           </div>
         )}
 
+        {/* Loading State */}
+        {loading && (
+          <div className="bk-loading" style={{ padding: "60px 0" }}>
+            <div className="bk-spinner" />
+            <p>Loading your appointments…</p>
+          </div>
+        )}
+
+        {/* Error Alert */}
         {!loading && error && <div className="bk-alert bk-alert--error">{error}</div>}
 
+        {/* Global Empty State */}
         {!loading && !error && bookings.length === 0 && (
-          <div className="bk-empty-state">
-            <div className="bk-empty-icon">📅</div>
-            <h3>No bookings yet</h3>
-            <p>Explore our salons and book your first appointment!</p>
+          <div className="bk-empty-state" style={{ background: "#ffffff", borderRadius: "18px", border: "1px solid #e5ede7", padding: "64px 24px" }}>
+            <div className="bk-empty-icon" style={{ fontSize: "3.5rem" }}>📅</div>
+            <h3>No appointments booked yet</h3>
+            <p style={{ maxWidth: "380px", margin: "8px auto 24px", color: "#627568", fontSize: "0.95rem" }}>
+              Discover premier salons in your area, select your preferred specialists, and reserve your slots online with ease!
+            </p>
             <button className="bk-btn-primary" onClick={() => navigate("/customer/salons")}>
-              Explore Salons
+              Explore Top Salons →
             </button>
           </div>
         )}
 
-        {!loading && !error && bookings.length > 0 && (
+        {/* Filtered Empty State (No search/tab matches) */}
+        {!loading && !error && bookings.length > 0 && filteredBookings.length === 0 && (
+          <div className="bk-empty-state" style={{ background: "#ffffff", borderRadius: "16px", border: "1px dashed #d1ded6", padding: "48px 24px" }}>
+            <div className="bk-empty-icon" style={{ fontSize: "2.6rem" }}>🔎</div>
+            <h3>No matching appointments found</h3>
+            <p style={{ margin: "6px auto 18px", color: "#6b7280", fontSize: "0.9rem" }}>
+              {searchQuery
+                ? `No bookings match your search for "${searchQuery}".`
+                : `You currently have no ${activeTab.toLowerCase()} bookings.`}
+            </p>
+            <button
+              type="button"
+              className="bk-btn-outline"
+              onClick={() => {
+                setSearchQuery("");
+                setActiveTab("ALL");
+              }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        )}
+
+        {/* Enhanced Interactive Bookings List */}
+        {!loading && !error && filteredBookings.length > 0 && (
           <div className="bk-mybookings-list">
-            {bookings.map((b) => {
+            {filteredBookings.map((b) => {
               const canCancel = ["PENDING", "CONFIRMED"].includes(b.status);
               const isCompleted = b.status === "COMPLETED";
               const isReviewed = Boolean(b.has_salon_review || b.has_worker_review);
+              const dateMeta = parseDateBadge(b.booking_date);
+              const statusCfg = STATUS_CONFIG[b.status] || STATUS_CONFIG.CONFIRMED;
+              const isExpanded = Boolean(expandedCards[b.id]);
+              const refCode = `BMS-${b.id}`;
+
+              const payableTotal = b.total_amount
+                ? Number(b.total_amount)
+                : Number(b.service_price || 0);
+
+              const paymentMethodLabel =
+                b.payment_method === "ONLINE"
+                  ? "💳 Online Paid"
+                  : b.payment_method === "WALLET"
+                  ? "👛 Wallet"
+                  : "🏠 Pay at Salon";
 
               return (
-                <div key={b.id} className="bk-booking-card">
-                  <div className="bk-booking-top">
-                    <div>
-                      <div className="bk-booking-salon">{b.salon_name}</div>
-                      <div className="bk-booking-service">{b.service_name}</div>
+                <article key={b.id} className="bk-mb-card">
+                  <div className="bk-mb-card-main">
+                    {/* Top Header Row */}
+                    <div className="bk-mb-card-top">
+                      <div className="bk-mb-left-block">
+                        {/* Calendar Tear-Off Badge */}
+                        <div className="bk-mb-date-badge" title={`Appointment on ${b.booking_date}`}>
+                          <span className="bk-mb-db-month">{dateMeta.month}</span>
+                          <span className="bk-mb-db-day">{dateMeta.day}</span>
+                          <span className="bk-mb-db-weekday">{dateMeta.weekday}</span>
+                        </div>
+
+                        {/* Salon & Service Title Block */}
+                        <div className="bk-mb-info-block">
+                          <Link
+                            to={`/customer/salons/${b.salon_id || b.salon}`}
+                            className="bk-mb-salon-link"
+                            title="View salon details & services"
+                          >
+                            <span>🏪 {b.salon_name}</span>
+                            <span style={{ fontSize: "11px", color: "#6b7280" }}>↗</span>
+                          </Link>
+
+                          <h3 className="bk-mb-service-title">
+                            {b.service_display_name || b.service_name}
+                          </h3>
+
+                          {/* Meta Pills */}
+                          <div className="bk-mb-meta-badges">
+                            {b.duration && (
+                              <span className="bk-mb-pill">
+                                ⏱️ {b.duration}
+                              </span>
+                            )}
+                            {b.station && (
+                              <span className="bk-mb-pill">
+                                📍 {b.station}
+                              </span>
+                            )}
+                            <span
+                              className="bk-mb-pill copyable"
+                              onClick={() => handleCopyRef(refCode)}
+                              title="Click to copy booking reference"
+                            >
+                              🔖 {refCode} <span style={{ fontSize: "10px", color: "#8b9e92" }}>📋</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Block: Status & Price */}
+                      <div className="bk-mb-right-block">
+                        <span
+                          className="bk-mb-status-pill"
+                          style={{
+                            background: statusCfg.bg,
+                            color: statusCfg.color,
+                            border: `1px solid ${statusCfg.border}`,
+                          }}
+                        >
+                          <span
+                            className="bk-mb-status-dot"
+                            style={{ background: statusCfg.dot }}
+                          />
+                          {statusCfg.label}
+                        </span>
+
+                        <div className="bk-mb-price-tag">
+                          ₹{payableTotal.toLocaleString("en-IN")}
+                        </div>
+                        <span className="bk-mb-price-sub">{paymentMethodLabel}</span>
+                      </div>
                     </div>
-                    <span
-                      className="bk-status-badge"
-                      style={{ background: STATUS_COLORS[b.status] || "#6b7280" }}
+
+                    {/* Key Details Summary Grid */}
+                    <div className="bk-mb-details-grid">
+                      <div className="bk-mb-grid-item">
+                        <div className="bk-mb-grid-icon">🕐</div>
+                        <div className="bk-mb-grid-text">
+                          <span className="bk-mb-grid-label">Time Slot</span>
+                          <span className="bk-mb-grid-val">
+                            {b.start_time ? `${fmt12(b.start_time)} → ${fmt12(b.end_time)}` : b.booking_time}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bk-mb-grid-item">
+                        <div className="bk-mb-grid-icon">👤</div>
+                        <div className="bk-mb-grid-text">
+                          <span className="bk-mb-grid-label">Specialist</span>
+                          <span className="bk-mb-grid-val">
+                            {b.worker_name || "Any Available Specialist"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bk-mb-grid-item">
+                        <div className="bk-mb-grid-icon">💳</div>
+                        <div className="bk-mb-grid-text">
+                          <span className="bk-mb-grid-label">Payment Status</span>
+                          <span className="bk-mb-grid-val" style={{ textTransform: "capitalize" }}>
+                            {b.payment_status?.toLowerCase() || "Pending"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bk-mb-grid-item">
+                        <div className="bk-mb-grid-icon">✂️</div>
+                        <div className="bk-mb-grid-text">
+                          <span className="bk-mb-grid-label">Service</span>
+                          <span className="bk-mb-grid-val">
+                            {b.service_name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable Breakdown Toggle Button */}
+                    <button
+                      type="button"
+                      className="bk-mb-expand-toggle"
+                      onClick={() => toggleExpand(b.id)}
+                      aria-expanded={isExpanded}
                     >
-                      {b.status}
-                    </span>
+                      <span>{isExpanded ? "▲ Hide Price Breakdown & Notes" : "▼ View Price Breakdown & Notes"}</span>
+                    </button>
+
+                    {/* Expandable Breakdown Drawer */}
+                    {isExpanded && (
+                      <div className="bk-mb-breakdown-drawer">
+                        {Array.isArray(b.services_detail) && b.services_detail.length > 0 && (
+                          <div style={{ marginBottom: "6px" }}>
+                            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>
+                              Booked Services
+                            </span>
+                            {b.services_detail.map((svc, sIdx) => (
+                              <div key={sIdx} className="bk-mb-bill-row" style={{ marginTop: "4px" }}>
+                                <span>{svc.name} {svc.duration ? `(${svc.duration})` : ""}</span>
+                                <span>₹{Number(svc.price).toLocaleString("en-IN")}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="bk-mb-bill-row">
+                          <span>Subtotal</span>
+                          <span>₹{Number(b.subtotal || b.service_price).toLocaleString("en-IN")}</span>
+                        </div>
+
+                        {Number(b.discount_amount || 0) > 0 && (
+                          <div className="bk-mb-bill-row discount">
+                            <span>Discount ({b.applied_offer_title || b.voucher_code || "Applied"})</span>
+                            <span>-₹{Number(b.discount_amount).toLocaleString("en-IN")}</span>
+                          </div>
+                        )}
+
+                        {Number(b.tax_amount || 0) > 0 && (
+                          <div className="bk-mb-bill-row">
+                            <span>Taxes &amp; GST</span>
+                            <span>+₹{Number(b.tax_amount).toLocaleString("en-IN")}</span>
+                          </div>
+                        )}
+
+                        <div className="bk-mb-bill-row total">
+                          <span>Final Payable Amount</span>
+                          <span>₹{payableTotal.toLocaleString("en-IN")}</span>
+                        </div>
+
+                        {b.notes && (
+                          <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed #e2ece5", fontSize: "0.82rem", color: "#526659" }}>
+                            <strong>Client Notes:</strong> &quot;{b.notes}&quot;
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="bk-booking-details">
-                    <div className="bk-bd-row">
-                      <span>📅 Date</span>
-                      <strong>{b.booking_date}</strong>
-                    </div>
-                    <div className="bk-bd-row">
-                      <span>🕐 Time</span>
-                      <strong>
-                        {b.start_time ? `${fmt12(b.start_time)} → ${fmt12(b.end_time)}` : b.booking_time}
-                      </strong>
-                    </div>
-                    <div className="bk-bd-row">
-                      <span>👤 Stylist</span>
-                      <strong>{b.worker_name || "Any Available"}</strong>
-                    </div>
-                    <div className="bk-bd-row">
-                      <span>💰 Amount</span>
-                      <strong>₹{Number(b.service_price).toLocaleString("en-IN")}</strong>
-                    </div>
-                    <div className="bk-bd-row">
-                      <span>🔖 Ref</span>
-                      <strong>BMS-{b.id}</strong>
-                    </div>
-                  </div>
-
-                  <div
-                    className="bk-booking-actions"
-                    style={{
-                      marginTop: "14px",
-                      paddingTop: "12px",
-                      borderTop: "1px solid #f1f5f9",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      flexWrap: "wrap",
-                      gap: "10px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  {/* Card Action Footer */}
+                  <div className="bk-mb-card-footer">
+                    <div className="bk-mb-footer-left">
+                      {/* Cancel Booking Button */}
                       {canCancel && (
                         <button
-                          className="bk-btn-cancel"
+                          type="button"
+                          className="bk-mb-btn bk-mb-btn-cancel"
                           disabled={cancellingId === b.id}
                           onClick={() => handleCancel(b)}
                         >
-                          {cancellingId === b.id ? "Cancelling…" : "Cancel Booking"}
+                          <span>✕</span>
+                          <span>{cancellingId === b.id ? "Cancelling…" : "Cancel Booking"}</span>
                         </button>
                       )}
 
+                      {/* Official Tax Invoice / Receipt Button */}
                       {b.receipt_available ? (
                         <button
                           type="button"
-                          className="bk-btn-receipt"
+                          className="bk-mb-btn bk-mb-btn-receipt"
                           onClick={() => openReceiptModal(b)}
                           title="View and download your official tax invoice and receipt"
                         >
-                          <span>📄</span> View Receipt
+                          <span>📄</span>
+                          <span>View Receipt</span>
                         </button>
                       ) : isCompleted ? (
                         <span className="bk-receipt-locked-hint" title="Receipt is being finalized">
@@ -289,37 +659,52 @@ export default function MyBookings() {
                       )}
                     </div>
 
-                    {/* Completed Booking Review Actions */}
-                    {isCompleted && (
-                      <div>
-                        {!isReviewed ? (
-                          <button
-                            type="button"
-                            className="bk-btn-review"
-                            onClick={() => openCreateReviewModal(b)}
-                          >
-                            <span>⭐</span> Rate &amp; Review Service
-                          </button>
-                        ) : (
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                            <div className="bk-reviewed-badge">
-                              <span>✓ Feedback Submitted</span>
-                              {b.salon_review && <span>• Salon: {b.salon_review.rating}★</span>}
-                              {b.worker_review && <span>• Stylist: {b.worker_review.rating}★</span>}
-                            </div>
+                    <div className="bk-mb-footer-right">
+                      {/* Completed Booking Review Actions */}
+                      {isCompleted && (
+                        <>
+                          {!isReviewed ? (
                             <button
                               type="button"
-                              className="bk-btn-view-review"
-                              onClick={() => openViewReviewModal(b)}
+                              className="bk-mb-btn bk-mb-btn-review"
+                              onClick={() => openCreateReviewModal(b)}
                             >
-                              View Feedback
+                              <span>⭐</span>
+                              <span>Rate &amp; Review Service</span>
                             </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <div className="bk-mb-reviewed-pill">
+                                <span>✓ Feedback Submitted</span>
+                                {b.salon_review && <span>• Salon: {b.salon_review.rating}★</span>}
+                                {b.worker_review && <span>• Stylist: {b.worker_review.rating}★</span>}
+                              </div>
+                              <button
+                                type="button"
+                                className="bk-btn-view-review"
+                                onClick={() => openViewReviewModal(b)}
+                              >
+                                View Feedback
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Book Again Rebook Shortcut for Completed or Cancelled bookings */}
+                      {(isCompleted || b.status === "CANCELLED") && (
+                        <Link
+                          to={`/customer/salons/${b.salon_id || b.salon}`}
+                          className="bk-mb-btn bk-mb-btn-rebook"
+                          title="Book this salon again"
+                        >
+                          <span>🔄</span>
+                          <span>Book Again</span>
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>

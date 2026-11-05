@@ -45,6 +45,10 @@ urlpatterns = [
         "api/v1/wallet/",
         include("wallet.urls"),
     ),
+    path(
+        "api/v1/subscriptions/",
+        include("subscriptions.urls"),
+    ),
 
     # Allauth OAuth URLs
     path("accounts/", include("allauth.urls")),

@@ -17,6 +17,9 @@ class Notification(models.Model):
         NEW_REVIEW_SALON = "NEW_REVIEW_SALON", "New Salon Review"
         NEW_REVIEW_WORKER = "NEW_REVIEW_WORKER", "New Specialist Review"
         SALON_CREATED = "SALON_CREATED", "Salon Created"
+        SUBSCRIPTION_TRIAL_EXPIRING = "SUBSCRIPTION_TRIAL_EXPIRING", "Subscription / Trial Expiring Soon"
+        SUBSCRIPTION_EXPIRED = "SUBSCRIPTION_EXPIRED", "Subscription Expired"
+        SUBSCRIPTION_ACTIVATED = "SUBSCRIPTION_ACTIVATED", "Subscription Activated"
         GENERAL = "GENERAL", "General Notification"
 
     recipient = models.ForeignKey(

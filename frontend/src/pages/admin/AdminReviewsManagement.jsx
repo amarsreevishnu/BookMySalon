@@ -435,7 +435,7 @@ export default function AdminReviewsManagement() {
                     No salons found matching &quot;{salonSearch}&quot;
                   </div>
                 ) : (
-                  salons.map((s) => {
+                  salons.filter((s) => s.approval_status === "APPROVED").map((s) => {
                     const isSelected = selectedSalon?.id === s.id;
                     const statusClass = s.approval_status?.toLowerCase() || "approved";
 

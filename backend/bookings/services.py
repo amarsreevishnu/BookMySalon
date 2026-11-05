@@ -7,10 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_booking_start_datetime(booking):
-    """
-    Computes an aware datetime representing the scheduled start of the appointment.
-    Uses booking.booking_date and booking.start_time (or booking.booking_time string).
-    """
+    
     if not booking or not booking.booking_date:
         return None
 
@@ -37,15 +34,7 @@ def get_booking_start_datetime(booking):
 
 
 def auto_update_no_show_bookings(bookings_qs=None, worker=None, salon=None):
-    """
-    Rule: If the customer's scheduled appointment time has passed and the customer
-    did not arrive (booking is still CONFIRMED or PENDING, not IN_PROGRESS or COMPLETED),
-    automatically mark it as NO_SHOW.
-
-    Operates either on the provided bookings queryset, or queries for bookings for
-    the given worker/salon.
-    Returns the count of updated bookings.
-    """
+    
     now = timezone.now()
     today = timezone.localdate()
 
@@ -66,10 +55,8 @@ def auto_update_no_show_bookings(bookings_qs=None, worker=None, salon=None):
     for booking in candidates:
         is_noshow = False
         if booking.booking_date < today:
-            # Past date appointment that was never started
             is_noshow = True
         else:
-            # Today's appointment: check if scheduled start time has passed
             start_dt = get_booking_start_datetime(booking)
             if start_dt and start_dt <= now:
                 is_noshow = True

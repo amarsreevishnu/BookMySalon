@@ -115,6 +115,21 @@ class Offer(models.Model):
         help_text="Promote on BookMySalon Platform (homepage & deals page). Maximum 3 per salon.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    is_hidden_by_admin = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this offer has been hidden from platform by Super Admin.",
+    )
+    admin_hidden_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Reason for hiding the offer provided by Super Admin.",
+    )
+    admin_hidden_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the offer was hidden by Super Admin.",
+    )
     can_combine = models.BooleanField(
         default=False,
         help_text="Whether this offer can be combined with other offers. Default is False.",
@@ -161,7 +176,12 @@ class Offer(models.Model):
         if self.discount_type == self.DiscountType.FIXED_PRICE and self.offer_type != self.OfferType.COMBO:
             raise ValidationError({"discount_type": "Fixed Combo Price discount type is only valid for Combo Offers."})
 
-        # Enforce maximum 3 platform-promoted offers per salon
+       
+        if self.is_hidden_by_admin and self.show_on_platform:
+            raise ValidationError({
+                "show_on_platform": "This offer is currently hidden from the platform by Super Admin and cannot be promoted."
+            })
+
         if self.show_on_platform and self.is_active and self.salon_id:
             qs = Offer.objects.filter(
                 salon_id=self.salon_id,
@@ -179,7 +199,6 @@ class Offer(models.Model):
         if self.code:
             self.code = self.code.strip().upper()
         else:
-            # Auto-generate a readable random coupon code
             import secrets, string
             chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
             rand_suffix = "".join(secrets.choice(chars) for _ in range(6))

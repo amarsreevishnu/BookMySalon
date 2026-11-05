@@ -18,25 +18,13 @@ def validate_and_calculate_offer(
     booking_date=None,
     booking_time=None,
 ):
-    """
-    Validates offer applicability and computes exact discount amount.
-
-    - salon: Salon instance or salon_id
-    - offer_code_or_id: promo code string (e.g. 'ONAM25') or integer Offer ID
-    - services: list/iterable of SalonService instances
-    - customer: User instance or None
-    - customer_phone: string
-    - customer_email: string
-    - booking_date: date object or 'YYYY-MM-DD' string
-    - booking_time: time object or 'HH:MM' string
-    """
+    
     if not offer_code_or_id:
         raise ValidationError("No offer or coupon code specified.")
 
     if not services:
         raise ValidationError("At least one service must be selected to apply an offer.")
 
-    # Resolve booking date
     if isinstance(booking_date, str):
         try:
             booking_date = datetime.strptime(booking_date, "%Y-%m-%d").date()
@@ -45,7 +33,6 @@ def validate_and_calculate_offer(
     elif not isinstance(booking_date, (date, datetime)):
         booking_date = timezone.localdate()
 
-    # Resolve booking time
     if isinstance(booking_time, str):
         try:
             parts = booking_time.split(":")
@@ -53,7 +40,7 @@ def validate_and_calculate_offer(
         except Exception:
             booking_time = None
 
-    # Retrieve offer from DB
+    
     salon_id = salon.id if hasattr(salon, "id") else salon
     offer = None
 
@@ -67,7 +54,7 @@ def validate_and_calculate_offer(
             code__iexact=code_str.upper(),
         ).first()
 
-    # Fallback to platform-promoted active offers if code was provided globally
+    
     if not offer and code_str:
         offer = Offer.objects.filter(
             code__iexact=code_str.upper(),
@@ -75,7 +62,7 @@ def validate_and_calculate_offer(
             is_active=True,
         ).first()
 
-    # Fallback to legacy COUPON_RULES if not found in dynamic offers
+    
     if not offer:
         from bookings.pricing import COUPON_RULES
         upper_code = code_str.upper()
@@ -113,11 +100,14 @@ def validate_and_calculate_offer(
 
         raise ValidationError(f"Invalid or expired promo code: '{code_str}'.")
 
-    # 1. Active status check
+    
+    if getattr(offer, "is_hidden_by_admin", False):
+        raise ValidationError(f"The offer '{offer.title}' has been suspended by platform administration.")
+
     if not offer.is_active:
         raise ValidationError(f"The offer '{offer.title}' is currently inactive.")
 
-    # 2. Validity date range check
+    
     if booking_date < offer.start_date:
         raise ValidationError(
             f"Offer '{offer.title}' is not valid until {offer.start_date.strftime('%b %d, %Y')}."
@@ -127,7 +117,7 @@ def validate_and_calculate_offer(
             f"Offer '{offer.title}' expired on {offer.end_date.strftime('%b %d, %Y')}."
         )
 
-    # 3. Applicable days of the week check
+   
     if offer.applicable_days:
         day_abbr = booking_date.strftime("%a").upper()[:3]  # e.g. 'MON', 'TUE'
         allowed_days = [d.strip().upper()[:3] for d in offer.applicable_days if d]
@@ -137,7 +127,7 @@ def validate_and_calculate_offer(
                 f"Offer '{offer.title}' is only valid on: {allowed_names} (Selected date is {booking_date.strftime('%A')})."
             )
 
-    # 4. Applicable time of day check
+    
     if booking_time and offer.start_time and offer.end_time:
         if not (offer.start_time <= booking_time <= offer.end_time):
             start_str = offer.start_time.strftime("%I:%M %p")
@@ -146,11 +136,11 @@ def validate_and_calculate_offer(
                 f"Offer '{offer.title}' is only valid for appointments between {start_str} and {end_str}."
             )
 
-    # 5. Total usage limit check
+    
     if offer.total_usage_limit is not None and offer.usage_count >= offer.total_usage_limit:
         raise ValidationError(f"Offer '{offer.title}' has reached its maximum total redemptions limit.")
 
-    # 6. Customer eligibility check - EMAIL IS VERIFIED & PRIMARY IDENTIFIER
+    
     if offer.customer_eligibility == Offer.CustomerEligibility.FIRST_TIME:
         from bookings.models import Booking
         booking_filter = Q(salon_id=salon_id) & ~Q(status=Booking.Status.CANCELLED)
@@ -174,7 +164,7 @@ def validate_and_calculate_offer(
                 f"Offer '{offer.title}' is exclusively valid for your first appointment at {offer.salon.name}."
             )
 
-    # 7. Per-customer usage limit check - EMAIL IS VERIFIED & PRIMARY IDENTIFIER
+    
     if offer.per_customer_limit is not None:
         user_redemptions = 0
         redemption_qs = offer.redemptions.all()
@@ -195,11 +185,11 @@ def validate_and_calculate_offer(
                 f"You have already redeemed '{offer.title}' the maximum allowed ({offer.per_customer_limit} time{'s' if offer.per_customer_limit > 1 else ''})."
             )
 
-    # Calculate subtotal
+    
     subtotal = sum(Decimal(str(s.price or "0.00")) for s in services)
     subtotal = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # 8. Minimum spend check
+    
     if subtotal < offer.min_spend:
         raise ValidationError(
             f"Offer '{offer.title}' requires a minimum booking subtotal of ₹{offer.min_spend} (Current subtotal: ₹{subtotal})."

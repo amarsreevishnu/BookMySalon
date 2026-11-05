@@ -52,7 +52,7 @@ class RegisterSerializer(serializers.Serializer):
             },
         )
 
-        
+
         pending.otp_created_at = timezone.now()
         pending.save(update_fields=["otp_created_at"])
 

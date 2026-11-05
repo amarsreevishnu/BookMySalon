@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'offers',
     'support',
     'wallet',
+    'subscriptions',
 ]
 
 MIDDLEWARE = [

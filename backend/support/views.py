@@ -30,9 +30,7 @@ from .services import (
 )
 
 
-# ==============================================================================
-# SALON OWNER TICKET VIEWS
-# ==============================================================================
+
 
 class SalonOwnerTicketListCreateView(APIView):
     
@@ -51,7 +49,7 @@ class SalonOwnerTicketListCreateView(APIView):
             "salon", "created_by"
         ).prefetch_related("messages")
 
-        # Filters
+        
         ticket_status = request.query_params.get("status")
         if ticket_status and ticket_status.upper() != "ALL":
             queryset = queryset.filter(status=ticket_status.upper())
@@ -126,7 +124,7 @@ class SalonOwnerTicketListCreateView(APIView):
             status=SupportTicket.Status.OPEN,
         )
 
-        # Log creation activity
+        
         log_ticket_activity(
             ticket=ticket,
             user=request.user,
@@ -134,7 +132,7 @@ class SalonOwnerTicketListCreateView(APIView):
             details=f"Ticket #{ticket.ticket_number} created with priority '{ticket.get_priority_display()}'.",
         )
 
-        # Send notifications asynchronously / safely
+        # Send notifications asynchronously 
         send_ticket_created_emails(ticket)
 
         detail_serializer = SupportTicketDetailSerializer(
@@ -162,7 +160,7 @@ class SalonOwnerTicketDetailView(APIView):
         ticket = get_object_or_404(
             SupportTicket.objects.select_related("salon", "created_by", "assigned_to"),
             pk=pk,
-            salon=salon,  # Enforces salon-level isolation
+            salon=salon,  
         )
 
         # Mark unread admin messages as read
@@ -210,7 +208,7 @@ class SalonOwnerTicketReplyView(APIView):
         message_text = serializer.validated_data["message"]
         attachment = serializer.validated_data.get("attachment")
 
-        # Create message
+        
         message_obj = TicketMessage.objects.create(
             ticket=ticket,
             sender=request.user,
@@ -220,7 +218,7 @@ class SalonOwnerTicketReplyView(APIView):
             is_read=False,
         )
 
-        # Status transition: if ticket was WAITING_FOR_CUSTOMER or RESOLVED, transition to IN_PROGRESS
+        
         status_changed = False
         old_status = ticket.status
         if ticket.status in [
@@ -241,7 +239,7 @@ class SalonOwnerTicketReplyView(APIView):
         else:
             ticket.save(update_fields=["updated_at"])
 
-        # Log activity
+        
         log_ticket_activity(
             ticket=ticket,
             user=request.user,
@@ -249,7 +247,7 @@ class SalonOwnerTicketReplyView(APIView):
             details=f"Salon Owner replied: '{message_text[:60]}...'",
         )
 
-        # Send notification to admin
+        # Send Email notification to admin
         send_owner_reply_email(ticket, message_obj)
 
         msg_serializer = TicketMessageSerializer(
@@ -267,9 +265,7 @@ class SalonOwnerTicketReplyView(APIView):
 
 
 class SalonOwnerTicketReopenView(APIView):
-    """
-    POST: Reopen a resolved or closed ticket if the salon owner feels the issue is not fixed.
-    """
+    
     permission_classes = [IsAuthenticated, IsSalonOwner]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
@@ -302,13 +298,13 @@ class SalonOwnerTicketReopenView(APIView):
         attachment = serializer.validated_data.get("attachment")
         old_status = ticket.status
 
-        # Transition to OPEN
+        
         ticket.status = SupportTicket.Status.OPEN
         ticket.resolved_at = None
         ticket.closed_at = None
         ticket.save(update_fields=["status", "resolved_at", "closed_at", "updated_at"])
 
-        # Add message in conversation
+        
         message_obj = TicketMessage.objects.create(
             ticket=ticket,
             sender=request.user,
@@ -318,7 +314,7 @@ class SalonOwnerTicketReopenView(APIView):
             is_read=False,
         )
 
-        # Log activity
+        
         log_ticket_activity(
             ticket=ticket,
             user=request.user,
@@ -337,9 +333,7 @@ class SalonOwnerTicketReopenView(APIView):
 
 
 class SalonOwnerSupportUnreadCountView(APIView):
-    """
-    GET: Returns total count of unread messages sent by admin across the salon owner's tickets.
-    """
+    
     permission_classes = [IsAuthenticated, IsSalonOwner]
 
     def get(self, request):
@@ -367,14 +361,11 @@ class SalonOwnerSupportUnreadCountView(APIView):
         )
 
 
-# ==============================================================================
-# SUPER ADMIN TICKET VIEWS
-# ==============================================================================
+
+# SUPER VIEWS
 
 class AdminTicketListView(APIView):
-    """
-    GET: List tickets from all registered salons with filters, search, and pagination.
-    """
+   
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
     def get(self, request):
@@ -382,7 +373,7 @@ class AdminTicketListView(APIView):
             "salon", "created_by", "assigned_to"
         ).prefetch_related("messages")
 
-        # Filters
+        
         ticket_status = request.query_params.get("status")
         if ticket_status and ticket_status.upper() != "ALL":
             queryset = queryset.filter(status=ticket_status.upper())
@@ -417,7 +408,7 @@ class AdminTicketListView(APIView):
         if date_to:
             queryset = queryset.filter(created_at__date__lte=date_to)
 
-        # Pagination
+        
         try:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError:
@@ -461,7 +452,6 @@ class AdminTicketDetailView(APIView):
             pk=pk,
         )
 
-        # Mark salon owner messages as read
         unread_owner_msgs = ticket.messages.filter(
             sender_type=TicketMessage.SenderType.SALON_OWNER,
             is_read=False,
@@ -494,7 +484,7 @@ class AdminTicketReplyView(APIView):
         attachment = serializer.validated_data.get("attachment")
         status_update = serializer.validated_data.get("status_update")
 
-        # Create message
+        
         message_obj = TicketMessage.objects.create(
             ticket=ticket,
             sender=request.user,
@@ -504,7 +494,7 @@ class AdminTicketReplyView(APIView):
             is_read=False,
         )
 
-        # Check for status update
+        
         old_status = ticket.status
         if status_update and status_update != ticket.status:
             ticket.status = status_update
@@ -524,7 +514,7 @@ class AdminTicketReplyView(APIView):
             )
             send_status_update_email(ticket, old_status, status_update)
         elif ticket.status == SupportTicket.Status.OPEN:
-            # Auto update open ticket to WAITING_FOR_CUSTOMER on reply
+            
             ticket.status = SupportTicket.Status.WAITING_FOR_CUSTOMER
             ticket.save(update_fields=["status", "updated_at"])
             log_ticket_activity(
@@ -538,7 +528,7 @@ class AdminTicketReplyView(APIView):
         else:
             ticket.save(update_fields=["updated_at"])
 
-        # Log admin reply activity
+        
         log_ticket_activity(
             ticket=ticket,
             user=request.user,
@@ -546,7 +536,7 @@ class AdminTicketReplyView(APIView):
             details=f"Admin replied: '{message_text[:60]}...'",
         )
 
-        # Send notification to salon owner
+        # Send Email notification to salon owner
         send_admin_reply_email(ticket, message_obj)
 
         msg_serializer = TicketMessageSerializer(
@@ -563,9 +553,7 @@ class AdminTicketReplyView(APIView):
 
 
 class AdminTicketStatusUpdateView(APIView):
-    """
-    PATCH: Change ticket status (Open, In Progress, Waiting for Customer, Resolved, Closed).
-    """
+    
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
     def patch(self, request, pk):

@@ -25,6 +25,7 @@ import OwnerSchedule from "../pages/owner/OwnerSchedule";
 import OwnerWorkerLeaves from "../pages/owner/OwnerWorkerLeaves";
 import OwnerServices from "../pages/owner/OwnerServices";
 import OwnerOffers from "../pages/owner/OwnerOffers";
+import OwnerSubscription from "../pages/owner/OwnerSubscription";
 import OffersPage from "../pages/customer/OffersPage";
 import WorkerDashboard from "../pages/worker/WorkerDashboard";
 import WorkerLeave from "../pages/worker/WorkerLeave";
@@ -32,11 +33,15 @@ import WorkerCalendar from "../pages/worker/WorkerCalendar";
 import WorkerProfile from "../pages/worker/WorkerProfile";
 import WorkerAppointmentDetail from "../pages/worker/WorkerAppointmentDetail";
 import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminProfile from "../pages/admin/AdminProfile";
 import AdminSalonsList from "../pages/admin/AdminSalonsList";
 import AdminUserList from "../pages/admin/AdminUserList";
 import AdminServicesList from "../pages/admin/AdminServicesList";
 import AdminSupport from "../pages/admin/AdminSupport";
 import AdminReviewsManagement from "../pages/admin/AdminReviewsManagement";
+import AdminOffersManagement from "../pages/admin/AdminOffersManagement";
+import AdminSubscriptionsManagement from "../pages/admin/AdminSubscriptionsManagement";
+import AdminBookingsManagement from "../pages/admin/AdminBookingsManagement";
 import OwnerSupport from "../pages/owner/OwnerSupport";
 
 import PrivateRoute from "./PrivateRoute";
@@ -81,10 +86,14 @@ function AppRoutes() {
 
       <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/profile" element={<AdminProfile />} />
         <Route path="/admin/salons" element={<AdminSalonsList />} />
         <Route path="/admin/users" element={<AdminUserList />} />
         <Route path="/admin/services" element={<AdminServicesList />} />
         <Route path="/admin/reviews" element={<AdminReviewsManagement />} />
+        <Route path="/admin/offers" element={<AdminOffersManagement />} />
+        <Route path="/admin/subscriptions" element={<AdminSubscriptionsManagement />} />
+        <Route path="/admin/bookings" element={<AdminBookingsManagement />} />
         <Route path="/admin/support" element={<AdminSupport />} />
         <Route path="/admin/tickets" element={<AdminSupport />} />
         <Route path="/admin" element={<AdminDashboard />} />
@@ -96,6 +105,7 @@ function AppRoutes() {
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
         <Route path="/owner/services" element={<OwnerServices />} />
         <Route path="/owner/offers" element={<OwnerOffers />} />
+        <Route path="/owner/subscription" element={<OwnerSubscription />} />
         <Route path="/owner/support" element={<OwnerSupport />} />
         <Route path="/owner/tickets" element={<OwnerSupport />} />
         <Route path="/owner/workers" element={<WorkerManagement />} />

@@ -669,6 +669,13 @@ class SalonApprovalView(generics.UpdateAPIView):
             # Synchronize services into SalonService model
             sync_salon_services(salon, salon.services)
 
+            # Activate 30-day Free Trial (only if not already used)
+            try:
+                from subscriptions.services import activate_trial_for_salon
+                activate_trial_for_salon(salon)
+            except Exception as sub_err:
+                logger.error(f"Failed to activate free trial for salon {salon.id}: {sub_err}")
+
             # Dispatch notification email with credentials
             if salon.email:
                 if not temp_password:
@@ -729,13 +736,14 @@ class ApprovedSalonListView(generics.ListAPIView):
         if status_param == "all":
             return Salon.objects.all().order_by("-created_at")
 
-        approved = Salon.objects.filter(
-            approval_status=Salon.ApprovalStatus.APPROVED
-        )
-        if approved.exists():
-            return approved.order_by("-created_at")
-        # Fallback for preview/testing before admin approval
-        return Salon.objects.all().order_by("-created_at")
+        now = timezone.now()
+        from subscriptions.models import SalonSubscription
+        return Salon.objects.filter(
+            approval_status=Salon.ApprovalStatus.APPROVED,
+            subscription__isnull=False,
+            subscription__status__in=[SalonSubscription.Status.TRIAL, SalonSubscription.Status.ACTIVE],
+            subscription__end_date__gte=now,
+        ).select_related("subscription").order_by("-created_at")
 
 
 class OwnerDashboardView(APIView):
@@ -1673,7 +1681,7 @@ class WorkerDashboardView(APIView):
 
         from reviews.models import WorkerReview
         w_agg = WorkerReview.objects.filter(worker=worker).aggregate(avg=Avg('rating'), count=Count('id'))
-        w_rating = round(float(w_agg['avg']), 1) if w_agg['avg'] is not None else 5.0
+        w_rating = round(float(w_agg['avg']), 1) if w_agg['avg'] is not None else 0.0
         w_count = w_agg['count'] or 0
 
         latest_review = WorkerReview.objects.filter(worker=worker).select_related('customer', 'booking').order_by('-created_at').first()
@@ -2137,9 +2145,14 @@ class CustomerSalonExploreView(APIView):
         page_size_param = request.query_params.get("page_size", "8")
 
        
+        now = timezone.now()
+        from subscriptions.models import SalonSubscription
         db_salons = Salon.objects.filter(
-            approval_status=Salon.ApprovalStatus.APPROVED
-        ).order_by("-created_at")
+            approval_status=Salon.ApprovalStatus.APPROVED,
+            subscription__isnull=False,
+            subscription__status__in=[SalonSubscription.Status.TRIAL, SalonSubscription.Status.ACTIVE],
+            subscription__end_date__gte=now,
+        ).select_related("subscription").order_by("-created_at")
         
         registered_salons = []
         count=0
@@ -2511,7 +2524,31 @@ class CustomerSalonDetailView(APIView):
 
     def get(self, request, pk):
         try:
-            salon = Salon.objects.get(pk=pk,approval_status=Salon.ApprovalStatus.APPROVED,)
+            salon = Salon.objects.select_related("subscription").get(pk=pk, approval_status=Salon.ApprovalStatus.APPROVED)
+
+            # Option 1: Completely hide expired salons from public customers
+            sub = getattr(salon, "subscription", None)
+            is_active = bool(sub and sub.is_currently_active)
+            is_privileged = bool(
+                request.user
+                and request.user.is_authenticated
+                and (
+                    getattr(request.user, "role", "") == "ADMIN"
+                    or request.user.is_superuser
+                    or request.user.is_staff
+                    or getattr(salon, "owner_id", None) == request.user.id
+                )
+            )
+            if not is_active and not is_privileged:
+                return Response(
+                    {
+                        "error": "This salon is currently unavailable on BookMySalon as their platform partnership subscription has expired.",
+                        "is_expired": True,
+                        "salon_name": salon.name,
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
             serializer = SalonSerializer(salon, context={"request": request})
             data = serializer.data
 

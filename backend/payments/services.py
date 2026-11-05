@@ -59,7 +59,7 @@ def record_customer_payment_to_owner(
     - Creates OwnerWalletTransaction with flow=CREDIT and type=CUSTOMER_PAYMENT_RECEIVED.
     """
     if amount is None:
-        total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
+        total = booking.total_amount if booking.total_amount is not None else booking.service_price
         amount = Decimal(str(total or "0.00"))
     else:
         amount = Decimal(str(amount))
@@ -72,8 +72,9 @@ def record_customer_payment_to_owner(
         defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
     )[0]
 
-    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
-    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_price = Decimal(
+        str(booking.total_amount if booking.total_amount is not None else booking.service_price or "0.00")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     # Idempotency check: don't double credit customer payment if already fully credited
     total_credited = sum(
@@ -221,8 +222,9 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
         logger.info("Worker commission for Booking #%s already fully settled. Skipping duplicate.", booking.id)
         return existing_owner_debit, existing_earning
 
-    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
-    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_price = Decimal(
+        str(booking.total_amount if booking.total_amount is not None else booking.service_price or "0.00")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     # Commission rate: defaults to 60.00%
     rate = Decimal(str(getattr(worker, "commission_rate", None) or DEFAULT_WORKER_COMMISSION_RATE)).quantize(Decimal("0.01"))
@@ -231,8 +233,6 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
 
     worker_share = ((total_price * rate) / Decimal("100.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     salon_share = max(Decimal("0.00"), total_price - worker_share)
-
-    rate_str = f"{int(rate)}%" if rate == rate.to_integral() else f"{rate}%"
 
     worker_name = worker.user.get_full_name() if worker.user else f"Worker #{worker.id}"
     customer_name = booking.client_name or (booking.customer.get_full_name() if booking.customer else "Customer")
@@ -251,7 +251,7 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
                 "earning_amount": worker_share,
                 "salon_share": salon_share,
                 "status": WorkerEarning.Status.CREDITED,
-                "description": f"Commission for Booking #{booking.id} — {service_name} ({rate_str})",
+                "description": f"Commission for Booking #{booking.id} — {service_name} ({rate:g}%)",
             },
         )
         if created:
@@ -269,7 +269,7 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
                 flow="CREDIT",
                 amount=worker_share,
                 balance_after=worker_wallet.balance,
-                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} ({rate_str}) commission credited for {service_name} ({customer_name}).",
+                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} ({rate:g}%) commission credited for {service_name} ({customer_name}).",
             )
 
     # 2. Deduct Worker Commission from Salon Owner Wallet
@@ -284,7 +284,7 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
 
         description = (
             f"Booking #{booking.id} — Worker commission payout of ₹{format_currency_amount(worker_share)} "
-            f"({rate_str}) deducted for {worker_name} ({service_name})."
+            f"({rate:g}%) deducted for {worker_name} ({service_name})."
         )
         owner_debit_tx = OwnerWalletTransaction.objects.create(
             wallet=owner_wallet,
@@ -330,8 +330,9 @@ def record_booking_advance_payment(
     if amount <= Decimal("0.00"):
         return None
 
-    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
-    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_price = Decimal(
+        str(booking.total_amount if booking.total_amount is not None else booking.service_price or "0.00")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     is_partial = (amount < total_price)
 
@@ -442,8 +443,9 @@ def record_service_completion_and_final_payment(
     # 1. Customer Payment Collection (if not already collected)
     pay_method = payment_method or booking.payment_method or Payment.PaymentMethod.PAY_AT_SALON
 
-    total = booking.total_amount if (booking.total_amount and booking.total_amount > Decimal("0.00")) else booking.service_price
-    total_price = Decimal(str(total or "0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_price = Decimal(
+        str(booking.total_amount if booking.total_amount is not None else booking.service_price or "0.00")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     total_credited = sum(
         Decimal(str(a))
@@ -486,11 +488,9 @@ def record_service_completion_and_final_payment(
     booking.is_fully_paid = True
     booking.remaining_amount = Decimal("0.00")
     booking.advance_amount = Decimal("0.00")
-    update_flds = ["status", "payment_status", "is_fully_paid", "remaining_amount", "advance_amount", "updated_at"]
-    if not booking.total_amount or booking.total_amount <= Decimal("0.00"):
-        booking.total_amount = total_price
-        update_flds.append("total_amount")
-    booking.save(update_fields=update_flds)
+    booking.save(update_fields=[
+        "status", "payment_status", "is_fully_paid", "remaining_amount", "advance_amount", "updated_at"
+    ])
 
     # 4. Auto-generate immutable ServiceReceipt
     try:
@@ -575,23 +575,28 @@ def get_unreconciled_bookings(salon=None, worker=None):
     if worker:
         qs = qs.filter(worker=worker)
 
-    credit_owner_bids = list(
-        OwnerWalletTransaction.objects.filter(
-            booking__isnull=False,
-            flow=OwnerWalletTransaction.FlowType.CREDIT,
-        ).values_list("booking_id", flat=True)
-    )
+    credit_owner_bids = OwnerWalletTransaction.objects.filter(
+        booking__isnull=False,
+        flow=OwnerWalletTransaction.FlowType.CREDIT,
+    ).values_list("booking_id", flat=True)
 
-    credited_worker_bids = list(
-        WorkerEarning.objects.filter(
-            booking__isnull=False,
-            status=WorkerEarning.Status.CREDITED,
-        ).values_list("booking_id", flat=True)
-    )
+    credited_worker_bids = WorkerEarning.objects.filter(
+        booking__isnull=False,
+        status=WorkerEarning.Status.CREDITED,
+    ).values_list("booking_id", flat=True)
+
+    worker_debit_owner_bids = OwnerWalletTransaction.objects.filter(
+        booking__isnull=False,
+        flow=OwnerWalletTransaction.FlowType.DEBIT,
+        transaction_type__in=[
+            OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT,
+            OwnerWalletTransaction.TransactionType.WORKER_ALLOCATION,
+        ],
+    ).values_list("booking_id", flat=True)
 
     unreconciled = qs.filter(
         ~Q(id__in=credit_owner_bids) |
-        (Q(worker__isnull=False) & ~Q(id__in=credited_worker_bids))
+        (Q(worker__isnull=False) & (~Q(id__in=credited_worker_bids) | ~Q(id__in=worker_debit_owner_bids)))
     ).select_related("salon", "worker", "worker__user", "customer").order_by("-booking_date", "-booking_time")
 
     return unreconciled

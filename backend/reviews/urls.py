@@ -10,13 +10,13 @@ from .views import (
 )
 
 urlpatterns = [
-    # Admin Reviews Management endpoints
+    
     path('admin/stats/', AdminReviewsStatsView.as_view(), name='admin-reviews-stats'),
     path('admin/salons/', AdminSalonsReviewsSummaryView.as_view(), name='admin-salons-reviews-summary'),
     path('admin/reviews/', AdminReviewsListView.as_view(), name='admin-reviews-list'),
     path('admin/reviews/<int:pk>/moderate/', AdminReviewModerationView.as_view(), name='admin-review-moderate'),
 
-    # Public and Customer endpoints
+    # Customer
     path('salons/<int:salon_id>/', SalonReviewsListView.as_view(), name='salon-reviews-list'),
     path('workers/<int:worker_id>/', WorkerReviewsListView.as_view(), name='worker-reviews-list'),
     path('bookings/<int:pk>/', BookingReviewCreateView.as_view(), name='booking-review-create'),

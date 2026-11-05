@@ -4,6 +4,8 @@ import { useAuth } from "../../hooks/useAuth";
 import api from "../../api/axios";
 import "../../styles/adminSidebar.css";
 
+import logo from "../../assets/logo.png"
+
 export default function AdminSidebar({
   pendingCount: propPendingCount,
   salonsCount: propSalonsCount,
@@ -36,14 +38,21 @@ export default function AdminSidebar({
         try {
           const token = localStorage.getItem("access_token");
           const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-          const [res, srvRes] = await Promise.all([
+          const [res, srvRes, offRes, subsRes, bkRes] = await Promise.all([
             api.get("/salons/admin/stats/", config).catch(() => null),
             api.get("/services/admin/stats/", config).catch(() => null),
+            api.get("/offers/admin/stats/", config).catch(() => null),
+            api.get("/subscriptions/admin/stats/", config).catch(() => null),
+            api.get("/bookings/admin/stats/", config).catch(() => null),
           ]);
           setStats((prev) => ({
             ...prev,
             ...(res?.data || {}),
-            total_services: srvRes?.data?.services?.total || 16,
+            total_services: srvRes?.data?.services?.total || 0,
+            total_offers: offRes?.data?.total_offers ?? offRes?.data?.stats?.total_offers ?? 0,
+            subs_wallet_balance: subsRes?.data?.wallet_balance || "0.00",
+            active_trials: subsRes?.data?.active_trials_count || 0,
+            month_bookings: bkRes?.data?.total_bookings ?? res?.data?.month_bookings ?? 0,
           }));
         } catch {
           // Keep silent fallback
@@ -77,11 +86,15 @@ export default function AdminSidebar({
         location.search.toLowerCase().includes("tab=pending")));
 
   const isUsersActive = location.pathname.startsWith("/admin/users");
+  const isBookingsActive = location.pathname.startsWith("/admin/bookings");
   const isServicesActive = location.pathname.startsWith("/admin/services");
   const isReviewsActive = location.pathname.startsWith("/admin/reviews");
+  const isOffersActive = location.pathname.startsWith("/admin/offers");
+  const isSubscriptionsActive = location.pathname.startsWith("/admin/subscriptions");
   const isSupportActive =
     location.pathname.startsWith("/admin/support") ||
     location.pathname.startsWith("/admin/tickets");
+  const isProfileActive = location.pathname.startsWith("/admin/profile");
 
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
@@ -125,25 +138,12 @@ export default function AdminSidebar({
     <aside className="admin-sidebar" aria-label="Admin Navigation Sidebar">
       {/* Brand Header */}
       <Link to="/admin/dashboard" className="admin-brand-header">
-        <div className="admin-brand-icon">B</div>
+        <div className="admin-brand-icon"><img src={logo} alt="BookMySalon Logo" /></div>
         <div className="admin-brand-info">
           <h2>BookMySalon</h2>
-          <span className="admin-brand-domain">admin.bookmysalon.com</span>
+          <span className="admin-brand-domain">🛡️ Root Operator </span>
         </div>
       </Link>
-
-      {/* Super Admin Profile Snippet */}
-      <div className="admin-profile-card">
-        <div className="admin-avatar">
-          {currentUser.first_name?.[0] || currentUser.email?.[0] || "A"}
-        </div>
-        <div className="admin-profile-meta">
-          <div className="admin-name">
-            {currentUser.first_name || currentUser.name || currentUser.email?.split("@")[0] || "Super Admin"}
-          </div>
-          <span className="admin-role-badge">Root Operator</span>
-        </div>
-      </div>
 
       {/* Navigation Menu */}
       <nav className="admin-nav-menu">
@@ -204,7 +204,10 @@ export default function AdminSidebar({
           )}
         </Link>
 
-        {/* <button type="button" className="admin-nav-item">
+        <Link
+          to="/admin/bookings"
+          className={`admin-nav-item ${isBookingsActive ? "active" : ""}`}
+        >
           <div className="admin-nav-left">
             <span>📅</span>
             <span>Bookings</span>
@@ -212,7 +215,7 @@ export default function AdminSidebar({
           {effectiveBookingsCount > 0 && (
             <span className="admin-nav-badge">{effectiveBookingsCount}</span>
           )}
-        </button> */}
+        </Link>
 
         <Link
           to="/admin/services"
@@ -222,25 +225,32 @@ export default function AdminSidebar({
             <span>✂️</span>
             <span>Services Catalog</span>
           </div>
-          {(stats.total_services || 16) > 0 && (
-            <span className="admin-nav-badge">{stats.total_services || 16}</span>
+          {Number(stats.total_services) > 0 && (
+            <span className="admin-nav-badge">{stats.total_services}</span>
           )}
         </Link>
 
-        {/* <button type="button" className="admin-nav-item">
+        <Link
+          to="/admin/subscriptions"
+          className={`admin-nav-item ${isSubscriptionsActive ? "active" : ""}`}
+        >
           <div className="admin-nav-left">
-            <span>💰</span>
-            <span>Earnings</span>
+            <span>💳</span>
+            <span>Subscriptions</span>
           </div>
-          <span className="admin-nav-badge">₹45K</span>
-        </button> */}
+          {Number(stats.subs_wallet_balance || 0) > 0 ? (
+            <span className="admin-nav-badge">₹{Number(stats.subs_wallet_balance).toLocaleString("en-IN")}</span>
+          ) : Number(stats.active_trials || 0) > 0 ? (
+            <span className="admin-nav-badge">{stats.active_trials} Trials</span>
+          ) : null}
+        </Link>
 
-        {/* <button type="button" className="admin-nav-item">
+        <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>📈</span>
             <span>Analytics</span>
           </div>
-        </button> */}
+        </button>
 
         <Link
           to="/admin/reviews"
@@ -252,12 +262,18 @@ export default function AdminSidebar({
           </div>
         </Link>
 
-        {/* <button type="button" className="admin-nav-item">
+        <Link
+          to="/admin/offers"
+          className={`admin-nav-item ${isOffersActive ? "active" : ""}`}
+        >
           <div className="admin-nav-left">
             <span>🏷️</span>
             <span>Offers</span>
           </div>
-        </button> */}
+          {Number(stats.total_offers) > 0 && (
+            <span className="admin-nav-badge">{stats.total_offers}</span>
+          )}
+        </Link>
 
         <Link
           to="/admin/support"
@@ -272,6 +288,16 @@ export default function AdminSidebar({
           )}
         </Link>
 
+        <Link
+          to="/admin/profile"
+          className={`admin-nav-item ${isProfileActive ? "active" : ""}`}
+        >
+          <div className="admin-nav-left">
+            <span>⚙️</span>
+            <span>Settings</span>
+          </div>
+        </Link>
+
         <button type="button" className="admin-nav-item">
           <div className="admin-nav-left">
             <span>🛡️</span>
@@ -279,12 +305,6 @@ export default function AdminSidebar({
           </div>
         </button>
 
-        <button type="button" className="admin-nav-item">
-          <div className="admin-nav-left">
-            <span>⚙️</span>
-            <span>Settings</span>
-          </div>
-        </button>
       </nav>
 
       {/* Sidebar Footer */}

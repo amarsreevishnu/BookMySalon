@@ -3,9 +3,7 @@ from salons.views import get_owner_salon
 
 
 class IsSuperAdmin(permissions.BasePermission):
-    """
-    Grants access only to Super Admins (is_superuser, is_staff, or role == 'ADMIN').
-    """
+   
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
@@ -15,9 +13,7 @@ class IsSuperAdmin(permissions.BasePermission):
 
 
 class IsSalonOwner(permissions.BasePermission):
-    """
-    Grants access to authenticated users who own an approved/registered salon.
-    """
+    
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
