@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import SalonCard from "./SalonCard";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
+import SalonLoader from "../common/Loader";
 
 function SalonSection({
   selectedCategory,
@@ -191,7 +192,21 @@ function SalonSection({
         </div>
       </div>
 
-      {filteredSalons.length > 0 ? (
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "260px",
+            padding: "50px 20px",
+            width: "100%",
+          }}
+        >
+          <SalonLoader size={76} label="Finding Salons Near You..." />
+        </div>
+      ) : filteredSalons.length > 0 ? (
         <div
           className="customer-salon-scroll-wrapper"
           onMouseEnter={() => setIsPaused(true)}

@@ -31,10 +31,7 @@ class WalletInactiveError(ValidationError):
 
 
 def get_customer_wallet(user, lock=False):
-    """
-    Retrieves or auto-creates the customer's wallet.
-    Optionally applies select_for_update() row lock inside an atomic transaction.
-    """
+    
     if not user or not user.is_authenticated:
         return None
 
@@ -50,16 +47,7 @@ def get_customer_wallet(user, lock=False):
 
 
 def validate_wallet_balance(user, required_amount):
-    """
-    Validates if customer has sufficient available funds for an operation.
-    Returns dict:
-      {
-        "has_sufficient_funds": bool,
-        "available_balance": Decimal,
-        "required_amount": Decimal,
-        "shortfall": Decimal,
-      }
-    """
+    
     wallet = get_customer_wallet(user)
     req = Decimal(str(required_amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     available = wallet.balance if wallet else Decimal("0.00")
@@ -244,13 +232,7 @@ def refund_to_wallet(
 
 @transaction.atomic
 def process_wallet_booking_payment(booking, customer_user):
-    """
-    Processes full payment for a salon booking using the customer's wallet balance.
-    - Atomically debits customer wallet.
-    - Updates booking status to CONFIRMED, payment_status to PAID, is_fully_paid to True.
-    - Creates corresponding Payment record with payment_method=WALLET.
-    - Credits salon owner revenue ledger.
-    """
+    
     amount = Decimal(str(booking.total_amount if booking.total_amount is not None else booking.service_price))
     amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -326,9 +308,7 @@ def process_wallet_booking_payment(booking, customer_user):
 
 @transaction.atomic
 def topup_wallet(user, amount, payment_method="ONLINE", notes="", idempotency_key=None):
-    """
-    Credits customer wallet for a top-up / deposit operation.
-    """
+    
     amount = Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     if amount <= Decimal("0.00"):
         raise ValidationError("Top-up amount must be greater than zero.")
@@ -350,14 +330,7 @@ def topup_wallet(user, amount, payment_method="ONLINE", notes="", idempotency_ke
 
 
 def validate_topup_amount(raw_amount):
-    """
-    Validates entered wallet top-up amount:
-      - Must be provided
-      - Valid numeric decimal
-      - Strictly positive (> 0.00)
-      - At most 2 decimal places
-      - Maximum ₹10,000 per transaction
-    """
+    
     if raw_amount is None or str(raw_amount).strip() == "":
         raise ValidationError("Amount must be entered.")
 
@@ -385,10 +358,7 @@ def validate_topup_amount(raw_amount):
 
 
 def create_wallet_topup_order(user, amount):
-    """
-    Initiates a separate Razorpay order dedicated strictly for customer wallet top-up.
-    Validates amount limits (<= ₹10,000) and creates a PENDING WalletTopUpPayment record.
-    """
+    
     if not user or not user.is_authenticated:
         raise ValidationError("Authentication required to top up wallet.")
 

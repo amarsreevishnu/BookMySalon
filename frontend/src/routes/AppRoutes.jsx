@@ -17,6 +17,10 @@ import SavedSalons from "../pages/customer/SavedSalons";
 import CustomerWallet from "../pages/customer/CustomerWallet";
 
 import OwnerDashboard from "../pages/owner/OwnerDashboard";
+import OwnerBookings from "../pages/owner/OwnerBookings";
+import OwnerReviews from "../pages/owner/OwnerReviews";
+import OwnerRevenue from "../pages/owner/OwnerRevenue";
+import OwnerSettings from "../pages/owner/OwnerSettings";
 import CreateSalon from "../pages/owner/CreateSalon";
 import SalonProfileManagement from "../pages/owner/SalonProfileManagement";
 import AddWorker from "../pages/owner/AddWorker";
@@ -56,6 +60,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/google-callback" element={<GoogleCallback />} />
       <Route path="/salon-application" element={<CreateSalon />} />
+      <Route path="/owner/salons/create" element={<CreateSalon />} />
 
       
       <Route element={<PublicRoute />}>
@@ -101,6 +106,10 @@ function AppRoutes() {
 
       <Route element={<RoleRoute allowedRoles={["OWNER"]} />}>
         <Route path="/owner/dashboard" element={<OwnerDashboard />} />
+        <Route path="/owner/bookings" element={<OwnerBookings />} />
+        <Route path="/owner/reviews" element={<OwnerReviews />} />
+        <Route path="/owner/revenue" element={<OwnerRevenue />} />
+        <Route path="/owner/settings" element={<OwnerSettings />} />
         
         <Route path="/owner/salon-profile" element={<SalonProfileManagement />} />
         <Route path="/owner/services" element={<OwnerServices />} />

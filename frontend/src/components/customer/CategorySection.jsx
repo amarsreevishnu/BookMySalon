@@ -80,7 +80,7 @@ function CategorySection({
               Reset filter (<strong>{selectedCategory}</strong>) ✕
             </button>
           )}
-          <span className="section-side-badge">⚡ Instant 1-Click Booking</span>
+          
         </div>
       </div>
 

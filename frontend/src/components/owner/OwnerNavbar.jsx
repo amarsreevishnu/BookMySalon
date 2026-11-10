@@ -32,7 +32,7 @@ export default function OwnerNavbar({
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
-
+  
   useEffect(() => {
     let isMounted = true;
     api
@@ -85,6 +85,22 @@ export default function OwnerNavbar({
       if (location.pathname !== "/owner/support") {
         navigate("/owner/support");
       }
+    } else if (tab === "Bookings" || tab === "Appointments") {
+      if (location.pathname !== "/owner/bookings") {
+        navigate("/owner/bookings");
+      }
+    } else if (tab === "Reviews" || tab === "Ratings") {
+      if (location.pathname !== "/owner/reviews") {
+        navigate("/owner/reviews");
+      }
+    } else if (tab === "Revenue" || tab === "Wallet" || tab === "Earnings") {
+      if (location.pathname !== "/owner/revenue") {
+        navigate("/owner/revenue");
+      }
+    } else if (tab === "Settings" || tab === "Security") {
+      if (location.pathname !== "/owner/settings") {
+        navigate("/owner/settings");
+      }
     } else if (tab === "Dashboard") {
       if (location.pathname !== "/owner/dashboard") {
         navigate("/owner/dashboard");
@@ -106,7 +122,12 @@ export default function OwnerNavbar({
             {tabs.map((tab) => {
               const isActive =
                 activeTab === tab ||
-                (tab === "Salon" && (activeTab === "Salon Profile" || activeTab === "Profile"));
+                (tab === "Salon" && (activeTab === "Salon Profile" || activeTab === "Profile")) ||
+                (tab === "Bookings" && activeTab === "Appointments") ||
+                (tab === "Reviews" && activeTab === "Ratings") ||
+                (tab === "Revenue" && (activeTab === "Wallet" || activeTab === "Earnings")) ||
+                (tab === "Settings" && activeTab === "Security")||
+                (tab === "Salon Schedule" && activeTab === "Schedule");
               return (
                 <button
                   key={tab}

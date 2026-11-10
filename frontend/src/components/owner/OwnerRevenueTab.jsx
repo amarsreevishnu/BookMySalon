@@ -2,6 +2,31 @@ import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api/axios";
 import "../../styles/ownerRevenue.css";
 
+const getPageNumbers = (current = 1, total = 1) => {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeCurrent = Math.max(1, Math.min(Number(current) || 1, safeTotal));
+  if (safeTotal <= 5) {
+    return Array.from({ length: safeTotal }, (_, i) => i + 1);
+  }
+  const pages = [];
+  pages.push(1);
+  if (safeCurrent > 3) {
+    pages.push("...");
+  }
+  const start = Math.max(2, safeCurrent - 1);
+  const end = Math.min(safeTotal - 1, safeCurrent + 1);
+  for (let i = start; i <= end; i++) {
+    if (!pages.includes(i)) pages.push(i);
+  }
+  if (safeCurrent < safeTotal - 2) {
+    pages.push("...");
+  }
+  if (!pages.includes(safeTotal)) {
+    pages.push(safeTotal);
+  }
+  return pages;
+};
+
 export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
   // Navigation tabs within Revenue
   const [subTab, setSubTab] = useState("ledger"); // "ledger" | "workers" | "pending" | "refunds"
@@ -15,6 +40,7 @@ export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
   const [txCount, setTxCount] = useState(0);
   const [txTotalPages, setTxTotalPages] = useState(1);
   const [txPage, setTxPage] = useState(1);
+  const [txPageSize, setTxPageSize] = useState(15);
   const [txFilterType, setTxFilterType] = useState("");
   const [txFilterFlow, setTxFilterFlow] = useState("");
   const [txSearch, setTxSearch] = useState("");
@@ -77,20 +103,21 @@ export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
       const params = new URLSearchParams();
       if (salonId) params.append("salon_id", salonId);
       if (txPage) params.append("page", txPage);
+      if (txPageSize) params.append("page_size", txPageSize);
       if (txFilterType) params.append("type", txFilterType);
       if (txFilterFlow) params.append("flow", txFilterFlow);
       if (txSearch.trim()) params.append("search", txSearch.trim());
 
       const res = await api.get(`/payments/owner/transactions/?${params.toString()}`);
-      setTransactions(res.data.results || []);
-      setTxCount(res.data.count || 0);
+      setTransactions(res.data.results || res.data.transactions || []);
+      setTxCount(res.data.total_count ?? res.data.count ?? 0);
       setTxTotalPages(res.data.total_pages || 1);
     } catch (err) {
       console.error("Failed to load transactions:", err);
     } finally {
       setLoadingTxs(false);
     }
-  }, [salonId, txPage, txFilterType, txFilterFlow, txSearch]);
+  }, [salonId, txPage, txPageSize, txFilterType, txFilterFlow, txSearch]);
 
   /* ------------------------------------------------------------------------ */
   /* Fetch Worker Earnings                                                    */
@@ -738,29 +765,79 @@ export default function OwnerRevenueTab({ salonId, onBackToDashboard }) {
               </table>
             </div>
 
-            {/* Pagination */}
-            {txTotalPages > 1 && (
-              <div className="rev-pagination-row">
-                <span>
-                  Showing page {txPage} of {txTotalPages} ({txCount} total entries)
-                </span>
-                <div className="rev-page-actions">
-                  <button
-                    type="button"
-                    className="rev-page-btn"
-                    disabled={txPage <= 1}
-                    onClick={() => setTxPage((p) => Math.max(1, p - 1))}
-                  >
-                    ← Previous
-                  </button>
-                  <button
-                    type="button"
-                    className="rev-page-btn"
-                    disabled={txPage >= txTotalPages}
-                    onClick={() => setTxPage((p) => Math.min(txTotalPages, p + 1))}
-                  >
-                    Next →
-                  </button>
+            {/* Modern Pagination Bar */}
+            {txCount > 0 && (
+              <div className="studio-pagination-bar">
+                <div className="studio-pagination-info">
+                  Showing <strong>{(txPage - 1) * txPageSize + 1}</strong> to{" "}
+                  <strong>{Math.min(txPage * txPageSize, txCount)}</strong> of{" "}
+                  <strong>{txCount}</strong> transactions
+                </div>
+
+                <div className="studio-pagination-controls">
+                  <div className="studio-pagination-size-select">
+                    <label htmlFor="rev-tx-page-size">Per page:</label>
+                    <select
+                      id="rev-tx-page-size"
+                      value={txPageSize}
+                      onChange={(e) => {
+                        setTxPageSize(Number(e.target.value));
+                        setTxPage(1);
+                      }}
+                      className="studio-select-compact"
+                      disabled={loadingTxs}
+                    >
+                      <option value={10}>10</option>
+                      <option value={15}>15</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+
+                  <div className="studio-pagination-buttons">
+                    <button
+                      type="button"
+                      className="studio-pagination-btn"
+                      disabled={txPage <= 1 || loadingTxs}
+                      onClick={() => setTxPage((p) => Math.max(1, p - 1))}
+                      aria-label="Previous Page"
+                    >
+                      ‹ Prev
+                    </button>
+
+                    {getPageNumbers(txPage, txTotalPages).map((pageNum, idx) => {
+                      if (pageNum === "...") {
+                        return (
+                          <span key={`ellipsis-${idx}`} className="studio-pagination-ellipsis">
+                            …
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          key={`page-${pageNum}`}
+                          type="button"
+                          className={`studio-pagination-btn ${
+                            pageNum === txPage ? "active" : ""
+                          }`}
+                          disabled={loadingTxs}
+                          onClick={() => setTxPage(pageNum)}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      className="studio-pagination-btn"
+                      disabled={txPage >= txTotalPages || loadingTxs}
+                      onClick={() => setTxPage((p) => Math.min(txTotalPages, p + 1))}
+                      aria-label="Next Page"
+                    >
+                      Next ›
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

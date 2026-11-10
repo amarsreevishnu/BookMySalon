@@ -10,6 +10,9 @@ import OwnerReviewsTab from "../../components/owner/OwnerReviewsTab";
 import OwnerRevenueTab from "../../components/owner/OwnerRevenueTab";
 import OwnerStickyFooter from "../../components/owner/OwnerStickyFooter";
 import "../../styles/ownerDashboard.css";
+import Loader from "../../components/common/Loader";
+import SalonLoader from "../../components/common/Loader";
+import { resolveImageUrl } from "../../utils/imageUtils";
 
 const formatLocalDate = (date) => {
   if (!date) return "";
@@ -147,9 +150,18 @@ function KpiCard({
 /* Schedule Timeline Item                                              */
 /* ------------------------------------------------------------------ */
 function ScheduleItem({ item, onAction }) {
-  const status = item.status_type || "confirmed";
-  const isInProgress =
-    item.status === "In Progress" || item.raw_status === "IN_PROGRESS";
+  const rawStatus = String(item.raw_status || item.status || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const isInProgress = rawStatus === "IN_PROGRESS";
+  const isCompleted = rawStatus === "COMPLETED";
+  const isCancelled = rawStatus === "CANCELLED";
+  const statusClass = isInProgress ? "in-progress" : isCompleted ? "completed" : isCancelled ? "cancelled" : "confirmed";
+
+  const payMethodLabel =
+    item.payment_method === "WALLET"
+      ? "👛 Wallet"
+      : item.payment_method === "ONLINE" || item.payment_method === "RAZORPAY"
+      ? "💳 Online"
+      : "💵 Pay at Salon";
 
   return (
     <div className="tl-item">
@@ -159,7 +171,7 @@ function ScheduleItem({ item, onAction }) {
       </div>
 
       <div className="tl-dot-col">
-        <span className={`tl-dot tl-dot--${status} ${isInProgress ? "tl-dot--pulse" : ""}`} />
+        <span className={`tl-dot tl-dot--${statusClass} ${isInProgress ? "tl-dot--pulse" : ""}`} />
       </div>
 
       <div className="tl-card">
@@ -168,7 +180,7 @@ function ScheduleItem({ item, onAction }) {
             <span className="tl-name">{item.client_name}</span>
             <span className="tl-station">{item.station}</span>
           </div>
-          <span className={`tl-status tl-status--${status}`}>
+          <span className={`tl-status tl-status--${statusClass}`}>
             {isInProgress && <span className="tl-status-dot" />}
             {item.status || item.status_display}
           </span>
@@ -177,18 +189,73 @@ function ScheduleItem({ item, onAction }) {
         <div className="tl-meta">
           {item.booking_date ? `${item.booking_date} • ` : ""}
           {item.stylist || item.worker_name || "Specialist"} •{" "}
-          {item.service || item.service_name} • {item.duration || "45 mins"}
+          {item.service || item.service_name} • {item.duration || "45 mins"} •{" "}
+          <span style={{ fontWeight: 600 }}>{payMethodLabel}</span>
         </div>
 
-        <div className="tl-actions">
-          <button
-            type="button"
-            className={`tl-btn tl-btn--${item.action_type || "primary"}`}
-            onClick={() => onAction(item.id, item.action_label || "Seat Client")}
-          >
-            {item.action_label || "Update"}
-            <span className="tl-btn-arrow">→</span>
-          </button>
+        <div className="tl-actions" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {isCompleted ? (
+            <button
+              type="button"
+              className="tl-btn tl-btn--secondary"
+              onClick={() => onAction(item.id, "View")}
+              style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+            >
+              <span>👁️</span>
+              <span>View</span>
+            </button>
+          ) : isCancelled ? (
+            <button
+              type="button"
+              className="tl-btn tl-btn--secondary"
+              onClick={() => onAction(item.id, "View")}
+            >
+              👁️ View
+            </button>
+          ) : isInProgress ? (
+            <>
+              <button
+                type="button"
+                className="tl-btn tl-btn--primary"
+                onClick={() => onAction(item.id, "Complete")}
+              >
+                ✓ Complete
+              </button>
+              <button
+                type="button"
+                className="tl-btn tl-btn--secondary"
+                style={{ color: "#dc2626" }}
+                onClick={() => onAction(item.id, "Cancel")}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="tl-btn tl-btn--primary"
+                onClick={() => onAction(item.id, "Start")}
+              >
+                ▶ Start
+              </button>
+              <button
+                type="button"
+                className="tl-btn tl-btn--secondary"
+                onClick={() => onAction(item.id, "Complete")}
+              >
+                ✓ Complete
+              </button>
+              <button
+                type="button"
+                className="tl-btn tl-btn--secondary"
+                style={{ color: "#dc2626" }}
+                onClick={() => onAction(item.id, "Cancel")}
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -233,7 +300,7 @@ function StaffCard({ staff }) {
 /* ================================================================== */
 /* Main Component — all logic preserved                                */
 /* ================================================================== */
-export default function OwnerDashboard() {
+export default function OwnerDashboard({ defaultTab = "Dashboard" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, updateUser } = useAuth();
@@ -364,13 +431,19 @@ export default function OwnerDashboard() {
     if (user?.must_change_password === true) setShowTempPasswordModal(true);
   }, [user?.must_change_password]);
 
-  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [activeTab, setActiveTab] = useState(
+    location.pathname === "/owner/bookings" ? "Bookings" : defaultTab
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
-    if (location.state?.targetTab) setActiveTab(location.state.targetTab);
-  }, [location.state]);
+    if (location.pathname === "/owner/bookings") {
+      setActiveTab("Bookings");
+    } else if (location.state?.targetTab) {
+      setActiveTab(location.state.targetTab);
+    }
+  }, [location.state, location.pathname]);
 
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -541,10 +614,13 @@ export default function OwnerDashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+  const handleUpdateBookingStatus = async (bookingId, newStatus, extraData = {}) => {
     try {
-      await api.patch(`/salons/owner/bookings/${bookingId}/status/`, { status: newStatus });
-      setToastMessage(`Booking status updated to ${newStatus}!`);
+      await api.patch(`/salons/owner/bookings/${bookingId}/status/`, {
+        status: newStatus,
+        ...extraData,
+      });
+      setToastMessage(`Booking #${bookingId} status updated to ${newStatus}!`);
       await fetchOwnerData();
     } catch (err) {
       console.error("Failed to update booking status:", err);
@@ -554,10 +630,13 @@ export default function OwnerDashboard() {
 
   const handleAppointmentAction = async (appointmentId, currentAction) => {
     let targetStatus = null;
-    if (currentAction === "Seat Client") targetStatus = "IN_PROGRESS";
+    if (currentAction === "Seat Client" || currentAction === "Start") targetStatus = "IN_PROGRESS";
     else if (currentAction === "Check In" || currentAction === "Complete") targetStatus = "COMPLETED";
     else if (currentAction === "Cancel") targetStatus = "CANCELLED";
-    else if (currentAction === "Send Reminder") {
+    else if (currentAction === "View") {
+      setActiveTab("Bookings");
+      return;
+    } else if (currentAction === "Send Reminder") {
       setToastMessage("Appointment reminder sent via SMS & WhatsApp!");
       return;
     }
@@ -639,7 +718,7 @@ export default function OwnerDashboard() {
         onQuickWalkIn={() => setIsWalkInOpen(true)}
         onExportReport={() => setIsExportOpen(true)}
         onNotificationsClick={() => setToastMessage("All notifications up to date.")}
-        onSettingsClick={() => setActiveTab("Settings")}
+        onSettingsClick={() => navigate("/owner/settings")}
       />
 
       <OwnerNavbar
@@ -688,6 +767,39 @@ export default function OwnerDashboard() {
         </div>
       )}
 
+      {/* Registration Expiry Alert Banner */}
+      {dashboardData.salon_info && (dashboardData.salon_info.is_registration_expired || dashboardData.salon_info.is_registration_expiring_soon) && (
+        <div style={{ maxWidth: "1400px", margin: "12px auto 0", padding: "0 28px" }}>
+          {dashboardData.salon_info.is_registration_expired ? (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #ef4444", borderRadius: "10px", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#991b1b", fontSize: "14px", fontWeight: 600 }}>
+                <span style={{ fontSize: "20px" }}>🚨</span>
+                <span>
+                  <strong>Salon Registration Expired:</strong> Your salon registration expired on{" "}
+                  {dashboardData.salon_info.registration_valid_to || "N/A"}. Please upload your renewed registration certificate to keep your salon active and compliant.
+                </span>
+              </div>
+              <Link to="/owner/profile" style={{ background: "#dc2626", color: "#ffffff", padding: "8px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Renew Registration &rarr;
+              </Link>
+            </div>
+          ) : (
+            <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: "10px", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#92400e", fontSize: "14px", fontWeight: 600 }}>
+                <span style={{ fontSize: "20px" }}>⚠️</span>
+                <span>
+                  <strong>Registration Expiring Soon:</strong> Your business registration certificate expires in{" "}
+                  <strong>{dashboardData.salon_info.registration_days_left} {dashboardData.salon_info.registration_days_left === 1 ? "day" : "days"}</strong> (Valid till {dashboardData.salon_info.registration_valid_to}). Please update your registration documents in advance.
+                </span>
+              </div>
+              <Link to="/owner/profile" style={{ background: "#d97706", color: "#ffffff", padding: "8px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Update Documents &rarr;
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       <main className="studio-main-body">
         {activeTab === "Settings" ? (
           <div className="studio-settings-container">
@@ -712,6 +824,99 @@ export default function OwnerDashboard() {
                   <span className="role-badge">OWNER</span>
                 </div>
                 <div className="studio-settings-card-body">
+                  {/* Salon Owner Profile Image Header */}
+                  {(() => {
+                    const ownerImg =
+                      dashboardData.salon_info?.owner_profile_photo ||
+                      user?.profile_photo ||
+                      user?.profile_image ||
+                      user?.avatar;
+                    const initial = (user?.first_name || user?.email || "O").charAt(0).toUpperCase();
+
+                    return (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 16,
+                          marginBottom: 18,
+                          paddingBottom: 16,
+                          borderBottom: "1px solid var(--studio-border-subtle, #e2ece5)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: "50%",
+                            overflow: "hidden",
+                            background: "#edf6f2",
+                            border: "2.5px solid #2d6a4f",
+                            boxShadow: "0 2px 8px rgba(15, 57, 43, 0.12)",
+                            display: "grid",
+                            placeItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {ownerImg ? (
+                            <img
+                              src={resolveImageUrl(ownerImg)}
+                              alt={user?.first_name || "Salon Owner"}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 24, fontWeight: 800, color: "#166534" }}>
+                              {initial}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <h4
+                            style={{
+                              margin: 0,
+                              fontSize: 16,
+                              fontWeight: 700,
+                              color: "var(--studio-text-dark, #172a1e)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {user?.first_name
+                              ? `${user.first_name} ${user.last_name || ""}`.trim()
+                              : "Salon Owner"}
+                          </h4>
+                          <p
+                            style={{
+                              margin: "2px 0 6px",
+                              fontSize: 12,
+                              color: "var(--studio-text-muted, #64756c)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {dashboardData.salon_info?.name || "Salon Enterprise"}
+                          </p>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: "rgba(45, 106, 79, 0.1)",
+                              color: "#2d6a4f",
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 12,
+                              letterSpacing: 0.3,
+                            }}
+                          >
+                            ★ Verified Owner
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <div className="settings-meta-item">
                     <span className="settings-meta-label">Manager Name</span>
                     <span className="settings-meta-value">
@@ -889,7 +1094,7 @@ export default function OwnerDashboard() {
                     icon="📅"
                     value={dashboardData.kpi_stats.bookings.value}
                     trend={dashboardData.kpi_stats.bookings.trend}
-                    onClick={() => setActiveTab("Bookings")}
+                    onClick={() => navigate("/owner/bookings")}
                     delay={0}
                   />
                   <KpiCard
@@ -897,7 +1102,7 @@ export default function OwnerDashboard() {
                     icon="🪙"
                     formatted={dashboardData.kpi_stats.revenue.formatted}
                     trend={dashboardData.kpi_stats.revenue.trend}
-                    onClick={() => setActiveTab("Revenue")}
+                    onClick={() => navigate("/owner/revenue")}
                     delay={60}
                   />
                   <KpiCard
@@ -930,7 +1135,7 @@ export default function OwnerDashboard() {
                     isRating
                     isRatingDisplay
                     reviewsCount={dashboardData.reviews_count}
-                    onClick={() => setActiveTab("Reviews")}
+                    onClick={() => navigate("/owner/reviews")}
                     delay={300}
                   />
                 </section>
@@ -983,7 +1188,7 @@ export default function OwnerDashboard() {
                                   View All Bookings
                                 </button>
                               )}
-                              <button type="button" className="empty-btn" onClick={() => setActiveTab("Bookings")}>
+                              <button type="button" className="empty-btn" onClick={() => navigate("/owner/bookings")}>
                                 Open Bookings Manager →
                               </button>
                             </div>
@@ -1185,7 +1390,7 @@ export default function OwnerDashboard() {
                         type="button"
                         className="btn-manage-catalog"
                         style={{ marginTop: 12 }}
-                        onClick={() => setActiveTab("Reviews")}
+                        onClick={() => navigate("/owner/reviews")}
                       >
                         <span>View All Reviews ({dashboardData.reviews_count || 0})</span>
                         <span>→</span>

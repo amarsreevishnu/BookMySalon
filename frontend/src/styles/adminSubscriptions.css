@@ -382,10 +382,31 @@
 }
 
 /* Plans Configuration Tab */
+.admin-plans-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #edf4ef;
+}
+
+.admin-create-plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(35, 77, 52, 0.2);
+}
+
 .admin-plans-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 22px;
   margin-bottom: 32px;
 }
 
@@ -393,79 +414,218 @@
   background: #ffffff;
   border: 1.5px solid #dce8df;
   border-radius: 14px;
-  padding: 24px;
+  padding: 22px;
   position: relative;
   display: flex;
   flex-direction: column;
-  transition: all 0.18s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.admin-plan-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(22, 54, 34, 0.08);
 }
 
 .admin-plan-card.featured {
   border-color: #234d34;
-  box-shadow: 0 6px 20px rgba(35, 77, 52, 0.12);
 }
 
-.admin-plan-badge-top {
-  position: absolute;
-  top: -11px;
-  right: 20px;
-  background: #234d34;
-  color: #ffffff;
-  font-size: 11px;
+.admin-plan-card.inactive-plan {
+  background: #fbfcfb;
+  border-color: #e5ede7;
+  opacity: 0.9;
+}
+
+/* Card Top Status */
+.admin-plan-card-top-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.admin-plan-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
   font-weight: 700;
-  padding: 3px 12px;
+  padding: 3px 10px;
   border-radius: 12px;
+  letter-spacing: 0.2px;
+}
+
+.admin-plan-status-pill .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.admin-plan-status-pill.active {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.admin-plan-status-pill.active .status-dot {
+  background: #10b981;
+}
+
+.admin-plan-status-pill.inactive {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.admin-plan-status-pill.inactive .status-dot {
+  background: #ef4444;
+}
+
+.admin-plan-marketing-badge {
+  background: linear-gradient(135deg, #1e5233 0%, #2f754c 100%);
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 10px;
   text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .admin-plan-card-header h3 {
   margin: 0 0 4px 0;
   font-size: 19px;
   color: #163622;
+  font-weight: 800;
 }
 
 .admin-plan-duration-tag {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: #557260;
+  color: #4b6855;
   margin-bottom: 14px;
 }
 
-.admin-plan-price-editor {
+/* Pricing Display */
+.admin-plan-pricing-display {
+  background: #f7faf8;
+  border: 1px solid #dce8df;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.admin-plan-price-main {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-bottom: 16px;
-  background: #f7faf8;
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid #dce8df;
+  gap: 4px;
 }
 
 .admin-plan-currency-sym {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: #1e5233;
 }
 
-.admin-plan-price-input {
-  font-size: 22px;
+.admin-plan-price-val {
+  font-size: 26px;
   font-weight: 800;
   color: #163622;
-  border: none;
-  background: transparent;
-  outline: none;
-  width: 110px;
+  letter-spacing: -0.5px;
 }
 
-.admin-plan-original-input {
+.admin-plan-cycle {
+  font-size: 13px;
+  color: #637f6d;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.admin-plan-original-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.admin-plan-orig-val {
   font-size: 13px;
   color: #8da495;
   text-decoration: line-through;
-  border: none;
-  background: transparent;
-  outline: none;
-  width: 70px;
+  font-weight: 600;
+}
+
+.admin-plan-savings-pill {
+  background: #e6f4ea;
+  color: #137333;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.admin-plan-description {
+  font-size: 12.5px;
+  color: #557260;
+  line-height: 1.45;
+  margin: 0 0 14px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Subscribed Salons Pill Button */
+.admin-plan-subscribers-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: #f0f7f2;
+  border: 1px solid #cce3d3;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.admin-plan-subscribers-pill:hover {
+  background: #e2f0e6;
+  border-color: #aed1b7;
+}
+
+.subscribers-icon {
+  font-size: 16px;
+  margin-right: 8px;
+}
+
+.subscribers-count {
+  font-size: 12.5px;
+  color: #1f472d;
+  flex: 1;
+}
+
+.subscribers-count strong {
+  color: #137333;
+  font-weight: 800;
+}
+
+.subscribers-total {
+  color: #627e6d;
+  font-size: 11.5px;
+  margin-left: 4px;
+}
+
+.subscribers-arrow {
+  color: #1f472d;
+  font-weight: 800;
+  font-size: 14px;
 }
 
 .admin-plan-features-list {
@@ -476,34 +636,246 @@
 }
 
 .admin-plan-features-list li {
-  font-size: 13px;
-  color: #435b4b;
-  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: #3b5443;
+  margin-bottom: 7px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  line-height: 1.35;
 }
 
 .admin-plan-features-list li::before {
   content: "✓";
-  color: #277943;
+  color: #1e7041;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
-.admin-plan-save-btn {
+/* Plan Actions Row */
+.admin-plan-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #edf4ef;
+}
+
+.admin-plan-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.admin-plan-action-btn.edit {
+  background: #ffffff;
+  border: 1.5px solid #c9dcd0;
+  color: #234d34;
+}
+
+.admin-plan-action-btn.edit:hover {
+  background: #f2f7f3;
+  border-color: #234d34;
+}
+
+.admin-plan-action-btn.toggle.activate {
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+  color: #047857;
+}
+
+.admin-plan-action-btn.toggle.activate:hover {
+  background: #d1fae5;
+}
+
+.admin-plan-action-btn.toggle.deactivate {
+  background: #fff1f2;
+  border: 1.5px solid #fecdd3;
+  color: #be123c;
+}
+
+.admin-plan-action-btn.toggle.deactivate:hover {
+  background: #ffe4e6;
+}
+
+.admin-plan-action-btn.salons {
+  background: #f7faf8;
+  border: 1.5px solid #dce8df;
+  color: #435b4b;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+}
+
+.admin-plan-action-btn.salons:hover {
+  background: #e8f2eb;
+  color: #173824;
+}
+
+/* Wide Modal */
+.admin-modal-card.admin-modal-wide {
+  max-width: 640px;
+}
+
+.admin-modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .admin-modal-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Duration Presets */
+.admin-duration-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.admin-duration-preset-btn {
+  background: #f0f6f2;
+  border: 1px solid #cce0d2;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #3b5945;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-duration-preset-btn:hover {
+  background: #e3efe7;
+  color: #163b23;
+}
+
+.admin-duration-preset-btn.active {
   background: #234d34;
   color: #ffffff;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 13.5px;
-  cursor: pointer;
-  transition: background 0.15s ease;
+  border-color: #234d34;
 }
 
-.admin-plan-save-btn:hover {
-  background: #173824;
+/* Status Radio Group */
+.admin-status-radio-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 540px) {
+  .admin-status-radio-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-status-radio-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f8faf9;
+  border: 1.5px solid #dce8df;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-status-radio-label input {
+  margin-top: 3px;
+}
+
+.admin-status-radio-label div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-status-radio-label div strong {
+  font-size: 13px;
+  color: #163622;
+}
+
+.admin-status-radio-label div span {
+  font-size: 11px;
+  color: #637f6d;
+}
+
+.admin-status-radio-label.selected.active {
+  background: #f0fdf4;
+  border-color: #22c55e;
+}
+
+.admin-status-radio-label.selected.inactive {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+/* Plan Salons Modal Summary Bar */
+.admin-plan-salons-summary-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf4ef;
+}
+
+.salons-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.salons-summary-chip.active {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.salons-summary-chip.active .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.salons-summary-chip.total {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.admin-plan-salons-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: #64748b;
+}
+
+.admin-plan-salons-empty h4 {
+  font-size: 16px;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+}
+
+.admin-plan-salons-empty p {
+  font-size: 13px;
+  margin: 0;
 }
 
 /* Settings Box */
@@ -701,4 +1073,125 @@
     opacity: 1;
   }
 }
+
+/* Pagination Bar Styling */
+.admin-subs-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-top: 1px solid #e1ebe3;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-subs-pagination-info {
+  font-size: 13px;
+  color: #557260;
+}
+
+.admin-subs-pagination-info strong {
+  color: #163622;
+  font-weight: 700;
+}
+
+.admin-subs-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.admin-subs-pagination-size-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #557260;
+  font-weight: 600;
+}
+
+.admin-subs-select-compact {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cde0d2;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #163622;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.admin-subs-select-compact:focus {
+  border-color: #234d34;
+}
+
+.admin-subs-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-subs-pagination-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #cde0d2;
+  background: #ffffff;
+  color: #163622;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.admin-subs-pagination-btn:hover:not(:disabled):not(.active) {
+  background: #eef6f0;
+  border-color: #72a984;
+  color: #163622;
+}
+
+.admin-subs-pagination-btn.active {
+  background: #234d34;
+  color: #ffffff;
+  border-color: #234d34;
+  cursor: default;
+}
+
+.admin-subs-pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+}
+
+.admin-subs-pagination-ellipsis {
+  padding: 0 4px;
+  font-size: 13px;
+  color: #728c7c;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .admin-subs-pagination-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .admin-subs-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 

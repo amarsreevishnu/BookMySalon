@@ -769,3 +769,123 @@
   cursor: pointer;
 }
 
+/* ------------------------------------------------------------------ */
+/* Studio Table Pagination Bar                                         */
+/* ------------------------------------------------------------------ */
+.studio-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #ffffff;
+  border-top: 1px solid var(--studio-border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.studio-pagination-info {
+  font-size: 13px;
+  color: var(--studio-text-muted);
+}
+
+.studio-pagination-info strong {
+  color: var(--studio-text-main);
+  font-weight: 700;
+}
+
+.studio-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.studio-pagination-size-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--studio-text-muted);
+  font-weight: 600;
+}
+
+.studio-select-compact {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--studio-border);
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--studio-text-main);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.studio-select-compact:focus {
+  border-color: var(--studio-primary);
+}
+
+.studio-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-pagination-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--studio-border);
+  background: #ffffff;
+  color: var(--studio-text-main);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.studio-pagination-btn:hover:not(:disabled):not(.active) {
+  background: var(--studio-primary-light);
+  border-color: var(--studio-accent-mint);
+  color: var(--studio-primary-dark);
+}
+
+.studio-pagination-btn.active {
+  background: var(--studio-primary);
+  color: #ffffff;
+  border-color: var(--studio-primary);
+  cursor: default;
+}
+
+.studio-pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9fafb;
+  border-color: var(--studio-border-subtle);
+  color: var(--studio-text-subtle);
+}
+
+.studio-pagination-ellipsis {
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--studio-text-subtle);
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .studio-pagination-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .studio-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+

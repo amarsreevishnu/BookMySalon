@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import useFavorites from "../../hooks/useFavorites";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
@@ -152,9 +153,18 @@ export default function SavedSalons() {
 
         {/* Main Content Area */}
         {loading ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", color: "#64748b" }}>
-            <span style={{ fontSize: "2rem", display: "block", marginBottom: "12px" }}>⏳</span>
-            Loading your saved salons...
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "360px",
+              padding: "60px 20px",
+              width: "100%",
+            }}
+          >
+            <SalonLoader size={84} label="Loading Saved Salons..." />
           </div>
         ) : salons.length === 0 ? (
           /* Empty State */

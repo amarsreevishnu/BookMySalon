@@ -166,7 +166,7 @@ def notify_booking_rescheduled(booking, previous_date=None, previous_time=None):
 
 
 def notify_booking_reassigned(booking, old_worker=None, new_worker=None):
-    """Event: Booking reassigned -> Customer and newly assigned worker receive alert."""
+    """Event: Booking reassigned -> Customer, previous worker, and newly assigned worker receive alert."""
     if not booking or not new_worker:
         return []
 
@@ -177,6 +177,7 @@ def notify_booking_reassigned(booking, old_worker=None, new_worker=None):
         if new_worker and new_worker.user
         else (new_worker.specialization or "Specialist")
     )
+    time_display = str(booking.booking_time or booking.start_time or "")
 
     notifications = []
 
@@ -186,33 +187,60 @@ def notify_booking_reassigned(booking, old_worker=None, new_worker=None):
             recipient=booking.customer,
             notification_type=Notification.NotificationType.BOOKING_REASSIGNED,
             title=f"Stylist Reassigned: {service_title}",
-            message=f"Your appointment at {salon_name} on {booking.booking_date} has been reassigned to specialist {new_stylist_name}.",
+            message=f"Your appointment at {salon_name} on {booking.booking_date} at {time_display} has been reassigned to specialist {new_stylist_name}.",
             data={
                 "booking_id": booking.id,
+                "salon_id": booking.salon_id,
+                "salon_name": salon_name,
                 "worker_name": new_stylist_name,
+                "date": str(booking.booking_date),
+                "time": time_display,
                 "link": "/customer/bookings",
             },
         )
         if c_notif:
             notifications.append(c_notif)
 
-    # 2. New Worker
-    if new_worker and new_worker.user:
-        w_notif = create_notification(
-            recipient=new_worker.user,
+    # 2. Previous Worker (if any and different from new worker)
+    if old_worker and old_worker.user and getattr(old_worker, "id", None) != getattr(new_worker, "id", None):
+        old_w_notif = create_notification(
+            recipient=old_worker.user,
             notification_type=Notification.NotificationType.BOOKING_REASSIGNED,
-            title=f"New Appointment Assigned: {booking.client_name}",
-            message=f"You have been assigned to service client {booking.client_name} for {service_title} on {booking.booking_date} at {booking.booking_time or booking.start_time}.",
+            title=f"Appointment Reassigned: {booking.client_name}",
+            message=f"Your scheduled appointment with client {booking.client_name} for {service_title} on {booking.booking_date} at {time_display} has been reassigned to {new_stylist_name}.",
             data={
                 "booking_id": booking.id,
+                "salon_id": booking.salon_id,
                 "client_name": booking.client_name,
                 "service_name": service_title,
                 "date": str(booking.booking_date),
+                "time": time_display,
+                "new_worker_name": new_stylist_name,
                 "link": "/worker/dashboard",
             },
         )
-        if w_notif:
-            notifications.append(w_notif)
+        if old_w_notif:
+            notifications.append(old_w_notif)
+
+    # 3. New Worker
+    if new_worker and new_worker.user:
+        new_w_notif = create_notification(
+            recipient=new_worker.user,
+            notification_type=Notification.NotificationType.BOOKING_REASSIGNED,
+            title=f"New Appointment Assigned: {booking.client_name}",
+            message=f"You have been assigned to service client {booking.client_name} for {service_title} on {booking.booking_date} at {time_display}.",
+            data={
+                "booking_id": booking.id,
+                "salon_id": booking.salon_id,
+                "client_name": booking.client_name,
+                "service_name": service_title,
+                "date": str(booking.booking_date),
+                "time": time_display,
+                "link": "/worker/dashboard",
+            },
+        )
+        if new_w_notif:
+            notifications.append(new_w_notif)
 
     return notifications
 

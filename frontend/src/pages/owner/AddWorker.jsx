@@ -25,6 +25,14 @@ const INITIAL_SPECIALIZATIONS = [
   { id: "nail", name: "Nail Art & Care", desc: "Gel, Acrylic & Pedicure", defaultSelected: false },
 ];
 
+const COMMISSION_PRESETS = [
+  { label: "Apprentice (40%)", rate: 40, tier: "Tier 1 • Junior Specialist (40%)" },
+  { label: "Standard (50%)", rate: 50, tier: "Standard Specialist (50%)" },
+  { label: "Senior (60% - Default)", rate: 60, tier: "Tier 2 • Senior Specialist (60%)" },
+  { label: "Lead (70%)", rate: 70, tier: "Tier 3 • Lead Specialist (70%)" },
+  { label: "Master (80%)", rate: 80, tier: "Tier 4 • Master Director (80%)" },
+];
+
 export default function AddWorker() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -48,6 +56,11 @@ export default function AddWorker() {
   const [station, setStation] = useState("Chair #01 • Main Bay");
   const [employmentStatus, setEmploymentStatus] = useState("Full-Time Specialist");
   const [bio, setBio] = useState("");
+
+  // Commission & Compensation Model
+  const [commissionRate, setCommissionRate] = useState(60.0);
+  const [commissionTier, setCommissionTier] = useState("Tier 2 • Senior Specialist (60%)");
+  const [calcTestPrice, setCalcTestPrice] = useState(1000);
 
   // Staff Photo (Only added by owner - no default portrait)
   const [profilePhoto, setProfilePhoto] = useState("");
@@ -366,6 +379,8 @@ export default function AddWorker() {
       employment_status: employmentStatus,
       bio: bio.trim(),
       specializations: selectedSpecs,
+      commission_tier: commissionTier.trim() || "Tier 2 • Senior Specialist (60%)",
+      commission_rate: Number(commissionRate) || 60.0,
       assigned_services: selectedServicesList.map((s) => ({
         id: s.id,
         name: s.name,
@@ -1149,6 +1164,176 @@ export default function AddWorker() {
                 </span>
               </div>
             </div>
+
+            {/* 7. Worker Commission & Payout Model */}
+            <div className="aw-card">
+              <div className="aw-card-header">
+                <div className="aw-card-title-group">
+                  <div className="aw-card-icon">
+                    <span style={{ fontSize: "16px" }}>💰</span>
+                  </div>
+                  <h3 className="aw-card-title">Worker Commission &amp; Payout Rate</h3>
+                </div>
+                <span className="aw-card-meta">Automatic booking split</span>
+              </div>
+
+              <p className="aw-section-subtitle">
+                Decide the percentage this specialist earns per completed service. The platform automatically calculates and credits this payout to their wallet upon service completion.
+              </p>
+
+              {/* Commission Presets */}
+              <div style={{ marginBottom: "16px" }}>
+                <span style={{ fontSize: "12px", fontWeight: "750", color: "var(--aw-text-main)", display: "block", marginBottom: "8px" }}>
+                  Quick Commission Presets:
+                </span>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {COMMISSION_PRESETS.map((preset) => (
+                    <button
+                      key={preset.rate}
+                      type="button"
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        border: "1px solid var(--aw-border)",
+                        background: Number(commissionRate) === preset.rate ? "var(--aw-primary)" : "#ffffff",
+                        color: Number(commissionRate) === preset.rate ? "#ffffff" : "var(--aw-text-main)",
+                        transition: "all 0.15s ease",
+                      }}
+                      onClick={() => {
+                        setCommissionRate(preset.rate);
+                        setCommissionTier(preset.tier);
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tier & Custom Rate Input */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+                <div>
+                  <label className="aw-input-label">Commission Tier Label</label>
+                  <input
+                    type="text"
+                    className="aw-input-text"
+                    value={commissionTier}
+                    onChange={(e) => setCommissionTier(e.target.value)}
+                    placeholder="e.g. Tier 2 • Senior Specialist"
+                  />
+                </div>
+                <div>
+                  <label className="aw-input-label">Commission Rate (%) *</label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      className="aw-input-text"
+                      style={{ paddingRight: "36px", fontWeight: "700", color: "#166534" }}
+                      value={commissionRate}
+                      onChange={(e) => setCommissionRate(Math.min(100, Math.max(0, e.target.value)))}
+                      required
+                    />
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: "12px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        color: "var(--aw-text-subtle)",
+                      }}
+                    >
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slider */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Number(commissionRate) || 0}
+                  onChange={(e) => setCommissionRate(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: "var(--aw-primary)", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "13px", fontWeight: "700", minWidth: "48px", textAlign: "right", color: "var(--aw-primary)" }}>
+                  {commissionRate}%
+                </span>
+              </div>
+
+              {/* Live Calculator Preview Box */}
+              <div
+                style={{
+                  background: "#fbfdfc",
+                  border: "1px solid #d9e9df",
+                  borderRadius: "10px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px dashed #e2eee7", paddingBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+                  <span style={{ fontSize: "13px", fontWeight: "700", color: "var(--aw-primary)" }}>
+                    🧮 Live Commission Calculation Preview
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
+                    <span>Test Price: ₹</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="50"
+                      value={calcTestPrice}
+                      onChange={(e) => setCalcTestPrice(Math.max(1, Number(e.target.value) || 0))}
+                      style={{ width: "80px", padding: "4px 6px", border: "1px solid var(--aw-border)", borderRadius: "6px", fontWeight: "700", textAlign: "right" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div style={{ background: "#eef8f2", border: "1px solid #c7e9d4", borderRadius: "8px", padding: "10px 12px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#14532d", textTransform: "uppercase" }}>
+                      💇 Worker Payout
+                    </div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: "#166534" }}>
+                      ₹{((calcTestPrice * (Number(commissionRate) || 0)) / 100).toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--aw-text-subtle)" }}>
+                      {commissionRate}% of ₹{calcTestPrice.toLocaleString()} service
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#f3f7f5", border: "1px solid #d8e5dd", borderRadius: "8px", padding: "10px 12px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#1e392a", textTransform: "uppercase" }}>
+                      🏪 Salon Owner Retention
+                    </div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: "#1e392a" }}>
+                      ₹{Math.max(0, calcTestPrice - ((calcTestPrice * (Number(commissionRate) || 0)) / 100)).toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--aw-text-subtle)" }}>
+                      {(100 - (Number(commissionRate) || 0)).toFixed(1)}% retained by salon
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div style={{ width: "100%", height: "8px", background: "#e0ece5", borderRadius: "4px", overflow: "hidden", display: "flex" }}>
+                  <div style={{ background: "linear-gradient(90deg, #16a34a, #22c55e)", width: `${Number(commissionRate) || 0}%`, height: "100%", transition: "width 0.2s ease" }} />
+                  <div style={{ background: "var(--aw-primary)", width: `${100 - (Number(commissionRate) || 0)}%`, height: "100%", transition: "width 0.2s ease" }} />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* RIGHT COLUMN - LIVE MARKETPLACE PREVIEW */}
@@ -1207,6 +1392,7 @@ export default function AddWorker() {
                 <div className="aw-preview-meta-chips">
                   <span className="aw-meta-chip">{station}</span>
                   <span className="aw-meta-chip green">Available Today</span>
+                  <span className="aw-meta-chip">💰 {commissionRate}% Payout</span>
                   {idCardNumber && <span className="aw-meta-chip">✓ Verified ID</span>}
                 </div>
 
@@ -1523,8 +1709,6 @@ export default function AddWorker() {
         </div>
       )}
 
-      {/* Sticky Salon Details Footer Label */}
-      <OwnerStickyFooter />
     </div>
   );
 }

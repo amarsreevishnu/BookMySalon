@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/booking.css";
 import { Link } from "react-router-dom";
@@ -1050,9 +1051,16 @@ export default function BookingPage() {
     return (
       <div className="bk-page">
         <CustomerHeader />
-        <div className="bk-loading">
-          <div className="bk-spinner" />
-          <p>Loading salon details…</p>
+        <div
+          className="bk-loading"
+          style={{
+            minHeight: "65vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <SalonLoader size={84} label="Loading Salon Experience..." />
         </div>
         <CustomerFooter />
       </div>

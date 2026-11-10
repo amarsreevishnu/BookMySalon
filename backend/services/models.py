@@ -3,10 +3,7 @@ from django.utils.text import slugify
 
 
 class ServiceCategory(models.Model):
-    """
-    Top-level grouping for salon services (e.g., Hair, Skin, Spa, Nails).
-    Managed primarily by Super Admin.
-    """
+    
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     description = models.TextField(blank=True, default="")
@@ -174,4 +171,5 @@ class SalonService(models.Model):
 
     def __str__(self):
         return f"{self.salon.name} - {self.effective_name} (₹{self.price})"
+
 

@@ -912,12 +912,25 @@ class OwnerTransactionsListView(APIView):
                 salon = s
 
         if not salon:
-            return Response({"error": "No salon found for your account."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                "count": 0,
+                "total_count": 0,
+                "total_pages": 1,
+                "current_page": 1,
+                "page_size": 15,
+                "results": [],
+                "transactions": [],
+            }, status=status.HTTP_200_OK)
 
         from .models import OwnerWalletTransaction
         from .serializers import OwnerWalletTransactionSerializer
 
-        qs = OwnerWalletTransaction.objects.filter(salon=salon).select_related('booking', 'payment')
+        qs = (
+            OwnerWalletTransaction.objects
+            .filter(salon=salon)
+            .select_related('booking', 'payment')
+            .order_by("-created_at", "-id")
+        )
 
         tx_type = request.query_params.get("type", "").strip()
         if tx_type:
@@ -955,10 +968,12 @@ class OwnerTransactionsListView(APIView):
         serializer = OwnerWalletTransactionSerializer(page_obj.object_list, many=True)
         return Response({
             "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_num,
+            "total_count": paginator.count,
+            "total_pages": max(1, paginator.num_pages),
+            "current_page": page_obj.number,
             "page_size": page_size,
             "results": serializer.data,
+            "transactions": serializer.data,
         }, status=status.HTTP_200_OK)
 
 

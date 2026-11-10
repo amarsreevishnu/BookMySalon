@@ -7,7 +7,6 @@ from django.utils import timezone
 
 
 def generate_wallet_transaction_id():
-    """Generates unique, traceable wallet transaction identifier e.g. WTX-20261103-9A8B7C6D."""
     date_str = timezone.now().strftime("%Y%m%d")
     short_uuid = uuid.uuid4().hex[:8].upper()
     return f"WTX-{date_str}-{short_uuid}"
@@ -53,9 +52,7 @@ class CustomerWallet(models.Model):
 
     @classmethod
     def get_or_create_for_user(cls, user):
-        """
-        Idempotently returns or creates the customer wallet.
-        """
+        
         if not user or not user.is_authenticated:
             return None
         wallet, _ = cls.objects.get_or_create(

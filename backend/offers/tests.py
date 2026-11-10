@@ -87,9 +87,26 @@ class AdminOffersManagementTests(TestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get("/api/v1/offers/admin/offers/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["id"], self.offer.id)
-        self.assertEqual(response.data[0]["code"], "SUMMER20")
+        offers_data = response.data.get("offers", response.data) if isinstance(response.data, dict) else response.data
+        self.assertEqual(len(offers_data), 1)
+        self.assertEqual(offers_data[0]["id"], self.offer.id)
+        self.assertEqual(offers_data[0]["code"], "SUMMER20")
+
+    def test_admin_offers_pagination(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get("/api/v1/offers/admin/offers/?page=1&page_size=5")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("offers", response.data)
+        self.assertIn("results", response.data)
+        self.assertIn("count", response.data)
+        self.assertIn("total_count", response.data)
+        self.assertIn("total_pages", response.data)
+        self.assertIn("current_page", response.data)
+        self.assertIn("page_size", response.data)
+        self.assertEqual(response.data["current_page"], 1)
+        self.assertEqual(response.data["page_size"], 5)
+        self.assertEqual(response.data["total_count"], 1)
+        self.assertEqual(len(response.data["offers"]), 1)
 
     def test_admin_moderate_hide_offer(self):
         self.client.force_authenticate(user=self.admin)

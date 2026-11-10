@@ -6,9 +6,11 @@ import useFavorites from "../../hooks/useFavorites";
 import { selectUserAvatar } from "../../features/auth/authSlice";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import NotificationBell from "../common/NotificationBell";
+import "../../styles/customerHeader.css";
+
 import "../../styles/salonsExplore.css";
 
-import logo from "../../assets/logo.png"
+import logo from "../../assets/logo.png";
 
 function CustomerHeader() {
   const navigate = useNavigate();
@@ -16,8 +18,8 @@ function CustomerHeader() {
   const { favoritesCount } = useFavorites();
   const reduxAvatar = useSelector(selectUserAvatar);
   const userAvatar = reduxAvatar || user?.avatar || "";
-  
-  
+
+  const [isScrolled, setIsScrolled] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -25,6 +27,15 @@ function CustomerHeader() {
   const [toastMessage, setToastMessage] = useState("");
 
   const userMenuRef = useRef(null);
+
+  // Scroll detection for floating island shrink & glassmorphism elevation
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -60,233 +71,303 @@ function CustomerHeader() {
 
   return (
     <>
-      <header className="explore-header">
-        <div className="explore-header-inner">
-          <Link to="/customer/home" className="explore-brand-group">
-            <div className="explore-brand-icon">
-              <img src={logo} alt="BookMySalon Logo" />
-            </div>
+      <div className={`dashboard-header-wrapper ${isScrolled ? "is-scrolled" : ""}`}>
+        <header className="dashboard-header" role="banner">
+          <div className="dashboard-header-inner">
+            {/* Brand Logo & Title */}
+            <Link to="/customer/home" className="dashboard-brand-group">
+              <div className="dashboard-brand-icon">
+                <img src={logo} alt="BookMySalon Logo" />
+              </div>
 
-            <div className="explore-brand-titles">
-              <span className="explore-brand-name">BookMySalon</span>
-              <span className="explore-brand-sub">ORGANIC WELLNESS</span>
-            </div>
-          </Link>
-
-          <nav className="explore-nav-links">
-            <Link to="/customer/home" className="explore-nav-link">Home</Link>
-            <Link to="/customer/salons" className="explore-nav-link">Find Salons</Link>
-            <Link to="/customer/my-bookings" className="explore-nav-link">Bookings</Link>
-            <Link to="/customer/wallet" className="explore-nav-link">Wallet</Link>
-            <Link to="/customer/saved-salons" className="explore-nav-link">
-              Favorites
-              {favoritesCount > 0 && (
-                <span
-                  style={{
-                    background: "#ffe4e6",
-                    color: "#e11d48",
-                    padding: "1px 6px",
-                    borderRadius: "10px",
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    marginLeft: "4px",
-                  }}
-                >
-                  {favoritesCount}
-                </span>
-              )}
+              <div className="dashboard-brand-titles">
+                <span className="dashboard-brand-name">BookMySalon</span>
+                <span className="dashboard-brand-sub">ORGANIC WELLNESS</span>
+              </div>
             </Link>
-          </nav>
 
-          <div className="explore-header-right">
-            <NotificationBell />
+            {/* Desktop Navigation Links */}
+            <nav className="dashboard-nav-links" aria-label="Main navigation">
+              <Link to="/customer/home" className="dashboard-nav-link">
+                Home
+              </Link>
+              <Link to="/customer/salons" className="dashboard-nav-link">
+                Find Salons
+              </Link>
+              <Link to="/customer/my-bookings" className="dashboard-nav-link">
+                Bookings
+              </Link>
+              <Link to="/customer/wallet" className="dashboard-nav-link">
+                Wallet
+              </Link>
+              <Link to="/customer/saved-salons" className="dashboard-nav-link">
+                Favorites
+                {favoritesCount > 0 && (
+                  <span className="dashboard-fav-badge">{favoritesCount}</span>
+                )}
+              </Link>
+            </nav>
 
-            {/* Customer Avatar & Profile Dropdown */}
-            <div className="explore-user-menu-wrapper" ref={userMenuRef}>
-              <button
-                type="button"
-                className={`explore-user-chip ${userDropdownOpen ? "dropdown-active" : ""}`}
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                title="Account menu & profile"
-                aria-expanded={userDropdownOpen}
-              >
-                <div className="explore-user-info">
-                  <span className="explore-user-name">{userName}</span>
-                  <span className="explore-user-badge">Wellness Member</span>
-                </div>
-                {userAvatar ? (
-                  <div className="explore-user-avatar">
-                    <img className="explore-user-avatar" src={resolveImageUrl(userAvatar)} alt={userFullName} />
+            {/* Header Right Actions */}
+            <div className="dashboard-header-right">
+              {/* Notification Bell */}
+              <div className="dashboard-notification-wrapper" title="Notifications">
+                <NotificationBell />
+              </div>
+
+              {/* User Chip & Dropdown Menu */}
+              <div className="dashboard-user-menu-wrapper" ref={userMenuRef}>
+                <button
+                  type="button"
+                  className={`dashboard-user-chip ${userDropdownOpen ? "dropdown-active" : ""}`}
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  title="Account menu & profile"
+                  aria-expanded={userDropdownOpen}
+                >
+                  <div className="dashboard-avatar-wrapper">
+                    {userAvatar ? (
+                      <img
+                        className="dashboard-avatar-img"
+                        src={resolveImageUrl(userAvatar)}
+                        alt={userFullName}
+                      />
+                    ) : (
+                      <span className="dashboard-avatar-initial">{userInitial}</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="explore-user-avatar">
-                    {userInitial}
+
+                  <div className="dashboard-user-info">
+                    <span className="dashboard-user-name">{userName}</span>
+                    <span className="dashboard-user-badge">Wellness Member</span>
+                  </div>
+
+                  <span className={`dashboard-user-caret ${userDropdownOpen ? "open" : ""}`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
+
+                {/* Dropdown Menu */}
+                {userDropdownOpen && (
+                  <div className="dashboard-dropdown">
+                    <div className="dashboard-dropdown-header">
+                      <div className="dashboard-dropdown-avatar">
+                        {userAvatar ? (
+                          <img
+                            src={resolveImageUrl(userAvatar)}
+                            alt={userFullName}
+                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                          />
+                        ) : (
+                          userInitial
+                        )}
+                      </div>
+                      <div className="dashboard-dropdown-details">
+                        <span className="dashboard-dropdown-name">{userFullName}</span>
+                        <span className="dashboard-dropdown-email">{userEmail}</span>
+                        <span className="dashboard-dropdown-tag">Verified Customer</span>
+                      </div>
+                    </div>
+
+                    <div className="dashboard-dropdown-list">
+                      <Link
+                        to="/customer/profile"
+                        className="dashboard-dropdown-item"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="dashboard-item-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <span>User Profile</span>
+                      </Link>
+
+                      <Link
+                        to="/customer/my-bookings"
+                        className="dashboard-dropdown-item"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="dashboard-item-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                          </svg>
+                        </span>
+                        <span>My Bookings</span>
+                      </Link>
+
+                      <Link
+                        to="/customer/wallet"
+                        className="dashboard-dropdown-item"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="dashboard-item-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="M7 15h0M2 9.5h20" />
+                          </svg>
+                        </span>
+                        <span>My Wallet</span>
+                      </Link>
+
+                      <Link
+                        to="/customer/saved-salons"
+                        className="dashboard-dropdown-item"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="dashboard-item-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                          </svg>
+                        </span>
+                        <span>Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}</span>
+                      </Link>
+                    </div>
+
+                    <div className="dashboard-dropdown-divider" />
+
+                    <button
+                      type="button"
+                      className="dashboard-dropdown-item dashboard-logout-btn"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        setShowLogoutModal(true);
+                      }}
+                    >
+                      <span className="dashboard-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                      </span>
+                      <span>Sign Out</span>
+                    </button>
                   </div>
                 )}
-                
-                <span className="explore-user-caret">▾</span>
+              </div>
+
+              {/* Mobile Animated Hamburger Toggle */}
+              <button
+                type="button"
+                className={`dashboard-mobile-toggle ${mobileMenuOpen ? "open" : ""}`}
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle navigation menu"
+                title={mobileMenuOpen ? "Close menu" : "Open menu"}
+              >
+                <span className="burger-line" />
+                <span className="burger-line" />
+                <span className="burger-line" />
               </button>
-
-              {userDropdownOpen && (
-                <div className="customer-avatar-dropdown">
-                  <div className="dropdown-profile-header">
-                    <div className="dropdown-avatar-circle">
-                      {userAvatar ? (
-                        <img
-                          src={resolveImageUrl(userAvatar)}
-                          alt={userFullName}
-                          style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                        />
-                      ) : (
-                        userInitial
-                      )}
-                    </div>
-                    <div className="dropdown-profile-details">
-                      <span className="dropdown-user-fullname">{userFullName}</span>
-                      <span className="dropdown-user-email">{userEmail}</span>
-                      <span className="dropdown-wellness-tag">🌿 Verified Customer</span>
-                    </div>
-                  </div>
-
-                  <div className="dropdown-menu-list">
-                    <Link
-                      to="/customer/profile"
-                      className="dropdown-menu-item"
-                      onClick={() => setUserDropdownOpen(false)}
-                      style={{ textDecoration: "none" }}
-                    >
-                      <span className="dropdown-item-icon">👤</span>
-                      <span>User Profile</span>
-                    </Link>
-
-                    <Link
-                      to="/customer/my-bookings"
-                      className="dropdown-menu-item"
-                      onClick={() => setUserDropdownOpen(false)}
-                      style={{ textDecoration: "none" }}
-                    >
-                      <span className="dropdown-item-icon">📅</span>
-                      <span>My Bookings</span>
-                    </Link>
-
-                    <Link
-                      to="/customer/wallet"
-                      className="dropdown-menu-item"
-                      onClick={() => setUserDropdownOpen(false)}
-                      style={{ textDecoration: "none" }}
-                    >
-                      <span className="dropdown-item-icon">👛</span>
-                      <span>My Wallet</span>
-                    </Link>
-
-                    <Link
-                      to="/customer/saved-salons"
-                      className="dropdown-menu-item"
-                      onClick={() => setUserDropdownOpen(false)}
-                      style={{ textDecoration: "none" }}
-                    >
-                      <span className="dropdown-item-icon">❤️</span>
-                      <span>Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}</span>
-                    </Link>
-                  </div>
-
-                  <div className="dropdown-menu-divider" />
-
-                  <button
-                    type="button"
-                    className="dropdown-menu-item dropdown-logout-btn"
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      setShowLogoutModal(true);
-                    }}
-                  >
-                    <span className="dropdown-item-icon">🚪</span>
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              )}
             </div>
-
-            {/* Mobile menu toggle */}
-            <button
-              type="button"
-              className="explore-mobile-menu-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle navigation menu"
-              title={mobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              {mobileMenuOpen ? "✕" : "☰"}
-            </button>
           </div>
-        </div>
 
-        {/* Mobile slide-down navigation drawer */}
-        {mobileMenuOpen && (
-          <div className="explore-mobile-drawer">
+          {/* Mobile Floating Drawer */}
+          <div className={`dashboard-mobile-drawer ${mobileMenuOpen ? "open" : ""}`}>
             <Link
               to="/customer/home"
-              className="explore-mobile-link"
+              className="dashboard-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span>🏠</span> Home
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>Home</span>
             </Link>
+
             <Link
               to="/customer/salons"
-              className="explore-mobile-link"
+              className="dashboard-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span>🔍</span> Find Salons
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <span>Find Salons</span>
             </Link>
+
             <Link
               to="/customer/my-bookings"
-              className="explore-mobile-link"
+              className="dashboard-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span>📅</span> Bookings
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span>Bookings</span>
             </Link>
+
             <Link
               to="/customer/wallet"
-              className="explore-mobile-link"
+              className="dashboard-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span>👛</span> My Wallet
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M7 15h0M2 9.5h20" />
+              </svg>
+              <span>My Wallet</span>
             </Link>
+
             <Link
               to="/customer/saved-salons"
-              className="explore-mobile-link"
+              className="dashboard-mobile-link"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span>❤️</span> Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              <span>Saved Salons {favoritesCount > 0 ? `(${favoritesCount})` : ""}</span>
             </Link>
-            <button
-              type="button"
-              className="explore-mobile-link"
-              style={{ background: "none", border: "none", width: "100%", textAlign: "left", cursor: "pointer" }}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setShowProfileModal(true);
-              }}
+
+            <Link
+              to="/customer/profile"
+              className="dashboard-mobile-link mobile-profile-btn"
+              onClick={() => setMobileMenuOpen(false)}
             >
-              <span>👤</span> User Profile ({userName})
-            </button>
-            <div className="explore-mobile-divider" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span>User Profile ({userName})</span>
+            </Link>
+
+            <div className="dashboard-mobile-divider" />
+
             <button
               type="button"
-              className="explore-mobile-logout"
+              className="dashboard-mobile-logout"
               onClick={() => {
                 setMobileMenuOpen(false);
                 setShowLogoutModal(true);
               }}
             >
-              <span>🚪</span> Sign Out ({userName})
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Sign Out ({userName})</span>
             </button>
           </div>
-        )}
-      </header>
+        </header>
+      </div>
+
+      {/* Spacer so page content doesn't tuck behind fixed header */}
+      <div className="dashboard-header-spacer" aria-hidden="true" />
 
       {/* Floating toast notification */}
       {toastMessage && (
-        <div className="explore-toast-banner" role="alert">
+        <div className="dashboard-toast" role="alert">
           <span>🌿</span> {toastMessage}
         </div>
       )}
@@ -294,17 +375,29 @@ function CustomerHeader() {
       {/* User Profile Modal */}
       {showProfileModal && (
         <div
-          className="profile-modal-overlay"
+          className="dashboard-modal-overlay"
           onClick={() => setShowProfileModal(false)}
         >
           <div
-            className="profile-modal-box"
+            className="dashboard-modal-box"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
           >
-            <div className="profile-modal-header">
-              <div className="profile-modal-avatar">
+            <button
+              type="button"
+              className="dashboard-modal-close"
+              onClick={() => setShowProfileModal(false)}
+              aria-label="Close"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            <div className="dashboard-modal-header">
+              <div className="dashboard-modal-avatar">
                 {userAvatar ? (
                   <img
                     src={resolveImageUrl(userAvatar)}
@@ -315,56 +408,46 @@ function CustomerHeader() {
                   userInitial
                 )}
               </div>
-              <div className="profile-modal-titles">
+              <div className="dashboard-modal-titles">
                 <h3>{userFullName}</h3>
-                <span className="profile-membership-pill">🌿 Wellness Member</span>
-              </div>
-              <button
-                type="button"
-                className="profile-modal-close"
-                onClick={() => setShowProfileModal(false)}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="profile-modal-body">
-              <div className="profile-info-grid">
-                <div className="profile-info-row">
-                  <span className="profile-label">Full Name</span>
-                  <span className="profile-val">{userFullName}</span>
-                </div>
-                <div className="profile-info-row">
-                  <span className="profile-label">Email Address</span>
-                  <span className="profile-val">{userEmail}</span>
-                </div>
-                <div className="profile-info-row">
-                  <span className="profile-label">Account Role</span>
-                  <span className="profile-val">Customer / Member</span>
-                </div>
-                <div className="profile-info-row">
-                  <span className="profile-label">Phone Number</span>
-                  <span className="profile-val">{userPhone}</span>
-                </div>
-                <div className="profile-info-row">
-                  <span className="profile-label">Account Status</span>
-                  <span className="profile-val" style={{ color: "#2d6a4f", fontWeight: 700 }}>● Active</span>
-                </div>
+                <span className="dashboard-modal-pill">🌿 Wellness Member</span>
               </div>
             </div>
 
-            <div className="profile-modal-footer">
+            <div className="dashboard-info-grid">
+              <div className="dashboard-info-row">
+                <span className="dashboard-label">Full Name</span>
+                <span className="dashboard-val">{userFullName}</span>
+              </div>
+              <div className="dashboard-info-row">
+                <span className="dashboard-label">Email Address</span>
+                <span className="dashboard-val">{userEmail}</span>
+              </div>
+              <div className="dashboard-info-row">
+                <span className="dashboard-label">Account Role</span>
+                <span className="dashboard-val">Customer / Member</span>
+              </div>
+              <div className="dashboard-info-row">
+                <span className="dashboard-label">Phone Number</span>
+                <span className="dashboard-val">{userPhone}</span>
+              </div>
+              <div className="dashboard-info-row">
+                <span className="dashboard-label">Account Status</span>
+                <span className="dashboard-val dashboard-status-active">● Active</span>
+              </div>
+            </div>
+
+            <div className="dashboard-modal-footer">
               <button
                 type="button"
-                className="profile-btn-close"
+                className="dashboard-btn-close"
                 onClick={() => setShowProfileModal(false)}
               >
                 Close
               </button>
               <button
                 type="button"
-                className="profile-btn-logout"
+                className="dashboard-btn-logout"
                 onClick={() => {
                   setShowProfileModal(false);
                   setShowLogoutModal(true);
@@ -380,25 +463,28 @@ function CustomerHeader() {
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div
-          className="logout-modal-overlay"
+          className="dashboard-modal-overlay"
           onClick={() => setShowLogoutModal(false)}
         >
           <div
-            className="logout-modal-box"
+            className="dashboard-modal-box dashboard-logout-modal"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
           >
             <button
               type="button"
-              className="logout-modal-close"
+              className="dashboard-modal-close"
               onClick={() => setShowLogoutModal(false)}
               aria-label="Close"
             >
-              ✕
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
 
-            <div className="logout-modal-avatar">
+            <div className="dashboard-modal-avatar logout-avatar">
               {userAvatar ? (
                 <img
                   src={resolveImageUrl(userAvatar)}
@@ -410,26 +496,26 @@ function CustomerHeader() {
               )}
             </div>
 
-            <h3 className="logout-modal-title">Sign Out of BookMySalon</h3>
-            <div className="logout-modal-subtitle">
+            <h3 className="dashboard-modal-title">Sign Out of BookMySalon</h3>
+            <div className="dashboard-modal-subtitle">
               Wellness Member • {userName}
             </div>
 
-            <p className="logout-modal-message">
-              Are you sure you want to sign out? You can sign back in anytime with your email and password.
+            <p className="dashboard-modal-message">
+              Are you sure you want to sign out? You can sign back in anytime with your registered credentials.
             </p>
 
-            <div className="logout-modal-actions">
+            <div className="dashboard-modal-actions">
               <button
                 type="button"
-                className="logout-btn-cancel"
+                className="dashboard-btn-cancel"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="logout-btn-confirm"
+                className="dashboard-btn-confirm"
                 onClick={handleLogout}
               >
                 Sign Out

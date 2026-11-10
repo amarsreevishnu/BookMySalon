@@ -3,6 +3,7 @@ import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
 import NotificationBell from "../../components/common/NotificationBell";
+import SalonLoader from "../../components/common/Loader";
 import { useAuth } from "../../hooks/useAuth";
 import "../../styles/ownerSubscription.css";
 
@@ -31,6 +32,7 @@ export default function OwnerSubscription() {
 
   // Checkout state
   const [processingPlanId, setProcessingPlanId] = useState(null);
+  const [completingSubscription, setCompletingSubscription] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Success celebration modal
@@ -111,6 +113,7 @@ export default function OwnerSubscription() {
         description: `Subscription: ${plan.name} (${plan.duration_months} Months)`,
         order_id: orderData.order_id,
         handler: async (response) => {
+          setCompletingSubscription(true);
           try {
             // 4. Verify payment on backend
             const verifyRes = await api.post("/subscriptions/owner/verify-payment/", {
@@ -128,11 +131,11 @@ export default function OwnerSubscription() {
               endDate: verifyRes.data?.subscription?.end_date,
             });
 
-            fetchSubscription();
-            fetchHistory();
+            await Promise.all([fetchSubscription(), fetchHistory()]);
           } catch (verifyErr) {
             showToast(verifyErr.response?.data?.error || "Payment signature verification failed.", "error");
           } finally {
+            setCompletingSubscription(false);
             setProcessingPlanId(null);
           }
         },
@@ -178,7 +181,22 @@ export default function OwnerSubscription() {
       <OwnerNavbarHeader salonInfo={{ name: subscription?.salon_name || "Salon" }} />
       <OwnerNavbar activeTab="Subscription" />
 
-      <main className="owner-subs-main">
+      {/* Completing Subscription Loader Overlay */}
+      {completingSubscription && (
+        <SalonLoader
+          fullScreen
+          size={96}
+          variant="orbit"
+          label="Completing your subscription & activating privileges..."
+        />
+      )}
+
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "55vh", width: "100%" }}>
+          <SalonLoader size={84} label="Loading Subscription Details..." />
+        </div>
+      ) : (
+        <main className="owner-subs-main">
         {/* Header */}
         <div className="owner-subs-header">
           <h1>Subscription & Billing</h1>
@@ -385,6 +403,7 @@ export default function OwnerSubscription() {
           )}
         </div>
       </main>
+      )}
 
       {/* Celebration Success Modal */}
       {successModalData && (

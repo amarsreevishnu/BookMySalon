@@ -89,7 +89,7 @@ export default function OwnerNavbarHeader({
     if (onSettingsClick) {
       onSettingsClick();
     } else {
-      navigate("/owner/dashboard", { state: { targetTab: "Settings" } });
+      navigate("/owner/settings");
     }
   };
 
@@ -266,7 +266,7 @@ export default function OwnerNavbarHeader({
                         if (onSettingsClick) {
                           onSettingsClick();
                         } else {
-                          navigate("/owner/dashboard", { state: { targetTab: "Settings" } });
+                          navigate("/owner/settings");
                         }
                       }}
                     >
@@ -282,7 +282,7 @@ export default function OwnerNavbarHeader({
                       className="studio-dropdown-item"
                       onClick={() => {
                         setShowProfileDropdown(false);
-                        navigate("/owner/dashboard", { state: { targetTab: "Revenue" } });
+                        navigate("/owner/revenue");
                       }}
                     >
                       <span className="studio-dropdown-item-icon">💰</span>

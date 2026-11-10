@@ -312,3 +312,4 @@ class CustomerWalletPayBookingView(APIView):
             logger.error("Wallet payment failed for booking %s: %s", booking.id, e)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+

@@ -121,6 +121,18 @@ export default function SalonProfileManagement() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const fileInputRef = useRef(null);
+  const regCertInputRef = useRef(null);
+  const gstCertInputRef = useRef(null);
+  const ownerIdInputRef = useRef(null);
+  const ownerPhotoInputRef = useRef(null);
+
+  // Staged document files for upload & renewal
+  const [stagedDocs, setStagedDocs] = useState({
+    registration_certificate: null,
+    gst_certificate: null,
+    owner_id_proof: null,
+    owner_profile_photo: null,
+  });
 
   // Loading & State
   const [loading, setLoading] = useState(true);
@@ -185,6 +197,19 @@ export default function SalonProfileManagement() {
       "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=800&q=80",
     ],
     approval_status: "APPROVED",
+    registration_number: "",
+    registration_valid_from: "",
+    registration_valid_to: "",
+    gst_number: "",
+    owner_id_type: "Aadhaar Card",
+    owner_id_number: "",
+    registration_certificate: null,
+    gst_certificate: null,
+    owner_id_proof: null,
+    owner_profile_photo: null,
+    is_registration_expired: false,
+    is_registration_expiring_soon: false,
+    registration_days_left: null,
   });
 
   const showToast = (msg) => {
@@ -239,6 +264,19 @@ export default function SalonProfileManagement() {
             cover_image: s.cover_image || form.cover_image,
             images: Array.isArray(s.images) && s.images.length ? s.images : form.images,
             approval_status: s.approval_status || "APPROVED",
+            registration_number: s.registration_number || "",
+            registration_valid_from: s.registration_valid_from || "",
+            registration_valid_to: s.registration_valid_to || "",
+            gst_number: s.gst_number || "",
+            owner_id_type: s.owner_id_type || "Aadhaar Card",
+            owner_id_number: s.owner_id_number || "",
+            registration_certificate: s.registration_certificate || null,
+            gst_certificate: s.gst_certificate || null,
+            owner_id_proof: s.owner_id_proof || null,
+            owner_profile_photo: s.owner_profile_photo || null,
+            is_registration_expired: s.is_registration_expired || false,
+            is_registration_expiring_soon: s.is_registration_expiring_soon || false,
+            registration_days_left: s.registration_days_left ?? null,
           };
 
           setForm(loaded);
@@ -393,10 +431,56 @@ export default function SalonProfileManagement() {
     );
   };
 
+  const ALLOWED_DOC_EXTS = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
+  const MAX_DOC_BYTES = 10 * 1024 * 1024; // 10MB
+
+  const handleDocFileSelect = (docKey, file) => {
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isValidExt = ALLOWED_DOC_EXTS.some((ext) => lowerName.endsWith(ext));
+    if (!isValidExt) {
+      showToast(`Invalid file type for "${file.name}". Supported formats: PDF, JPG, JPEG, PNG.`);
+      return;
+    }
+
+    if (file.size > MAX_DOC_BYTES) {
+      showToast(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Max allowed size is 10MB.`);
+      return;
+    }
+
+    if (docKey === "owner_profile_photo" && !file.type.startsWith("image/")) {
+      showToast("Owner Profile Photo must be an image file (PNG, JPG, WebP).");
+      return;
+    }
+
+    setStagedDocs((prev) => ({
+      ...prev,
+      [docKey]: file,
+    }));
+    setIsDirty(true);
+    showToast(`✓ Selected new file: ${file.name}`);
+  };
+
+  const handleRemoveStagedDoc = (docKey) => {
+    setStagedDocs((prev) => ({
+      ...prev,
+      [docKey]: null,
+    }));
+    setIsDirty(true);
+    showToast("Removed staged document.");
+  };
+
   // Discard changes
   const handleDiscardChanges = () => {
     if (!serverData) return;
     setForm(JSON.parse(JSON.stringify(serverData)));
+    setStagedDocs({
+      registration_certificate: null,
+      gst_certificate: null,
+      owner_id_proof: null,
+      owner_profile_photo: null,
+    });
     setIsDirty(false);
     setShowDiscardModal(false);
     showToast("Reverted all unsaved modifications.");
@@ -404,6 +488,13 @@ export default function SalonProfileManagement() {
 
   // Save changes to backend
   const handleSaveChanges = async () => {
+    if (form.registration_valid_from && form.registration_valid_to) {
+      if (form.registration_valid_to < form.registration_valid_from) {
+        showToast("Registration Valid Till date must be on or after Valid From date.");
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const token = localStorage.getItem("access_token");
@@ -435,17 +526,64 @@ export default function SalonProfileManagement() {
         amenities: form.amenities,
         cover_image: form.cover_image,
         images: form.images,
+        registration_number: (form.registration_number || "").trim(),
+        registration_valid_from: form.registration_valid_from || null,
+        registration_valid_to: form.registration_valid_to || null,
+        gst_number: (form.gst_number || "").trim(),
+        owner_id_type: form.owner_id_type || "Aadhaar Card",
+        owner_id_number: (form.owner_id_number || "").trim(),
       };
 
-      const res = await api.patch("/salons/owner/profile/", payload, config);
+      let res;
+      const hasStagedFiles = Object.values(stagedDocs).some(Boolean);
+      if (hasStagedFiles) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v !== null && v !== undefined) {
+            if (typeof v === "object") {
+              formData.append(k, JSON.stringify(v));
+            } else {
+              formData.append(k, String(v));
+            }
+          }
+        });
+        if (stagedDocs.registration_certificate) {
+          formData.append("registration_certificate", stagedDocs.registration_certificate);
+        }
+        if (stagedDocs.gst_certificate) {
+          formData.append("gst_certificate", stagedDocs.gst_certificate);
+        }
+        if (stagedDocs.owner_id_proof) {
+          formData.append("owner_id_proof", stagedDocs.owner_id_proof);
+        }
+        if (stagedDocs.owner_profile_photo) {
+          formData.append("owner_profile_photo", stagedDocs.owner_profile_photo);
+        }
+
+        res = await api.patch("/salons/owner/profile/", formData, {
+          headers: {
+            ...(config.headers || {}),
+            "Content-Type": "multipart/form-data",
+          },
+        });
+      } else {
+        res = await api.patch("/salons/owner/profile/", payload, config);
+      }
+
       if (res.status === 200) {
         const updated = res.data.salon || res.data;
         setForm((prev) => ({ ...prev, ...updated }));
         setServerData(JSON.parse(JSON.stringify({ ...form, ...updated })));
+        setStagedDocs({
+          registration_certificate: null,
+          gst_certificate: null,
+          owner_id_proof: null,
+          owner_profile_photo: null,
+        });
         setIsDirty(false);
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         setLastSavedTime(`Saved at ${timeStr}`);
-        showToast("✓ Salon profile updated and published live!");
+        showToast("✓ Salon profile and documents updated successfully!");
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -497,6 +635,46 @@ export default function SalonProfileManagement() {
     return `Open Today: ${formatTimeLabel(todaySched.openTime)} - ${formatTimeLabel(todaySched.closeTime)}`;
   }, [form.opening_hours]);
 
+  const getRegistrationValidityInfo = (validFrom, validTo) => {
+    if (!validTo) return null;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const toDate = new Date(validTo);
+    toDate.setHours(0, 0, 0, 0);
+
+    const diffTime = toDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return {
+        status: "expired",
+        badge: "Registration Expired",
+        color: "#b91c1c",
+        bg: "#fef2f2",
+        border: "#fca5a5",
+        text: `Expired ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? "" : "s"} ago on ${validTo}. Please update your renewed registration certificate.`,
+      };
+    } else if (diffDays <= 30) {
+      return {
+        status: "expiring_soon",
+        badge: "Expiring Soon",
+        color: "#b45309",
+        bg: "#fffbeb",
+        border: "#fcd34d",
+        text: `Expires in ${diffDays} day${diffDays === 1 ? "" : "s"} on ${validTo}. Please upload your renewed license to prevent listing pause.`,
+      };
+    } else {
+      return {
+        status: "active",
+        badge: "Registration Active",
+        color: "#166534",
+        bg: "#f0fdf4",
+        border: "#bbf7d0",
+        text: `Active & Valid for ${diffDays} more days (till ${validTo}). Fully compliant.`,
+      };
+    }
+  };
+
   const scrollToSection = (id) => {
     setActiveSection(id);
     const el = document.getElementById(id);
@@ -533,10 +711,6 @@ export default function SalonProfileManagement() {
             </div>
 
             <div className="sp-title-actions">
-              
-
-              
-
               {isDirty && (
                 <button
                   type="button"
@@ -614,6 +788,13 @@ export default function SalonProfileManagement() {
             onClick={() => scrollToSection("sec-gallery")}
           >
             <span>🖼️</span> Visual Gallery
+          </button>
+          <button
+            type="button"
+            className={`sp-jump-pill ${activeSection === "sec-compliance" ? "active" : ""}`}
+            onClick={() => scrollToSection("sec-compliance")}
+          >
+            <span>📜</span> Registration & Documents
           </button>
         </div>
       </nav>
@@ -1308,6 +1489,511 @@ export default function SalonProfileManagement() {
               )}
             </div>
           </section>
+
+          {/* SECTION 8: REGISTRATION & COMPLIANCE */}
+          <section className="sp-card" id="sec-compliance">
+            <div className="sp-card-header">
+              <div className="sp-card-title-group">
+                <div className="sp-card-icon-badge">📜</div>
+                <div>
+                  <h2>Registration & Compliance</h2>
+                  <p>Salon registration validity dates, GSTIN details, and verified owner identification</p>
+                </div>
+              </div>
+              <span className="sp-header-pill info">
+                {form.registration_valid_to ? (
+                  getRegistrationValidityInfo(form.registration_valid_from, form.registration_valid_to)?.status === "expired" ? "Expired" : "Active"
+                ) : "Required"}
+              </span>
+            </div>
+
+            {/* Registration Validity Status Alert Banner */}
+            {form.registration_valid_to && (() => {
+              const valInfo = getRegistrationValidityInfo(form.registration_valid_from, form.registration_valid_to);
+              if (!valInfo) return null;
+              return (
+                <div
+                  style={{
+                    backgroundColor: valInfo.bg,
+                    border: `1.5px solid ${valInfo.border}`,
+                    borderRadius: "10px",
+                    padding: "14px 18px",
+                    marginBottom: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "20px" }}>
+                      {valInfo.status === "expired" ? "🚨" : valInfo.status === "expiring_soon" ? "⚠️" : "🟢"}
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: "700", color: valInfo.color, fontSize: "13.5px" }}>
+                        {valInfo.badge}
+                      </div>
+                      <div style={{ fontSize: "12.5px", color: "#374151", marginTop: "2px" }}>
+                        {valInfo.text}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById("sp-reg-valid-to");
+                      if (input) input.focus();
+                    }}
+                    style={{
+                      backgroundColor: valInfo.color,
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                    }}
+                  >
+                    + Update / Renew
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div className="sp-form-grid cols-2">
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-reg-number">
+                  Registration / Trade License Number
+                </label>
+                <input
+                  id="sp-reg-number"
+                  type="text"
+                  className="sp-input"
+                  placeholder="e.g. REG-KA-2024-8849"
+                  value={form.registration_number || ""}
+                  onChange={(e) => handleFieldChange("registration_number", e.target.value)}
+                />
+              </div>
+
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-gst-number">
+                  GSTIN (Tax Registration Number) <span style={{ fontWeight: 400, color: "#6b7280" }}>(Optional)</span>
+                </label>
+                <input
+                  id="sp-gst-number"
+                  type="text"
+                  className="sp-input"
+                  placeholder="e.g. 29ABCDE1234F1Z5"
+                  maxLength={15}
+                  value={form.gst_number || ""}
+                  onChange={(e) => handleFieldChange("gst_number", e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-reg-valid-from">
+                  Registration Valid From Date
+                </label>
+                <input
+                  id="sp-reg-valid-from"
+                  type="date"
+                  className="sp-input"
+                  value={form.registration_valid_from || ""}
+                  onChange={(e) => handleFieldChange("registration_valid_from", e.target.value)}
+                />
+              </div>
+
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-reg-valid-to">
+                  Registration Valid Till (Expiry Date) *
+                </label>
+                <input
+                  id="sp-reg-valid-to"
+                  type="date"
+                  className="sp-input"
+                  value={form.registration_valid_to || ""}
+                  onChange={(e) => handleFieldChange("registration_valid_to", e.target.value)}
+                />
+              </div>
+
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-owner-id-type">
+                  Owner Identity Proof Type
+                </label>
+                <select
+                  id="sp-owner-id-type"
+                  className="sp-select"
+                  value={form.owner_id_type || "Aadhaar Card"}
+                  onChange={(e) => handleFieldChange("owner_id_type", e.target.value)}
+                >
+                  <option value="Aadhaar Card">Aadhaar Card</option>
+                  <option value="PAN Card">PAN Card</option>
+                  <option value="Voter ID">Voter ID</option>
+                  <option value="Passport">Passport</option>
+                  <option value="Driving License">Driving License</option>
+                </select>
+              </div>
+
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-owner-id-number">
+                  Owner ID Number
+                </label>
+                <input
+                  id="sp-owner-id-number"
+                  type="text"
+                  className="sp-input"
+                  placeholder="e.g. XXXX-XXXX-1234 or ABCDE1234F"
+                  value={form.owner_id_number || ""}
+                  onChange={(e) => handleFieldChange("owner_id_number", e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Hidden File Inputs for Document Upload & Renewal */}
+            <input
+              type="file"
+              ref={regCertInputRef}
+              style={{ display: "none" }}
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect("registration_certificate", e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+            <input
+              type="file"
+              ref={gstCertInputRef}
+              style={{ display: "none" }}
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect("gst_certificate", e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+            <input
+              type="file"
+              ref={ownerIdInputRef}
+              style={{ display: "none" }}
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect("owner_id_proof", e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+            <input
+              type="file"
+              ref={ownerPhotoInputRef}
+              style={{ display: "none" }}
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleDocFileSelect("owner_profile_photo", e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+
+            {/* Document Verification & Renewal Table */}
+            <div className="sp-docs-table-wrapper">
+              <table className="sp-docs-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "24%" }}>Document Type</th>
+                    <th style={{ width: "22%" }}>Identification / Validity</th>
+                    <th style={{ width: "22%" }}>Current Document</th>
+                    <th style={{ width: "14%" }}>Status</th>
+                    <th style={{ width: "18%" }}>Action / Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Row 1: Registration Certificate */}
+                  <tr>
+                    <td>
+                      <div className="sp-doc-title-row">
+                        <span>📜 Registration Certificate</span>
+                        <span className="sp-doc-req-pill required">Required</span>
+                      </div>
+                      <div className="sp-doc-sub">Proof of business registration / trade license</div>
+                    </td>
+                    <td>
+                      <div>
+                        <strong style={{ fontSize: "11px", color: "#6b7280" }}>License No:</strong>{" "}
+                        <span className="sp-doc-meta-value">{form.registration_number || "Not specified"}</span>
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: "11.5px", color: "#4b5563" }}>
+                        <strong>Validity:</strong>{" "}
+                        {form.registration_valid_from || form.registration_valid_to ? (
+                          <span>
+                            {form.registration_valid_from || "Start"} → {form.registration_valid_to || "No expiry set"}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>Dates not set</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {form.registration_certificate ? (
+                        <a
+                          href={resolveImageUrl(form.registration_certificate)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="sp-doc-view-link"
+                          title="Open uploaded certificate"
+                        >
+                          📄 View Certificate ↗
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>⚠️ Missing document</span>
+                      )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const val = getRegistrationValidityInfo(form.registration_valid_from, form.registration_valid_to);
+                        if (!val) {
+                          return <span className="sp-doc-status-pill optional">● Pending Dates</span>;
+                        }
+                        if (val.status === "expired") {
+                          return <span className="sp-doc-status-pill expired">● Expired</span>;
+                        }
+                        if (val.status === "expiring_soon") {
+                          return <span className="sp-doc-status-pill expiring">⏳ Expiring Soon</span>;
+                        }
+                        return <span className="sp-doc-status-pill active">✓ Active</span>;
+                      })()}
+                    </td>
+                    <td>
+                      <div className="sp-doc-upload-box">
+                        {stagedDocs.registration_certificate ? (
+                          <div className="sp-doc-staged-chip">
+                            <span className="sp-doc-staged-name">✓ {stagedDocs.registration_certificate.name}</span>
+                            <button
+                              type="button"
+                              className="sp-doc-clear-btn"
+                              onClick={() => handleRemoveStagedDoc("registration_certificate")}
+                              title="Cancel upload"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="sp-doc-upload-btn"
+                          onClick={() => regCertInputRef.current?.click()}
+                        >
+                          <span>🔄</span> {form.registration_certificate ? "Upload Renewal" : "Upload File"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 2: GST Certificate */}
+                  <tr>
+                    <td>
+                      <div className="sp-doc-title-row">
+                        <span>📑 GST Certificate</span>
+                        <span className="sp-doc-req-pill optional">Optional</span>
+                      </div>
+                      <div className="sp-doc-sub">Tax registration &amp; verification document</div>
+                    </td>
+                    <td>
+                      <div>
+                        <strong style={{ fontSize: "11px", color: "#6b7280" }}>GSTIN:</strong>{" "}
+                        <span className="sp-doc-meta-value">{form.gst_number || "Optional / None"}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {form.gst_certificate ? (
+                        <a
+                          href={resolveImageUrl(form.gst_certificate)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="sp-doc-view-link"
+                          title="Open uploaded GST certificate"
+                        >
+                          📄 View GST Doc ↗
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>— Not uploaded</span>
+                      )}
+                    </td>
+                    <td>
+                      {form.gst_certificate ? (
+                        <span className="sp-doc-status-pill active">✓ Uploaded</span>
+                      ) : (
+                        <span className="sp-doc-status-pill optional">● Optional</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="sp-doc-upload-box">
+                        {stagedDocs.gst_certificate ? (
+                          <div className="sp-doc-staged-chip">
+                            <span className="sp-doc-staged-name">✓ {stagedDocs.gst_certificate.name}</span>
+                            <button
+                              type="button"
+                              className="sp-doc-clear-btn"
+                              onClick={() => handleRemoveStagedDoc("gst_certificate")}
+                              title="Cancel upload"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="sp-doc-upload-btn"
+                          onClick={() => gstCertInputRef.current?.click()}
+                        >
+                          <span>🔄</span> {form.gst_certificate ? "Replace File" : "Upload GST"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 3: Owner ID Proof */}
+                  <tr>
+                    <td>
+                      <div className="sp-doc-title-row">
+                        <span>🪪 Owner ID Proof</span>
+                        <span className="sp-doc-req-pill required">Required</span>
+                      </div>
+                      <div className="sp-doc-sub">Owner identification ({form.owner_id_type || "Government ID"})</div>
+                    </td>
+                    <td>
+                      <div>
+                        <strong style={{ fontSize: "11px", color: "#6b7280" }}>Type:</strong>{" "}
+                        <span style={{ fontSize: "12px", fontWeight: "600" }}>{form.owner_id_type || "Aadhaar Card"}</span>
+                      </div>
+                      <div style={{ marginTop: 2 }}>
+                        <strong style={{ fontSize: "11px", color: "#6b7280" }}>ID No:</strong>{" "}
+                        <span className="sp-doc-meta-value">{form.owner_id_number || "Not specified"}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {form.owner_id_proof ? (
+                        <a
+                          href={resolveImageUrl(form.owner_id_proof)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="sp-doc-view-link"
+                          title="Open uploaded Owner ID Proof"
+                        >
+                          👁 View ID Proof ↗
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>⚠️ Missing document</span>
+                      )}
+                    </td>
+                    <td>
+                      {form.owner_id_proof ? (
+                        <span className="sp-doc-status-pill active">✓ Verified</span>
+                      ) : (
+                        <span className="sp-doc-status-pill expired">⚠️ Required</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="sp-doc-upload-box">
+                        {stagedDocs.owner_id_proof ? (
+                          <div className="sp-doc-staged-chip">
+                            <span className="sp-doc-staged-name">✓ {stagedDocs.owner_id_proof.name}</span>
+                            <button
+                              type="button"
+                              className="sp-doc-clear-btn"
+                              onClick={() => handleRemoveStagedDoc("owner_id_proof")}
+                              title="Cancel upload"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="sp-doc-upload-btn"
+                          onClick={() => ownerIdInputRef.current?.click()}
+                        >
+                          <span>🔄</span> {form.owner_id_proof ? "Replace File" : "Upload ID"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 4: Owner Profile Photo */}
+                  <tr>
+                    <td>
+                      <div className="sp-doc-title-row">
+                        <span>👤 Owner Profile Photo</span>
+                        <span className="sp-doc-req-pill required">Required</span>
+                      </div>
+                      <div className="sp-doc-sub">Personal portrait for salon manager verification</div>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: "12px", color: "#4b5563" }}>
+                        Manager Visual ID &amp; Avatar
+                      </div>
+                    </td>
+                    <td>
+                      {form.owner_profile_photo ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <img
+                            src={resolveImageUrl(form.owner_profile_photo)}
+                            alt="Owner"
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              border: "1.5px solid #2d6a4f",
+                            }}
+                          />
+                          <a
+                            href={resolveImageUrl(form.owner_profile_photo)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="sp-doc-view-link"
+                          >
+                            👁 View ↗
+                          </a>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>⚠️ Missing photo</span>
+                      )}
+                    </td>
+                    <td>
+                      {form.owner_profile_photo ? (
+                        <span className="sp-doc-status-pill active">✓ Uploaded</span>
+                      ) : (
+                        <span className="sp-doc-status-pill expired">⚠️ Required</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="sp-doc-upload-box">
+                        {stagedDocs.owner_profile_photo ? (
+                          <div className="sp-doc-staged-chip">
+                            <span className="sp-doc-staged-name">✓ {stagedDocs.owner_profile_photo.name}</span>
+                            <button
+                              type="button"
+                              className="sp-doc-clear-btn"
+                              onClick={() => handleRemoveStagedDoc("owner_profile_photo")}
+                              title="Cancel upload"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="sp-doc-upload-btn"
+                          onClick={() => ownerPhotoInputRef.current?.click()}
+                        >
+                          <span>🔄</span> {form.owner_profile_photo ? "Replace Photo" : "Upload Photo"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
 
         {/* ==================================================================
@@ -1475,8 +2161,7 @@ export default function SalonProfileManagement() {
         </div>
       )}
 
-      {/* Sticky Salon Details Footer Label */}
-      <OwnerStickyFooter salonInfo={form} />
+      
     </div>
   );
 }

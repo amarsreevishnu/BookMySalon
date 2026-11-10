@@ -16,7 +16,7 @@ class HandleDataUploadLimitMiddleware:
         except RequestDataTooBig:
             return JsonResponse(
                 {
-                    "error": "The uploaded images or request payload is too large. Please select smaller photos (under 10MB each)."
+                    "error": "The total uploaded files or request payload is too large. Please select smaller photos or documents (under 10MB each), or restart the Django server."
                 },
                 status=413,
             )

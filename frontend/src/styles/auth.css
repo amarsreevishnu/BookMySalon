@@ -72,11 +72,11 @@
 }
 
 .auth-logo .explore-brand-icon {
-  width: 34px;
-  height: 34px;
-  background: var(--auth-primary);
+  width: 35px;
+  height: 35px;
+  
   color: #ffffff;
-  border-radius: 10px;
+  
   display: flex;
   align-items: center;
   justify-content: center;

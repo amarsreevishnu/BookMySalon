@@ -23,6 +23,8 @@ from .views import (
     AdminSalonsBookingsSummaryView,
     AdminBookingsListView,
     AdminBookingDetailView,
+    OwnerBookingEligibleWorkersView,
+    OwnerBookingReassignWorkerView,
 )
 
 urlpatterns = [
@@ -31,6 +33,10 @@ urlpatterns = [
     path('admin/salons-summary/', AdminSalonsBookingsSummaryView.as_view(), name='admin-salons-bookings-summary'),
     path('admin/bookings/', AdminBookingsListView.as_view(), name='admin-bookings-list'),
     path('admin/bookings/<int:pk>/', AdminBookingDetailView.as_view(), name='admin-booking-detail'),
+
+    # Owner Worker Reassignment Endpoints
+    path('<int:pk>/eligible-workers/', OwnerBookingEligibleWorkersView.as_view(), name='booking-eligible-workers'),
+    path('<int:pk>/reassign-worker/', OwnerBookingReassignWorkerView.as_view(), name='booking-reassign-worker'),
 
     path('salons/<int:salon_id>/off-days/', SalonOffDaysView.as_view(), name='booking-salon-off-days'),
     path('salons/<int:salon_id>/services/', SalonServicesView.as_view(), name='booking-salon-services'),

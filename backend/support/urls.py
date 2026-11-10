@@ -15,14 +15,14 @@ from .views import (
 )
 
 urlpatterns = [
-    # ── Salon Owner Support Endpoints ──
+    
     path("owner/tickets/", SalonOwnerTicketListCreateView.as_view(), name="owner-ticket-list-create"),
     path("owner/tickets/<int:pk>/", SalonOwnerTicketDetailView.as_view(), name="owner-ticket-detail"),
     path("owner/tickets/<int:pk>/reply/", SalonOwnerTicketReplyView.as_view(), name="owner-ticket-reply"),
     path("owner/tickets/<int:pk>/reopen/", SalonOwnerTicketReopenView.as_view(), name="owner-ticket-reopen"),
     path("owner/unread-count/", SalonOwnerSupportUnreadCountView.as_view(), name="owner-support-unread-count"),
 
-    # ── Super Admin Support Endpoints ──
+    
     path("admin/tickets/", AdminTicketListView.as_view(), name="admin-ticket-list"),
     path("admin/tickets/<int:pk>/", AdminTicketDetailView.as_view(), name="admin-ticket-detail"),
     path("admin/tickets/<int:pk>/reply/", AdminTicketReplyView.as_view(), name="admin-ticket-reply"),

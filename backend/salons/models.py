@@ -56,6 +56,62 @@ class Salon(models.Model):
     cover_image = models.TextField(blank=True, default="")
     images = models.JSONField(default=list, blank=True)
 
+    # Salon Registration Information & Document Upload
+    registration_certificate = models.TextField(
+        blank=True,
+        default="",
+        help_text="Salon Registration Certificate (Proof of business registration)",
+    )
+    registration_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Salon Registration / Trade License / MSME Number",
+    )
+    registration_valid_from = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Salon registration valid from date (start date)",
+    )
+    registration_valid_to = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Salon registration expiry / valid till date",
+    )
+    gst_certificate = models.TextField(
+        blank=True,
+        default="",
+        help_text="GST Certificate (Tax registration verification)",
+    )
+    gst_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="GSTIN / Tax identification number",
+    )
+    owner_id_proof = models.TextField(
+        blank=True,
+        default="",
+        help_text="Owner ID Proof (Aadhaar/PAN - Verify salon owner identity)",
+    )
+    owner_id_type = models.CharField(
+        max_length=50,
+        blank=True,
+        default="Aadhaar Card",
+        help_text="Owner identification document type (Aadhaar, PAN, Passport, etc.)",
+    )
+    owner_id_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Owner identification document number",
+    )
+    owner_profile_photo = models.TextField(
+        blank=True,
+        default="",
+        help_text="Owner Profile Photo (Owner identification)",
+    )
+
     approval_status = models.CharField(
         max_length=20,
         choices=ApprovalStatus.choices,
@@ -65,6 +121,29 @@ class Salon(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_registration_expired(self):
+        if not self.registration_valid_to:
+            return False
+        from django.utils import timezone
+        return self.registration_valid_to < timezone.now().date()
+
+    @property
+    def is_registration_expiring_soon(self):
+        if not self.registration_valid_to:
+            return False
+        from django.utils import timezone
+        from datetime import timedelta
+        today = timezone.now().date()
+        return today <= self.registration_valid_to <= today + timedelta(days=30)
+
+    @property
+    def registration_days_left(self):
+        if not self.registration_valid_to:
+            return None
+        from django.utils import timezone
+        return (self.registration_valid_to - timezone.now().date()).days
 
     def __str__(self):
         return self.name

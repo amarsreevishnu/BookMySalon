@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.paginator import Paginator, EmptyPage
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from rest_framework import status
@@ -655,8 +656,35 @@ class AdminOffersListView(APIView):
         else:
             qs = qs.order_by("-created_at")
 
-        serializer = OfferAdminSerializer(qs, many=True)
-        return Response(serializer.data)
+        try:
+            page_num = max(1, int(request.query_params.get("page", 1)))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        paginator = Paginator(qs, page_size)
+        total_count = paginator.count
+        total_pages = paginator.num_pages
+
+        try:
+            page_obj = paginator.page(page_num)
+        except EmptyPage:
+            page_obj = []
+
+        serializer = OfferAdminSerializer(page_obj, many=True)
+        return Response({
+            "offers": serializer.data,
+            "results": serializer.data,
+            "count": total_count,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page_num,
+            "page_size": page_size,
+        })
 
 
 class AdminOfferModerateView(APIView):

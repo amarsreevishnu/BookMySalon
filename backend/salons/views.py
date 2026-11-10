@@ -323,6 +323,9 @@ class SalonCreateView(generics.CreateAPIView):
             data["cover_image"] = request.FILES["cover_image"]
         if "images" in request.FILES:
             data["images"] = request.FILES.getlist("images")
+        for doc_key in ["registration_certificate", "gst_certificate", "owner_id_proof", "owner_profile_photo"]:
+            if doc_key in request.FILES:
+                data[doc_key] = request.FILES[doc_key]
 
         serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
@@ -350,6 +353,25 @@ class SalonCreateView(generics.CreateAPIView):
                 {"email": ["Official contact email is required."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Required documents validation
+        doc_errors = {}
+        validated = serializer.validated_data
+        if not validated.get("registration_certificate") and not data.get("registration_certificate"):
+            doc_errors["registration_certificate"] = [
+                "Salon Registration Certificate is required (PDF, JPG, JPEG, or PNG)."
+            ]
+        if not validated.get("owner_id_proof") and not data.get("owner_id_proof"):
+            doc_errors["owner_id_proof"] = [
+                "Owner ID Proof (Aadhaar/PAN) is required (PDF, JPG, JPEG, or PNG)."
+            ]
+        if not validated.get("owner_profile_photo") and not data.get("owner_profile_photo"):
+            doc_errors["owner_profile_photo"] = [
+                "Owner Profile Photo is required (PDF, JPG, JPEG, or PNG)."
+            ]
+
+        if doc_errors:
+            return Response(doc_errors, status=status.HTTP_400_BAD_REQUEST)
 
         owner = None
         if request.user.is_authenticated and getattr(request.user, "role", None) == "OWNER":
@@ -495,6 +517,26 @@ class SalonResubmitView(APIView):
             data["cover_image"] = request.FILES["cover_image"]
         if "images" in request.FILES:
             data["images"] = request.FILES.getlist("images")
+        for doc_key in ["registration_certificate", "gst_certificate", "owner_id_proof", "owner_profile_photo"]:
+            if doc_key in request.FILES:
+                data[doc_key] = request.FILES[doc_key]
+
+        # Validate required documents if not previously uploaded or provided
+        doc_errors = {}
+        if not data.get("registration_certificate") and not getattr(salon, "registration_certificate", None):
+            doc_errors["registration_certificate"] = [
+                "Salon Registration Certificate is required (PDF, JPG, JPEG, or PNG)."
+            ]
+        if not data.get("owner_id_proof") and not getattr(salon, "owner_id_proof", None):
+            doc_errors["owner_id_proof"] = [
+                "Owner ID Proof (Aadhaar/PAN) is required (PDF, JPG, JPEG, or PNG)."
+            ]
+        if not data.get("owner_profile_photo") and not getattr(salon, "owner_profile_photo", None):
+            doc_errors["owner_profile_photo"] = [
+                "Owner Profile Photo is required (PDF, JPG, JPEG, or PNG)."
+            ]
+        if doc_errors:
+            return Response(doc_errors, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = SalonSerializer(
             salon,
@@ -580,7 +622,23 @@ class AdminSalonListView(generics.ListAPIView):
                 | Q(email__icontains=search)
                 | Q(phone__icontains=search)
                 | Q(category__icontains=search)
+                | Q(registration_number__icontains=search)
+                | Q(gst_number__icontains=search)
+                | Q(owner_id_number__icontains=search)
             )
+
+        reg_status = self.request.query_params.get("registration_status")
+        if reg_status:
+            today = timezone.now().date()
+            if reg_status.lower() == "expired":
+                queryset = queryset.filter(registration_valid_to__lt=today)
+            elif reg_status.lower() == "expiring_soon":
+                queryset = queryset.filter(
+                    registration_valid_to__gte=today,
+                    registration_valid_to__lte=today + timedelta(days=30),
+                )
+            elif reg_status.lower() == "active":
+                queryset = queryset.filter(registration_valid_to__gt=today + timedelta(days=30))
 
         if ordering:
             allowed_orderings = ["-created_at", "created_at", "name", "-name", "city", "-city"]
@@ -630,6 +688,7 @@ class SalonApprovalView(generics.UpdateAPIView):
         owner_created = False
         email_sent = False
 
+        block_result = {}
         if approval_status == Salon.ApprovalStatus.APPROVED:
             # Handle owner account creation if not yet linked
             if not salon.owner and salon.email:
@@ -697,6 +756,20 @@ class SalonApprovalView(generics.UpdateAPIView):
                 salon.admin_notes = admin_notes
             salon.save()
 
+            try:
+                from .services import handle_salon_blocked
+                block_result = handle_salon_blocked(
+                    salon=salon,
+                    admin_user=request.user,
+                    admin_notes=admin_notes,
+                )
+                email_sent = block_result.get("email_sent", False)
+            except Exception as block_err:
+                logger.error(
+                    f"Failed to execute automated salon blocking routines for salon {getattr(salon, 'id', None)}: {block_err}",
+                    exc_info=True,
+                )
+
         elif approval_status == Salon.ApprovalStatus.PENDING:
             salon.approval_status = Salon.ApprovalStatus.PENDING
             if admin_notes:
@@ -704,16 +777,22 @@ class SalonApprovalView(generics.UpdateAPIView):
             salon.save()
 
         serializer = self.get_serializer(salon)
-        return Response(
-            {
-                "message": (
-                    f"Salon {salon.name} status updated to {approval_status.lower()} successfully."
-                ),
-                "salon": serializer.data,
-                "email_sent": email_sent,
-                "temp_password": temp_password or "Send through Email",
-            }
-        )
+        resp_data = {
+            "message": (
+                f"Salon {salon.name} status updated to {approval_status.lower()} successfully."
+            ),
+            "salon": serializer.data,
+            "email_sent": email_sent,
+            "temp_password": temp_password or "Send through Email",
+        }
+        if approval_status == Salon.ApprovalStatus.BLOCKED and block_result:
+            resp_data.update({
+                "cancelled_bookings_count": block_result.get("cancelled_bookings_count", 0),
+                "refunded_bookings_count": block_result.get("refunded_bookings_count", 0),
+                "total_refunded_amount": str(block_result.get("total_refunded_amount", "0.00")),
+                "in_progress_bookings_count": block_result.get("in_progress_bookings_count", 0),
+            })
+        return Response(resp_data)
 
 
 class PendingSalonListView(generics.ListAPIView):
@@ -935,7 +1014,14 @@ class OwnerDashboardView(APIView):
                     "action_label": action_label,
                     "payment_method": b.payment_method,
                     "payment_status": b.payment_status,
+                    "total_amount": float(b.total_amount if b.total_amount is not None else b.service_price),
+                    "advance_amount": float(b.advance_amount or 0.0),
+                    "remaining_amount": float(b.remaining_amount or 0.0),
+                    "is_advance_paid": bool(b.is_advance_paid),
+                    "is_fully_paid": bool(b.is_fully_paid),
                     "notes": b.notes,
+                    "worker_remarks": b.worker_remarks or "",
+                    "service_started_at": b.service_started_at.isoformat() if b.service_started_at else None,
                 })
 
             for b in salon_bookings:
@@ -997,7 +1083,14 @@ class OwnerDashboardView(APIView):
                     "status_display": b.get_status_display(),
                     "payment_method": b.payment_method,
                     "payment_status": b.payment_status,
+                    "total_amount": float(b.total_amount if b.total_amount is not None else b.service_price),
+                    "advance_amount": float(b.advance_amount or 0.0),
+                    "remaining_amount": float(b.remaining_amount or 0.0),
+                    "is_advance_paid": bool(b.is_advance_paid),
+                    "is_fully_paid": bool(b.is_fully_paid),
                     "notes": b.notes,
+                    "worker_remarks": b.worker_remarks or "",
+                    "service_started_at": b.service_started_at.isoformat() if b.service_started_at else None,
                     "created_at": b.created_at.isoformat() if b.created_at else None,
                 })
 
@@ -1203,6 +1296,19 @@ class OwnerDashboardView(APIView):
                 "outlet_code": outlet_code,
                 "is_open": True,
                 "approval_status": salon.approval_status if salon else "APPROVED",
+                "registration_number": salon.registration_number if salon else "",
+                "registration_valid_from": str(salon.registration_valid_from) if salon and salon.registration_valid_from else None,
+                "registration_valid_to": str(salon.registration_valid_to) if salon and salon.registration_valid_to else None,
+                "is_registration_expired": salon.is_registration_expired if salon else False,
+                "is_registration_expiring_soon": salon.is_registration_expiring_soon if salon else False,
+                "registration_days_left": salon.registration_days_left if salon else None,
+                "gst_number": salon.gst_number if salon else "",
+                "owner_id_type": salon.owner_id_type if salon else "",
+                "owner_id_number": salon.owner_id_number if salon else "",
+                "owner_profile_photo": build_full_media_url(request, salon.owner_profile_photo) if salon and salon.owner_profile_photo else "",
+                "registration_certificate": build_full_media_url(request, salon.registration_certificate) if salon and salon.registration_certificate else "",
+                "gst_certificate": build_full_media_url(request, salon.gst_certificate) if salon and salon.gst_certificate else "",
+                "owner_id_proof": build_full_media_url(request, salon.owner_id_proof) if salon and salon.owner_id_proof else "",
             },
             "kpi_stats": {
                 "bookings": {"value": total_bookings_count, "trend": f"{today_bookings_count} today", "trend_type": "positive"},
@@ -1242,21 +1348,50 @@ class OwnerBookingsView(APIView):
         if not salon:
             return Response({"error": "No salon found for this owner."}, status=status.HTTP_404_NOT_FOUND)
 
-        bookings_qs = (
+        base_qs = (
             Booking.objects
             .filter(salon=salon)
             .select_related("worker", "worker__user", "service", "customer")
-            .order_by("-booking_date", "-start_time", "-booking_time")
+            .order_by("-booking_date", "-start_time", "-booking_time", "-id")
         )
 
+        # Salon-wide counts for summary cards
+        stats = {
+            "total": base_qs.count(),
+            "pending": base_qs.filter(status=Booking.Status.PENDING).count(),
+            "confirmed": base_qs.filter(status=Booking.Status.CONFIRMED).count(),
+            "in_progress": base_qs.filter(status=Booking.Status.IN_PROGRESS).count(),
+            "completed": base_qs.filter(status=Booking.Status.COMPLETED).count(),
+            "cancelled": base_qs.filter(status=Booking.Status.CANCELLED).count(),
+            "no_show": base_qs.filter(status=Booking.Status.NO_SHOW).count(),
+        }
+
+        bookings_qs = base_qs
+
+        # Filter by worker
         worker_id = request.query_params.get("worker_id")
         if worker_id and worker_id != "all":
             bookings_qs = bookings_qs.filter(worker_id=worker_id)
 
+        # Filter by status
         booking_status = request.query_params.get("status")
         if booking_status and booking_status != "all":
             bookings_qs = bookings_qs.filter(status=booking_status.upper())
 
+        # Filter by payment method
+        payment_method = request.query_params.get("payment_method")
+        if payment_method and payment_method != "all":
+            pm = payment_method.upper()
+            if pm == "PAY_AT_SALON":
+                bookings_qs = bookings_qs.filter(payment_method__in=["PAY_AT_SALON", "CASH"])
+            elif pm == "WALLET":
+                bookings_qs = bookings_qs.filter(payment_method="WALLET")
+            elif pm in ["ONLINE", "RAZORPAY"]:
+                bookings_qs = bookings_qs.filter(payment_method__in=["ONLINE", "RAZORPAY"])
+            else:
+                bookings_qs = bookings_qs.filter(payment_method=pm)
+
+        # Filter by date
         date_filter = request.query_params.get("date")
         if date_filter and date_filter != "all":
             today = timezone.localdate()
@@ -1277,22 +1412,70 @@ class OwnerBookingsView(APIView):
                 except Exception:
                     pass
 
+        # Filter by search query
         search_q = request.query_params.get("search", "").strip()
         if search_q:
+            clean_search = search_q.upper().replace("BK-", "").replace("BK", "").strip()
+            id_filter = Q(id=int(clean_search)) if clean_search.isdigit() else Q()
             bookings_qs = bookings_qs.filter(
-                Q(client_name__icontains=search_q)
+                id_filter
+                | Q(client_name__icontains=search_q)
                 | Q(client_phone__icontains=search_q)
                 | Q(client_email__icontains=search_q)
                 | Q(service_name__icontains=search_q)
+                | Q(station__icontains=search_q)
                 | Q(worker__user__first_name__icontains=search_q)
                 | Q(worker__user__last_name__icontains=search_q)
             )
 
-        serializer = BookingSerializer(bookings_qs, many=True)
+        filtered_count = bookings_qs.count()
+
+        # Backend Pagination
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        try:
+            page_num = int(request.query_params.get("page", 1))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = int(request.query_params.get("page_size", 10))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        page_size = min(max(page_size, 1), 100)
+        paginator = Paginator(bookings_qs, page_size)
+
+        try:
+            page_obj = paginator.page(page_num)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+            page_num = 1
+        except EmptyPage:
+            if paginator.num_pages > 0:
+                page_obj = paginator.page(paginator.num_pages)
+                page_num = paginator.num_pages
+            else:
+                page_obj = []
+                page_num = 1
+
+        serializer = BookingSerializer(page_obj, many=True, context={"request": request})
+
         return Response({
-            "count": bookings_qs.count(),
+            "count": filtered_count,
+            "total_count": filtered_count,
+            "total_pages": max(1, paginator.num_pages) if filtered_count > 0 else 1,
+            "current_page": page_num,
+            "page_size": page_size,
+            "stats": stats,
+            "counts": stats,
             "bookings": serializer.data,
-        })
+            "results": serializer.data,
+            "salon_info": {
+                "id": salon.id,
+                "name": salon.name,
+                "city": salon.city,
+            },
+        }, status=status.HTTP_200_OK)
 
 
 class OwnerSalonProfileView(APIView):
@@ -1328,10 +1511,39 @@ class OwnerSalonProfileView(APIView):
                 )
 
             data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+
+            # Parse JSON strings if passed via multipart/form-data
+            import json
+            for json_field in ["highlights", "amenities", "opening_hours", "images"]:
+                if json_field in data and isinstance(data[json_field], str):
+                    try:
+                        data[json_field] = json.loads(data[json_field])
+                    except (ValueError, TypeError):
+                        pass
+
             if "cover_image" in request.FILES:
                 data["cover_image"] = request.FILES["cover_image"]
             if "images" in request.FILES:
                 data["images"] = request.FILES.getlist("images")
+
+            # Validate uploaded compliance files
+            ALLOWED_DOC_EXTS = (".pdf", ".jpg", ".jpeg", ".png", ".webp")
+            MAX_DOC_SIZE = 10 * 1024 * 1024  # 10MB
+            for doc_key in ["registration_certificate", "gst_certificate", "owner_id_proof", "owner_profile_photo"]:
+                if doc_key in request.FILES:
+                    file_obj = request.FILES[doc_key]
+                    fname = file_obj.name.lower()
+                    if not any(fname.endswith(ext) for ext in ALLOWED_DOC_EXTS):
+                        return Response(
+                            {doc_key: ["Unsupported file format. Please upload PDF, JPG, JPEG, or PNG."]},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if file_obj.size > MAX_DOC_SIZE:
+                        return Response(
+                            {doc_key: ["File is too large. Maximum allowed file size is 10MB."]},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    data[doc_key] = file_obj
 
             serializer = SalonSerializer(salon, data=data, partial=True, context={"request": request})
             if not serializer.is_valid():
@@ -1596,6 +1808,12 @@ class OwnerWorkerDetailView(APIView):
             worker.shift_hours = data["shift_hours"]
         if "commission_tier" in data:
             worker.commission_tier = data["commission_tier"].strip()
+        if "commission_rate" in data:
+            try:
+                from decimal import Decimal
+                worker.commission_rate = Decimal(str(data["commission_rate"]))
+            except Exception:
+                pass
         if "is_active" in data:
             worker.is_active = bool(data["is_active"])
             worker.user.is_active = worker.is_active
@@ -1793,6 +2011,19 @@ class WorkerBookingStatusUpdateView(APIView):
                         update_fields.append("station")
                     update_fields.append("worker")
 
+                new_worker_id = request.data.get("worker_id")
+                if new_worker_id and (is_owner or is_admin):
+                    candidate_worker = WorkerProfile.objects.filter(pk=int(new_worker_id), salon=booking.salon, is_active=True).first()
+                    if candidate_worker and booking.worker != candidate_worker:
+                        from bookings.services import reassign_booking_worker
+                        reassign_booking_worker(
+                            booking=booking,
+                            new_worker=candidate_worker,
+                            changed_by_user=request.user,
+                            reason=request.data.get("reason", ""),
+                        )
+                        booking.refresh_from_db()
+
                 booking.save(update_fields=update_fields)
 
                 # Financial ledger sync
@@ -1804,9 +2035,14 @@ class WorkerBookingStatusUpdateView(APIView):
                     )
                 elif new_status == Booking.Status.CANCELLED and old_status != Booking.Status.CANCELLED:
                     from payments.services import process_booking_cancellation_and_refund
+                    cancel_reason = (
+                        request.data.get("reason")
+                        or request.data.get("cancellation_reason")
+                        or "Booking cancelled by salon owner"
+                    )
                     process_booking_cancellation_and_refund(
                         booking=booking,
-                        reason="Booking cancelled by staff",
+                        reason=cancel_reason,
                         processed_by=request.user,
                     )
         except Exception as fin_err:
@@ -2323,11 +2559,37 @@ class CustomerSalonExploreView(APIView):
             else:
                 gender_cat = "unisex"
 
+            # Compute latest real review snippet if present
+            latest_rev = SalonReview.objects.filter(salon=s, is_hidden=False).select_related("customer").order_by("-created_at").first()
+            latest_review_data = None
+            if latest_rev:
+                cust_name = latest_rev.customer.get_full_name() or latest_rev.customer.first_name or "Verified Client"
+                latest_review_data = {
+                    "rating": latest_rev.rating,
+                    "comment": (latest_rev.comment[:95] + "...") if len(latest_rev.comment) > 95 else latest_rev.comment,
+                    "customer_name": cust_name.strip(),
+                    "date": latest_rev.created_at.strftime("%b %Y") if latest_rev.created_at else "",
+                }
+
+            # Dynamic badge based on actual verified reviews & rating
+            if salon_rating and salon_rating >= 4.5 and review_count >= 1:
+                salon_badge = "★ Top Rated"
+                salon_badge_type = "top-rated"
+            elif review_count == 0:
+                salon_badge = "● Verified Partner"
+                salon_badge_type = "partner"
+            else:
+                salon_badge = "● Verified Partner"
+                salon_badge_type = "partner"
+
             registered_salons.append({
                 "id": s.id,
                 "name": s.name,
-                "badge": "● Verified Partner",
-                "badge_type": "partner",
+                "tagline": s.tagline or "",
+                "established_year": s.established_year or "",
+                "landmark": s.landmark or "",
+                "badge": salon_badge,
+                "badge_type": salon_badge_type,
                 "distance_km": 1.5,
                 "address_line": s.address or s.city,
                 "city": (
@@ -2343,7 +2605,10 @@ class CustomerSalonExploreView(APIView):
                 "instant_slot_text": "Instant slot available today • Verified Partner",
                 
                 "price_tier": salon_price_tier,
+                "starting_price": int(min(numeric_prices)) if numeric_prices else None,
+                "total_services_count": len(services),
                 "services": services,
+                "latest_review": latest_review_data,
                 
                 "purity_note": s.description or "Certified clean & botanical hygiene standards",
                 "image": build_full_media_url(

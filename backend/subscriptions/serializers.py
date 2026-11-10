@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 from .models import (
     SubscriptionPlan,
@@ -11,6 +12,10 @@ from .models import (
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    duration_key = serializers.CharField(required=False, allow_blank=True)
+    active_salons_count = serializers.SerializerMethodField()
+    total_salons_count = serializers.SerializerMethodField()
+
     class Meta:
         model = SubscriptionPlan
         fields = [
@@ -25,9 +30,46 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "features",
             "is_active",
             "display_order",
+            "active_salons_count",
+            "total_salons_count",
             "created_at",
             "updated_at",
         ]
+
+    def get_active_salons_count(self, obj):
+        now = timezone.now()
+        return obj.subscriptions.filter(
+            status=SalonSubscription.Status.ACTIVE,
+            end_date__gte=now,
+        ).count()
+
+    def get_total_salons_count(self, obj):
+        return obj.subscriptions.count()
+
+    def validate_name(self, value):
+        val = value.strip()
+        if not val:
+            raise serializers.ValidationError("Plan name is required.")
+        return val
+
+    def validate_duration_months(self, value):
+        if value < 1:
+            raise serializers.ValidationError("Duration must be at least 1 month.")
+        return value
+
+    def validate_price(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+    def validate_features(self, value):
+        if isinstance(value, str):
+            # Parse lines if string was sent
+            lines = [line.strip() for line in value.split("\n") if line.strip()]
+            return lines
+        elif isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
 
 
 class SubscriptionSettingSerializer(serializers.ModelSerializer):
@@ -168,4 +210,5 @@ class SuperAdminWalletTransactionSerializer(serializers.ModelSerializer):
             "reason",
             "created_at",
         ]
+
 

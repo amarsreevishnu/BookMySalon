@@ -257,3 +257,194 @@ class LoginBlockedUserTestCase(APITestCase):
         self.assertIn("Invalid email or password", error_str)
 
 
+class CustomerBlockedWorkflowTests(APITestCase):
+    def setUp(self):
+        from decimal import Decimal
+        from salons.models import Salon
+        from bookings.models import Booking
+        from wallet.models import CustomerWallet
+        from payments.models import OwnerWallet
+
+        self.admin = User.objects.create_superuser(
+            email="superadmin_wf@bookmysalon.com",
+            password="AdminPassword123!",
+            first_name="Super",
+            last_name="Admin",
+            role=User.Role.ADMIN,
+        )
+        self.owner_user = User.objects.create_user(
+            email="salonowner_block@example.com",
+            password="OwnerPassword123!",
+            first_name="Salon",
+            last_name="Owner",
+            role=User.Role.OWNER,
+        )
+        self.salon = Salon.objects.create(
+            owner=self.owner_user,
+            name="Glamour Studio",
+            email="glamour@example.com",
+            phone="9876543210",
+            approval_status=Salon.ApprovalStatus.APPROVED,
+        )
+        self.owner_wallet, _ = OwnerWallet.objects.get_or_create(
+            salon=self.salon,
+            defaults={"owner": self.owner_user, "balance": Decimal("5000.00")},
+        )
+        self.customer = User.objects.create_user(
+            email="activecustomer_wf@example.com",
+            password="CustomerPassword123!",
+            first_name="Alice",
+            last_name="Wonder",
+            role=User.Role.CUSTOMER,
+        )
+        self.customer_wallet, _ = CustomerWallet.objects.get_or_create(
+            user=self.customer,
+            defaults={"balance": Decimal("0.00")},
+        )
+
+        today = timezone.localdate()
+        tomorrow = today + timedelta(days=1)
+        next_week = today + timedelta(days=7)
+
+        # 1. Upcoming Confirmed Online Booking (Paid ₹900)
+        self.booking_online = Booking.objects.create(
+            customer=self.customer,
+            salon=self.salon,
+            service_name="Hair Styling",
+            service_price=Decimal("900.00"),
+            total_amount=Decimal("900.00"),
+            booking_date=tomorrow,
+            booking_time="10:00",
+            payment_method=Booking.PaymentMethod.ONLINE,
+            payment_status=Booking.PaymentStatus.PAID,
+            status=Booking.Status.CONFIRMED,
+            is_fully_paid=True,
+        )
+
+        # 2. Upcoming Pending Pay-at-salon Booking (Unpaid ₹500)
+        self.booking_pas = Booking.objects.create(
+            customer=self.customer,
+            salon=self.salon,
+            service_name="Beard Grooming",
+            service_price=Decimal("500.00"),
+            total_amount=Decimal("500.00"),
+            booking_date=next_week,
+            booking_time="14:00",
+            payment_method=Booking.PaymentMethod.PAY_AT_SALON,
+            payment_status=Booking.PaymentStatus.PENDING,
+            status=Booking.Status.PENDING,
+            is_fully_paid=False,
+        )
+
+        # 3. Ongoing In-Progress Booking (Should NOT be cancelled)
+        self.booking_in_progress = Booking.objects.create(
+            customer=self.customer,
+            salon=self.salon,
+            service_name="Facial Treatment",
+            service_price=Decimal("1200.00"),
+            total_amount=Decimal("1200.00"),
+            booking_date=today,
+            booking_time="09:00",
+            payment_method=Booking.PaymentMethod.ONLINE,
+            payment_status=Booking.PaymentStatus.PAID,
+            status=Booking.Status.IN_PROGRESS,
+            is_fully_paid=True,
+        )
+
+        # 4. Past Completed Booking (Should NOT be cancelled)
+        self.booking_completed = Booking.objects.create(
+            customer=self.customer,
+            salon=self.salon,
+            service_name="Pedicure",
+            service_price=Decimal("700.00"),
+            total_amount=Decimal("700.00"),
+            booking_date=today - timedelta(days=3),
+            booking_time="11:00",
+            payment_method=Booking.PaymentMethod.ONLINE,
+            payment_status=Booking.PaymentStatus.PAID,
+            status=Booking.Status.COMPLETED,
+            is_fully_paid=True,
+        )
+
+    def test_get_customer_blocking_summary(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get(f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("summary", res.data)
+        summary = res.data["summary"]
+        self.assertEqual(summary["upcoming_count"], 2)
+        self.assertEqual(summary["in_progress_count"], 1)
+        self.assertEqual(summary["completed_count"], 1)
+        self.assertEqual(summary["estimated_refund_amount"], "900.00")
+
+    def test_block_customer_cancels_upcoming_and_refunds_wallet(self):
+        from decimal import Decimal
+        from bookings.models import Booking, BookingHistory
+
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/",
+            {"admin_notes": "Policy violation"},
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["cancelled_bookings_count"], 2)
+        self.assertEqual(res.data["refunded_bookings_count"], 1)
+        self.assertEqual(res.data["total_refunded_amount"], "900.00")
+
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+
+        # Check online booking was cancelled and refunded
+        self.booking_online.refresh_from_db()
+        self.assertEqual(self.booking_online.status, Booking.Status.CANCELLED)
+        self.assertEqual(self.booking_online.payment_status, Booking.PaymentStatus.REFUNDED)
+
+        # Check pay at salon booking was cancelled without refund
+        self.booking_pas.refresh_from_db()
+        self.assertEqual(self.booking_pas.status, Booking.Status.CANCELLED)
+
+        # Check in-progress booking was NOT cancelled
+        self.booking_in_progress.refresh_from_db()
+        self.assertEqual(self.booking_in_progress.status, Booking.Status.IN_PROGRESS)
+
+        # Check completed booking was NOT cancelled
+        self.booking_completed.refresh_from_db()
+        self.assertEqual(self.booking_completed.status, Booking.Status.COMPLETED)
+
+        # Check customer wallet was credited 100% refund
+        self.customer_wallet.refresh_from_db()
+        self.assertEqual(self.customer_wallet.balance, Decimal("900.00"))
+
+        # Check BookingHistory was recorded with USER_BLOCKED_BY_ADMIN
+        histories = BookingHistory.objects.filter(
+            booking=self.booking_online,
+            action=BookingHistory.Action.CANCELLED,
+        )
+        self.assertTrue(histories.exists())
+        self.assertEqual(histories.first().reason, "USER_BLOCKED_BY_ADMIN")
+
+        # Verify blocked customer cannot log in
+        login_res = self.client.post(
+            "/api/v1/accounts/login/",
+            {"email": "activecustomer_wf@example.com", "password": "CustomerPassword123!"},
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("code", login_res.data)
+        code_val = login_res.data["code"][0] if isinstance(login_res.data["code"], list) else login_res.data["code"]
+        self.assertEqual(str(code_val), "USER_BLOCKED")
+
+    def test_unblock_customer_restores_active_status(self):
+        self.client.force_authenticate(user=self.admin)
+        # 1. Block
+        self.client.post(f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/")
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+
+        # 2. Unblock
+        res = self.client.post(f"/api/v1/accounts/admin/users/{self.customer.id}/toggle-block/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertTrue(self.customer.is_active)
+
+
+

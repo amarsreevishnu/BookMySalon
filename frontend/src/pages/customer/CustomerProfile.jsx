@@ -6,6 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { selectUserAvatar } from "../../features/auth/authSlice";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/customerProfile.css";
@@ -367,6 +368,27 @@ export default function CustomerProfile() {
 
   const userAvatarUrl = profileData?.avatar || reduxAvatar || user?.avatar || "";
   
+  if (loading) {
+    return (
+      <div className="customer-profile-page">
+        <CustomerHeader />
+        <div
+          style={{
+            minHeight: "65vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "60px 20px",
+          }}
+        >
+          <SalonLoader size={84} label="Loading Profile..." />
+        </div>
+        <CustomerFooter />
+      </div>
+    );
+  }
+
   return (
     <div className="customer-profile-page">
       <CustomerHeader />

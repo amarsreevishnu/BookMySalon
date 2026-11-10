@@ -244,7 +244,7 @@ export default function AdminReviewsManagement() {
   return (
     <div className="arm-layout">
       {/* Sidebar */}
-      <AdminSidebar />
+      <AdminSidebar  />
 
       {/* Main Content Area */}
       <main className="arm-main" aria-label="Reviews and Ratings Management Desk">

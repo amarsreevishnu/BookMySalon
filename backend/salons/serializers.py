@@ -6,8 +6,8 @@ from rest_framework import serializers
 from datetime import timedelta
 from django.utils import timezone
 from .models import Salon, WorkerProfile, SalonOffDay, WorkerLeave, SalonEmailOTP
-from bookings.models import Booking
-from .media_utils import save_image_to_media, build_full_media_url
+from bookings.models import Booking, BookingHistory
+from .media_utils import save_image_to_media, save_document_to_media, build_full_media_url
 
 User = get_user_model()
 
@@ -19,6 +19,9 @@ class SalonSerializer(serializers.ModelSerializer):
     reviews_count = serializers.SerializerMethodField()
     subscription_status = serializers.SerializerMethodField()
     is_subscription_active = serializers.SerializerMethodField()
+    is_registration_expired = serializers.ReadOnlyField()
+    is_registration_expiring_soon = serializers.ReadOnlyField()
+    registration_days_left = serializers.ReadOnlyField()
     class Meta:
         model = Salon
         fields = [
@@ -51,6 +54,19 @@ class SalonSerializer(serializers.ModelSerializer):
             "services",
             "cover_image",
             "images",
+            "registration_certificate",
+            "registration_number",
+            "registration_valid_from",
+            "registration_valid_to",
+            "is_registration_expired",
+            "is_registration_expiring_soon",
+            "registration_days_left",
+            "gst_certificate",
+            "gst_number",
+            "owner_id_proof",
+            "owner_id_type",
+            "owner_id_number",
+            "owner_profile_photo",
             "approval_status",
             "admin_notes",
             "rating",
@@ -130,7 +146,36 @@ class SalonSerializer(serializers.ModelSerializer):
                 if not data.get("cover_image") and saved_list:
                     data["cover_image"] = saved_list[0]
 
+        for doc_field in (
+            "registration_certificate",
+            "gst_certificate",
+            "owner_id_proof",
+            "owner_profile_photo",
+        ):
+            if doc_field in data and data[doc_field]:
+                try:
+                    data[doc_field] = save_document_to_media(
+                        data[doc_field],
+                        subfolder=f"salons/documents/{doc_field}"
+                    )
+                except Exception as e:
+                    detail = getattr(e, "detail", str(e))
+                    if isinstance(detail, (list, tuple)):
+                        detail = list(detail)
+                    else:
+                        detail = [str(detail)]
+                    raise serializers.ValidationError({doc_field: detail})
+
         return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        valid_from = attrs.get("registration_valid_from")
+        valid_to = attrs.get("registration_valid_to")
+        if valid_from and valid_to and valid_to < valid_from:
+            raise serializers.ValidationError(
+                {"registration_valid_to": ["Registration Valid Till date must be after or equal to Valid From date."]}
+            )
+        return super().validate(attrs)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -139,6 +184,14 @@ class SalonSerializer(serializers.ModelSerializer):
             ret["cover_image"] = build_full_media_url(request, ret["cover_image"])
         if isinstance(ret.get("images"), list):
             ret["images"] = [build_full_media_url(request, img) for img in ret["images"]]
+        for doc_field in (
+            "registration_certificate",
+            "gst_certificate",
+            "owner_id_proof",
+            "owner_profile_photo",
+        ):
+            if ret.get(doc_field):
+                ret[doc_field] = build_full_media_url(request, ret[doc_field])
         return ret
 
 
@@ -152,6 +205,8 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
     assigned_bookings_count = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
+    subscription_status = serializers.SerializerMethodField()
+    is_subscription_active = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkerProfile
@@ -214,6 +269,20 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
             return WorkerReview.objects.filter(worker=obj).count()
         except Exception:
             return 0
+
+    def get_subscription_status(self, obj):
+        salon = getattr(obj, "salon", None)
+        sub = getattr(salon, "subscription", None) if salon else None
+        if sub:
+            return sub.status
+        return "EXPIRED"
+
+    def get_is_subscription_active(self, obj):
+        salon = getattr(obj, "salon", None)
+        sub = getattr(salon, "subscription", None) if salon else None
+        if sub:
+            return sub.is_currently_active
+        return False
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -357,8 +426,20 @@ class WorkerCreateSerializer(serializers.Serializer):
 
 
 class BookingSerializer(serializers.ModelSerializer):
+    worker_id = serializers.ReadOnlyField(source="worker.id")
     worker_name = serializers.SerializerMethodField()
+    worker_photo = serializers.SerializerMethodField()
+    stylist = serializers.SerializerMethodField()
+    service = serializers.ReadOnlyField(source="service_name")
     salon_name = serializers.ReadOnlyField(source="salon.name")
+    raw_status = serializers.CharField(source="status", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    action_label = serializers.SerializerMethodField()
+    status_type = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+    time = serializers.SerializerMethodField()
+    period = serializers.SerializerMethodField()
+    history = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -367,32 +448,111 @@ class BookingSerializer(serializers.ModelSerializer):
             "salon",
             "salon_name",
             "worker",
+            "worker_id",
             "worker_name",
+            "worker_photo",
+            "stylist",
             "customer",
             "client_name",
             "client_phone",
             "client_email",
+            "service",
             "service_name",
             "service_price",
+            "price",
+            "subtotal",
+            "tax_amount",
+            "discount_amount",
+            "total_amount",
+            "advance_amount",
+            "remaining_amount",
+            "is_advance_paid",
+            "is_fully_paid",
             "booking_date",
             "booking_time",
             "start_time",
             "end_time",
+            "time",
+            "period",
             "duration",
             "station",
             "status",
+            "raw_status",
+            "status_display",
+            "status_type",
+            "action_label",
             "payment_method",
             "payment_status",
             "notes",
+            "worker_remarks",
+            "service_started_at",
+            "history",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def get_history(self, obj):
+        try:
+            from bookings.serializers import BookingHistorySerializer
+            return BookingHistorySerializer(obj.history.all(), many=True).data
+        except Exception:
+            return []
+
     def get_worker_name(self, obj):
-        if obj.worker and obj.worker.user:
-            return obj.worker.user.get_full_name() or obj.worker.user.email
+        try:
+            if obj.worker and getattr(obj.worker, "user", None):
+                return obj.worker.user.get_full_name() or obj.worker.user.email
+        except Exception:
+            pass
         return "Unassigned"
+
+    def get_worker_photo(self, obj):
+        try:
+            if not obj.worker or not getattr(obj.worker, "profile_photo", None):
+                return ""
+            photo = obj.worker.profile_photo
+            photo_str = photo.url if hasattr(photo, "url") else str(photo)
+            request = self.context.get("request")
+            return build_full_media_url(request, photo_str)
+        except Exception:
+            return ""
+
+    def get_stylist(self, obj):
+        return self.get_worker_name(obj)
+
+    def get_action_label(self, obj):
+        st = getattr(obj, "status", "")
+        if st == Booking.Status.CONFIRMED:
+            return "Seat Client"
+        elif st == Booking.Status.IN_PROGRESS:
+            return "Complete Session"
+        elif st == Booking.Status.PENDING:
+            return "Confirm"
+        elif st == Booking.Status.COMPLETED:
+            return "Completed"
+        return obj.get_status_display()
+
+    def get_status_type(self, obj):
+        st = getattr(obj, "status", "")
+        return st.lower().replace("_", "-")
+
+    def get_price(self, obj):
+        return f"₹{int(obj.service_price or 0)}"
+
+    def get_time(self, obj):
+        if obj.start_time:
+            return obj.start_time.strftime("%I:%M").lstrip("0")
+        if obj.booking_time:
+            return obj.booking_time.split(" ")[0]
+        return ""
+
+    def get_period(self, obj):
+        if obj.start_time:
+            return obj.start_time.strftime("%p")
+        if obj.booking_time and " " in obj.booking_time:
+            return obj.booking_time.split(" ")[1]
+        return "AM"
 
 
 class SalonOffDaySerializer(serializers.ModelSerializer):

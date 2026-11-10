@@ -59,6 +59,7 @@ export default function AdminSalonsList() {
   const [inspectingSalon, setInspectingSalon] = useState(null);
   const [rejectDialogSalon, setRejectDialogSalon] = useState(null);
   const [blockConfirmSalon, setBlockConfirmSalon] = useState(null);
+  const [blockReason, setBlockReason] = useState("");
   const [unblockConfirmSalon, setUnblockConfirmSalon] = useState(null);
   const [selectedPresetReason, setSelectedPresetReason] = useState("");
   const [customRejectReason, setCustomRejectReason] = useState("");
@@ -323,7 +324,10 @@ export default function AdminSalonsList() {
         } else if (targetStatus === "REJECTED") {
           showToast(`✕ ${updated.name} REJECTED. Notice sent to owner.`);
         } else if (targetStatus === "BLOCKED") {
-          showToast(`🚫 ${updated.name} BLOCKED. Venue hidden from customer explore.`);
+          const cancelInfo = res.data.cancelled_bookings_count
+            ? ` (${res.data.cancelled_bookings_count} upcoming booking(s) cancelled & refunded)`
+            : "";
+          showToast(`🚫 ${updated.name} BLOCKED. Venue hidden${cancelInfo}. Notice emailed to owner.`);
         } else {
           showToast(`↺ ${updated.name} reset to PENDING.`);
         }
@@ -331,6 +335,7 @@ export default function AdminSalonsList() {
         setRejectDialogSalon(null);
         setSelectedPresetReason("");
         setCustomRejectReason("");
+        setBlockReason("");
       }
     } catch (err) {
       alert("Failed to update status: " + (err.response?.data?.error || err.message));
@@ -343,6 +348,7 @@ export default function AdminSalonsList() {
   const handleInitiateBlock = (salon) => {
     if (!salon) return;
     if (salon.approval_status === "APPROVED") {
+      setBlockReason("");
       setBlockConfirmSalon(salon);
     } else if (salon.approval_status === "BLOCKED") {
       setUnblockConfirmSalon(salon);
@@ -1295,6 +1301,138 @@ export default function AdminSalonsList() {
                 </div>
               )}
 
+              {/* Registration & Compliance Documents */}
+              <div>
+                <div className="asl-info-box-label">
+                  Salon Registration & Verification Documents
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginTop: "6px" }}>
+                  {/* Registration Certificate */}
+                  <div style={{ border: "1px solid #dbe6de", borderRadius: "8px", padding: "10px", background: "#ffffff" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span>📄 Registration Certificate</span>
+                      <span style={{ fontSize: "9px", background: "#fee2e2", color: "#b91c1c", padding: "1px 5px", borderRadius: "4px" }}>Required</span>
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#61786b", marginBottom: "6px" }}>Proof of business registration</div>
+                    {inspectingSalon.registration_number && (
+                      <div style={{ fontSize: "11px", color: "#1e392a", fontWeight: "600", marginBottom: "4px" }}>
+                        Reg No: <span style={{ fontFamily: "monospace" }}>{inspectingSalon.registration_number}</span>
+                      </div>
+                    )}
+                    {inspectingSalon.registration_valid_to && (
+                      <div style={{ fontSize: "10.5px", marginBottom: "6px" }}>
+                        <span>Validity: {inspectingSalon.registration_valid_from ? `${inspectingSalon.registration_valid_from} to ` : ""}{inspectingSalon.registration_valid_to}</span>
+                        {inspectingSalon.is_registration_expired ? (
+                          <span style={{ display: "block", color: "#b91c1c", fontWeight: "700", marginTop: "2px" }}>
+                            🔴 Expired ({Math.abs(inspectingSalon.registration_days_left)} days ago)
+                          </span>
+                        ) : inspectingSalon.is_registration_expiring_soon ? (
+                          <span style={{ display: "block", color: "#b45309", fontWeight: "700", marginTop: "2px" }}>
+                            ⚠️ Expiring in {inspectingSalon.registration_days_left} days
+                          </span>
+                        ) : (
+                          <span style={{ display: "block", color: "#15803d", fontWeight: "700", marginTop: "2px" }}>
+                            🟢 Active ({inspectingSalon.registration_days_left} days left)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {inspectingSalon.registration_certificate ? (
+                      <a
+                        href={resolveImageUrl(inspectingSalon.registration_certificate)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                      >
+                        👁 View Certificate →
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#991b1b" }}>⚠️ Not Uploaded</span>
+                    )}
+                  </div>
+
+                  {/* GST Certificate */}
+                  <div style={{ border: "1px solid #dbe6de", borderRadius: "8px", padding: "10px", background: "#ffffff" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span>📑 GST Certificate</span>
+                      <span style={{ fontSize: "9px", background: "#f3f4f6", color: "#6b7280", padding: "1px 5px", borderRadius: "4px" }}>Optional</span>
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#61786b", marginBottom: "6px" }}>Tax registration verification</div>
+                    {inspectingSalon.gst_number && (
+                      <div style={{ fontSize: "11px", color: "#1e392a", fontWeight: "600", marginBottom: "6px" }}>
+                        GSTIN: <span style={{ fontFamily: "monospace" }}>{inspectingSalon.gst_number}</span>
+                      </div>
+                    )}
+                    {inspectingSalon.gst_certificate ? (
+                      <a
+                        href={resolveImageUrl(inspectingSalon.gst_certificate)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                      >
+                        👁 View GST Document →
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#6b7280" }}>Not Provided (Optional)</span>
+                    )}
+                  </div>
+
+                  {/* Owner ID Proof */}
+                  <div style={{ border: "1px solid #dbe6de", borderRadius: "8px", padding: "10px", background: "#ffffff" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span>🪪 Owner ID Proof</span>
+                      <span style={{ fontSize: "9px", background: "#fee2e2", color: "#b91c1c", padding: "1px 5px", borderRadius: "4px" }}>Required</span>
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#61786b", marginBottom: "6px" }}>Aadhaar / PAN card verification</div>
+                    {inspectingSalon.owner_id_number && (
+                      <div style={{ fontSize: "11px", color: "#1e392a", fontWeight: "600", marginBottom: "6px" }}>
+                        {inspectingSalon.owner_id_type || "ID"}: <span style={{ fontFamily: "monospace" }}>{inspectingSalon.owner_id_number}</span>
+                      </div>
+                    )}
+                    {inspectingSalon.owner_id_proof ? (
+                      <a
+                        href={resolveImageUrl(inspectingSalon.owner_id_proof)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                      >
+                        👁 View Owner ID →
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#991b1b" }}>⚠️ Not Uploaded</span>
+                    )}
+                  </div>
+
+                  {/* Owner Profile Photo */}
+                  <div style={{ border: "1px solid #dbe6de", borderRadius: "8px", padding: "10px", background: "#ffffff" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span>👤 Owner Profile Photo</span>
+                      <span style={{ fontSize: "9px", background: "#fee2e2", color: "#b91c1c", padding: "1px 5px", borderRadius: "4px" }}>Required</span>
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#61786b", marginBottom: "8px" }}>Owner identification</div>
+                    {inspectingSalon.owner_profile_photo ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <img
+                          src={resolveImageUrl(inspectingSalon.owner_profile_photo)}
+                          alt="Owner"
+                          style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover", border: "1px solid #c7d6cd" }}
+                        />
+                        <a
+                          href={resolveImageUrl(inspectingSalon.owner_profile_photo)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                        >
+                          👁 View Full Photo →
+                        </a>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#991b1b" }}>⚠️ Not Uploaded</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Description & Ambience */}
               {inspectingSalon.description && (
                 <div>
@@ -1564,6 +1702,60 @@ export default function AdminSalonsList() {
                   <br />
                   This venue will be immediately hidden from public customer search, explore, and online appointment bookings.
                 </p>
+
+                <div
+                  style={{
+                    margin: "14px 0 10px 0",
+                    padding: "10px 12px",
+                    background: "#fef2f2",
+                    borderRadius: 8,
+                    border: "1px solid #fecaca",
+                    fontSize: 12,
+                    color: "#991b1b",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>Automated Actions on Blocking:</strong>
+                  <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                    <li>All upcoming confirmed &amp; pending bookings will be automatically cancelled.</li>
+                    <li>Full 100% refunds credited directly to affected customer wallets.</li>
+                    <li>Owner wallet debited with refund transaction ledger records.</li>
+                    <li>Official suspension notice emailed to salon owner.</li>
+                  </ul>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label
+                    htmlFor="block-reason-input"
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#374151",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Reason / Admin Notes (optional, included in owner email):
+                  </label>
+                  <textarea
+                    id="block-reason-input"
+                    rows={2}
+                    value={blockReason}
+                    onChange={(e) => setBlockReason(e.target.value)}
+                    placeholder="e.g. Terms violation, customer complaints, regulatory non-compliance..."
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      fontSize: 12,
+                      color: "#1f2937",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1572,7 +1764,10 @@ export default function AdminSalonsList() {
                 type="button"
                 className="asl-btn-outline"
                 disabled={isProcessing}
-                onClick={() => setBlockConfirmSalon(null)}
+                onClick={() => {
+                  setBlockReason("");
+                  setBlockConfirmSalon(null);
+                }}
               >
                 Cancel
               </button>
@@ -1582,8 +1777,10 @@ export default function AdminSalonsList() {
                 disabled={isProcessing}
                 onClick={async () => {
                   const salonToBlock = blockConfirmSalon;
+                  const reasonToPass = blockReason.trim();
                   setBlockConfirmSalon(null);
-                  await handleDecision(salonToBlock.id, "BLOCKED");
+                  await handleDecision(salonToBlock.id, "BLOCKED", reasonToPass);
+                  setBlockReason("");
                 }}
                 style={{
                   display: "inline-flex",

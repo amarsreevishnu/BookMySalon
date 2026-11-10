@@ -11,6 +11,7 @@ export default function AdminSidebar({
   salonsCount: propSalonsCount,
   usersCount: propUsersCount,
   bookingsCount: propBookingsCount,
+  reviewsCount,
   activeTab,
   onSelectPendingTab,
   onSelectSalonsTab,
@@ -236,7 +237,7 @@ export default function AdminSidebar({
         >
           <div className="admin-nav-left">
             <span>💳</span>
-            <span>Subscriptions</span>
+            <span>Subscriptions </span>
           </div>
           {Number(stats.subs_wallet_balance || 0) > 0 ? (
             <span className="admin-nav-badge">₹{Number(stats.subs_wallet_balance).toLocaleString("en-IN")}</span>

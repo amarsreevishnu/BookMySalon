@@ -24,6 +24,31 @@ const OFFER_TYPES = [
   { key: "FESTIVAL", label: "Festive Offers", icon: "🎉" },
 ];
 
+const getPageNumbers = (current = 1, total = 1) => {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeCurrent = Math.max(1, Math.min(Number(current) || 1, safeTotal));
+  if (safeTotal <= 5) {
+    return Array.from({ length: safeTotal }, (_, i) => i + 1);
+  }
+  const pages = [];
+  pages.push(1);
+  if (safeCurrent > 3) {
+    pages.push("...");
+  }
+  const start = Math.max(2, safeCurrent - 1);
+  const end = Math.min(safeTotal - 1, safeCurrent + 1);
+  for (let i = start; i <= end; i++) {
+    if (!pages.includes(i)) pages.push(i);
+  }
+  if (safeCurrent < safeTotal - 2) {
+    pages.push("...");
+  }
+  if (!pages.includes(safeTotal)) {
+    pages.push(safeTotal);
+  }
+  return pages;
+};
+
 export default function AdminOffersManagement() {
   // Global Platform Statistics
   const [stats, setStats] = useState({
@@ -47,6 +72,10 @@ export default function AdminOffersManagement() {
   // Offers Data (Right Panel)
   const [offers, setOffers] = useState([]);
   const [offersLoading, setOffersLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Filters & Sorting for Offers
   const [offerSearch, setOfferSearch] = useState("");
@@ -112,7 +141,10 @@ export default function AdminOffersManagement() {
   const fetchOffers = useCallback(async () => {
     setOffersLoading(true);
     try {
-      const params = {};
+      const params = {
+        page: currentPage,
+        page_size: pageSize,
+      };
       if (selectedSalon) {
         params.salon_id = selectedSalon.id;
       }
@@ -122,14 +154,19 @@ export default function AdminOffersManagement() {
       if (sortBy) params.sort_by = sortBy;
 
       const res = await api.get("/offers/admin/offers/", { params });
-      setOffers(Array.isArray(res.data) ? res.data : []);
+      const dataList = Array.isArray(res.data)
+        ? res.data
+        : res.data?.results || res.data?.offers || [];
+      setOffers(dataList);
+      setTotalCount(res.data?.total_count ?? res.data?.count ?? dataList.length);
+      setTotalPages(res.data?.total_pages ?? 1);
     } catch (err) {
       console.error("Error fetching admin offers:", err);
       showToast("Failed to load offers. Please try again.", "error");
     } finally {
       setOffersLoading(false);
     }
-  }, [selectedSalon, offerSearch, offerTypeFilter, statusFilter, sortBy]);
+  }, [selectedSalon, offerSearch, offerTypeFilter, statusFilter, sortBy, currentPage, pageSize]);
 
   // Initial load
   useEffect(() => {
@@ -198,6 +235,91 @@ export default function AdminOffersManagement() {
     }
   };
 
+  const renderPaginationBar = (
+    current,
+    total,
+    count,
+    size,
+    onPageChange,
+    onPageSizeChange,
+    label = "offers"
+  ) => {
+    if (count === 0) return null;
+
+    const startRecord = (current - 1) * size + 1;
+    const endRecord = Math.min(current * size, count);
+
+    return (
+      <div className="aom-pagination-bar">
+        <div className="aom-pagination-info">
+          Showing <strong>{startRecord}</strong>–<strong>{endRecord}</strong> of{" "}
+          <strong>{count}</strong> {label}
+        </div>
+
+        <div className="aom-pagination-controls">
+          <div className="aom-pagination-size-select">
+            <span>Per page:</span>
+            <select
+              className="aom-select-compact"
+              value={size}
+              onChange={(e) => {
+                onPageSizeChange(Number(e.target.value));
+                onPageChange(1);
+              }}
+            >
+              <option value={6}>6</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+
+          <div className="aom-pagination-buttons">
+            <button
+              type="button"
+              className="aom-pagination-btn"
+              disabled={current <= 1}
+              onClick={() => onPageChange(Math.max(1, current - 1))}
+              aria-label="Previous Page"
+            >
+              ‹ Prev
+            </button>
+
+            {getPageNumbers(current, total).map((pageNum, idx) => {
+              if (pageNum === "...") {
+                return (
+                  <span key={`ellipsis-${idx}`} className="aom-pagination-ellipsis">
+                    …
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={`page-${pageNum}`}
+                  type="button"
+                  className={`aom-pagination-btn ${pageNum === current ? "active" : ""}`}
+                  onClick={() => onPageChange(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              className="aom-pagination-btn"
+              disabled={current >= total}
+              onClick={() => onPageChange(Math.min(total, current + 1))}
+              aria-label="Next Page"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Format Discount Label
   const getDiscountLabel = (offer) => {
     if (offer.discount_type === "PERCENTAGE") {
@@ -231,13 +353,7 @@ export default function AdminOffersManagement() {
       <main className="aom-main">
         {/* Sticky Header */}
         <header className="aom-header">
-          <div className="aom-breadcrumb">
-            <Link to="/admin/dashboard">Platform Operations</Link>
-            <span className="aom-breadcrumb-separator">&gt;</span>
-            <Link to="/admin/dashboard">Super Admin</Link>
-            <span className="aom-breadcrumb-separator">&gt;</span>
-            <span className="aom-breadcrumb-current">Offers & Promotions</span>
-          </div>
+          
 
           <div className="aom-header-row">
             <div className="aom-title-group">
@@ -314,16 +430,7 @@ export default function AdminOffersManagement() {
               </div>
             </div>
 
-            <div className="aom-stat-card">
-              <div className="aom-stat-icon redemptions">
-                <span>🎟️</span>
-              </div>
-              <div className="aom-stat-info">
-                <span className="aom-stat-label">Total Redemptions</span>
-                <span className="aom-stat-val">{stats.total_redemptions}</span>
-                <span className="aom-stat-sub">Customer Bookings</span>
-              </div>
-            </div>
+            
           </div>
 
           {/* Two-Column Master Workspace */}
@@ -349,39 +456,18 @@ export default function AdminOffersManagement() {
                 />
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="aom-status-tabs">
-                <button
-                  type="button"
-                  className={`aom-status-tab ${salonStatusFilter === "ALL" ? "active" : ""}`}
-                  onClick={() => setSalonStatusFilter("ALL")}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  className={`aom-status-tab ${salonStatusFilter === "APPROVED" ? "active" : ""}`}
-                  onClick={() => setSalonStatusFilter("APPROVED")}
-                >
-                  Approved
-                </button>
-                <button
-                  type="button"
-                  className={`aom-status-tab ${salonStatusFilter === "PENDING" ? "active" : ""}`}
-                  onClick={() => setSalonStatusFilter("PENDING")}
-                >
-                  Pending
-                </button>
-              </div>
 
               {/* "All Registered Salons" Selectable Card */}
               <div
                 className={`aom-all-salons-card ${selectedSalon === null ? "active" : ""}`}
-                onClick={() => setSelectedSalon(null)}
+                onClick={() => {
+                  setSelectedSalon(null);
+                  setCurrentPage(1);
+                }}
               >
                 <div>
                   <div className="aom-all-salons-title">All Registered Salons</div>
-                  <div className="aom-all-salons-sub">Platform-wide offers overview</div>
+                  
                 </div>
                 <span className="aom-all-salons-badge">{stats.total_offers} Offers</span>
               </div>
@@ -397,13 +483,16 @@ export default function AdminOffersManagement() {
                     No salons found matching search.
                   </div>
                 ) : (
-                  salons.map((salon) => {
+                  salons.filter(sal=>sal.approval_status==="APPROVED").map((salon) => {
                     const isSelected = selectedSalon?.id === salon.id;
                     return (
                       <div
                         key={salon.id}
                         className={`aom-salon-card ${isSelected ? "active" : ""}`}
-                        onClick={() => setSelectedSalon(salon)}
+                        onClick={() => {
+                          setSelectedSalon(salon);
+                          setCurrentPage(1);
+                        }}
                       >
                         {salon.cover_image ? (
                           <img
@@ -426,8 +515,8 @@ export default function AdminOffersManagement() {
                           </div>
                           <div className="aom-salon-meta">
                             <span>📍 {salon.city || "Unspecified"}</span>
-                            <span>•</span>
-                            <span>{salon.approval_status}</span>
+                          
+                            
                           </div>
                           <div className="aom-salon-badges">
                             <span className="aom-chip-badge offers">
@@ -498,7 +587,7 @@ export default function AdminOffersManagement() {
 
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span className="aom-chip-badge offers" style={{ fontSize: "12px", padding: "6px 12px" }}>
-                    Showing {offers.length} {offers.length === 1 ? "Offer" : "Offers"}
+                    Showing {offers.length} of {totalCount} {totalCount === 1 ? "Offer" : "Offers"}
                   </span>
                 </div>
               </div>
@@ -513,7 +602,10 @@ export default function AdminOffersManagement() {
                       type="text"
                       placeholder="Search by coupon code, offer title, salon name..."
                       value={offerSearch}
-                      onChange={(e) => setOfferSearch(e.target.value)}
+                      onChange={(e) => {
+                        setOfferSearch(e.target.value);
+                        setCurrentPage(1);
+                      }}
                       className="aom-filter-search-input"
                     />
                   </div>
@@ -521,7 +613,10 @@ export default function AdminOffersManagement() {
                   {/* Status Dropdown */}
                   <select
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     className="aom-filter-select"
                   >
                     <option value="all">All Statuses</option>
@@ -535,7 +630,10 @@ export default function AdminOffersManagement() {
                   {/* Sort Dropdown */}
                   <select
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     className="aom-filter-select"
                   >
                     <option value="newest">Newest First</option>
@@ -554,7 +652,10 @@ export default function AdminOffersManagement() {
                       key={t.key}
                       type="button"
                       className={`aom-type-pill ${offerTypeFilter === t.key ? "active" : ""}`}
-                      onClick={() => setOfferTypeFilter(t.key)}
+                      onClick={() => {
+                        setOfferTypeFilter(t.key);
+                        setCurrentPage(1);
+                      }}
                     >
                       <span>{t.icon}</span>
                       <span>{t.label}</span>
@@ -567,6 +668,7 @@ export default function AdminOffersManagement() {
               {offersLoading ? (
                 <div style={{ padding: "60px 0", textAlign: "center", color: "#647b6b" }}>
                   Loading offers from server...
+                  
                 </div>
               ) : offers.length === 0 ? (
                 <div className="aom-empty-state">
@@ -585,6 +687,7 @@ export default function AdminOffersManagement() {
                         setOfferSearch("");
                         setOfferTypeFilter("ALL");
                         setStatusFilter("all");
+                        setCurrentPage(1);
                       }}
                       style={{ marginTop: 8 }}
                     >
@@ -593,7 +696,8 @@ export default function AdminOffersManagement() {
                   )}
                 </div>
               ) : (
-                <div className="aom-offers-grid">
+                <>
+                  <div className="aom-offers-grid">
                   {offers.map((offer) => (
                     <div
                       key={offer.id}
@@ -751,8 +855,19 @@ export default function AdminOffersManagement() {
                     </div>
                   ))}
                 </div>
-              )}
-            </section>
+
+                {renderPaginationBar(
+                  currentPage,
+                  totalPages,
+                  totalCount,
+                  pageSize,
+                  setCurrentPage,
+                  setPageSize,
+                  "offers"
+                )}
+              </>
+            )}
+          </section>
           </div>
         </div>
       </main>

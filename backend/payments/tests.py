@@ -379,6 +379,71 @@ class OwnerRevenueFinancialTests(TestCase):
         self.assertEqual(w_data["total_worker_earned"], "300.00")
         self.assertEqual(w_data["total_salon_share"], "200.00")
 
+    def test_owner_transactions_pagination(self):
+        """
+        Verify Owner Transactions backend pagination:
+        - Correct count, total_pages, current_page, page_size, results
+        - Custom page_size (e.g. 10, 15)
+        - Page navigation (page 1, page 2)
+        - Flow / Search filtering works seamlessly with pagination
+        """
+        self.client.force_authenticate(user=self.owner)
+        wallet, _ = OwnerWallet.objects.get_or_create(salon=self.salon, defaults={"owner": self.owner})
+
+        # Create 25 test transactions (15 credit, 10 debit)
+        for i in range(1, 26):
+            flow = OwnerWalletTransaction.FlowType.CREDIT if i <= 15 else OwnerWalletTransaction.FlowType.DEBIT
+            tx_type = (
+                OwnerWalletTransaction.TransactionType.CUSTOMER_PAYMENT_RECEIVED
+                if flow == OwnerWalletTransaction.FlowType.CREDIT
+                else OwnerWalletTransaction.TransactionType.WORKER_COMMISSION_PAYOUT
+            )
+            OwnerWalletTransaction.objects.create(
+                wallet=wallet,
+                salon=self.salon,
+                transaction_type=tx_type,
+                flow=flow,
+                amount=Decimal(f"{100 * i}.00"),
+                balance_after=Decimal("1000.00"),
+                description=f"Automated test ledger entry #{i}",
+            )
+
+        # 1. Page 1 with default page_size 15
+        res = self.client.get("/api/v1/payments/owner/transactions/?page=1&page_size=15")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["count"], 25)
+        self.assertEqual(res.data["total_count"], 25)
+        self.assertEqual(res.data["total_pages"], 2)
+        self.assertEqual(res.data["current_page"], 1)
+        self.assertEqual(res.data["page_size"], 15)
+        self.assertEqual(len(res.data["results"]), 15)
+        self.assertEqual(len(res.data["transactions"]), 15)
+
+        # 2. Page 2
+        res2 = self.client.get("/api/v1/payments/owner/transactions/?page=2&page_size=15")
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.data["current_page"], 2)
+        self.assertEqual(len(res2.data["results"]), 10)
+
+        # 3. Custom page size 10 -> 3 pages
+        res3 = self.client.get("/api/v1/payments/owner/transactions/?page=1&page_size=10")
+        self.assertEqual(res3.status_code, 200)
+        self.assertEqual(res3.data["total_pages"], 3)
+        self.assertEqual(len(res3.data["results"]), 10)
+
+        # 4. Filter by flow=DEBIT (10 debits -> 1 page of 10)
+        res_debit = self.client.get("/api/v1/payments/owner/transactions/?flow=DEBIT&page=1&page_size=15")
+        self.assertEqual(res_debit.status_code, 200)
+        self.assertEqual(res_debit.data["total_count"], 10)
+        self.assertEqual(res_debit.data["total_pages"], 1)
+        self.assertEqual(len(res_debit.data["results"]), 10)
+
+        # 5. Search filtering
+        res_search = self.client.get("/api/v1/payments/owner/transactions/?search=entry %235&page=1&page_size=15")
+        self.assertEqual(res_search.status_code, 200)
+        self.assertEqual(res_search.data["total_count"], 1)
+        self.assertEqual(res_search.data["results"][0]["description"], "Automated test ledger entry #5")
+
     def test_worker_revenue_management_lifecycle_and_permissions(self):
         """
         Tests Worker Revenue Management:

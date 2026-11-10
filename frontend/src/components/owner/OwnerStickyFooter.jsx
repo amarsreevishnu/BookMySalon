@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import api from "../../api/axios";
 import "../../styles/ownerStickyFooter.css";
+import logo from "../../assets/logo.png"
 
 export default function OwnerStickyFooter({
   salonInfo: propSalonInfo,
@@ -109,7 +110,7 @@ export default function OwnerStickyFooter({
       <div className="studio-sticky-footer-inner">
         <div className="salon-footer-brand-section">
           <div className="salon-footer-badge">
-            <span><div className="explore-brand-icon">✂</div></span>
+           <img src={logo} alt="BookMySalon Logo" />
           </div>
           <div className="salon-footer-brand-text">
             <span className="salon-footer-title">

@@ -2060,3 +2060,395 @@
   border: 1px solid #bbf7d0;
 }
 
+/* --------------------------------------------------------------------------
+   Registration & Compliance Document Upload Cards
+   -------------------------------------------------------------------------- */
+.cs-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .cs-docs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cs-doc-card {
+  border: 1.5px solid #dbe6de;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.cs-doc-card:hover {
+  border-color: #244933;
+  box-shadow: 0 4px 14px rgba(30, 57, 42, 0.05);
+}
+
+.cs-doc-card.has-error {
+  border-color: #ef4444;
+  background: #fffcfc;
+}
+
+.cs-doc-card.is-uploaded {
+  border-color: #8ecaa8;
+  background: #f8fbf9;
+}
+
+.cs-doc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.cs-doc-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #172a1e;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-doc-badge-required {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #b91c1c;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.cs-doc-badge-optional {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.cs-doc-desc {
+  font-size: 12px;
+  color: #5c7265;
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+}
+
+.cs-doc-upload-box {
+  border: 2px dashed #cbdad0;
+  border-radius: 10px;
+  padding: 22px 14px;
+  text-align: center;
+  background: #fbfdfc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 136px;
+  user-select: none;
+}
+
+.cs-doc-upload-box:hover,
+.cs-doc-upload-box.drag-over {
+  border-color: #244933;
+  background: #f1f7f3;
+  transform: translateY(-1px);
+}
+
+.cs-doc-upload-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+  color: #4b6b58;
+}
+
+.cs-doc-upload-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e392a;
+  margin-bottom: 3px;
+}
+
+.cs-doc-upload-hint {
+  font-size: 11px;
+  color: #7b8e82;
+}
+
+/* Document Preview State */
+.cs-doc-preview-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #d7e4dc;
+  border-radius: 8px;
+  margin-top: auto;
+}
+
+.cs-doc-thumb-wrap {
+  width: 50px;
+  height: 50px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #eef4f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #d4e1d9;
+}
+
+.cs-doc-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cs-doc-pdf-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.cs-doc-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.cs-doc-filename {
+  font-size: 12px;
+  font-weight: 700;
+  color: #172a1e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+
+.cs-doc-filesize {
+  font-size: 11px;
+  color: #61786b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-doc-format-tag {
+  background: #e4efe8;
+  color: #1e5a38;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.cs-doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cs-doc-action-btn {
+  background: #ffffff;
+  border: 1px solid #d4ded7;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2d4c3a;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.cs-doc-action-btn:hover {
+  background: #f1f7f3;
+  color: #172a1e;
+  border-color: #1e392a;
+}
+
+.cs-doc-action-btn.danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.cs-doc-action-btn.danger:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.cs-doc-error {
+  font-size: 11.5px;
+  color: #dc2626;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+
+/* Document Inputs & Validity Details */
+.cs-doc-inputs {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cs-doc-input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 580px) {
+  .cs-doc-input-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cs-doc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cs-doc-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #274031;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cs-doc-field-label .required-star {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.cs-doc-input,
+.cs-doc-select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: #172a1e;
+  background: #ffffff;
+  border: 1.5px solid #d4ded7;
+  border-radius: 7px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.cs-doc-input:focus,
+.cs-doc-select:focus {
+  border-color: #1e392a;
+  box-shadow: 0 0 0 3px rgba(30, 57, 42, 0.08);
+}
+
+.cs-doc-input.has-error,
+.cs-doc-select.has-error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.cs-doc-field-hint {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Registration Validity Status Badge & Alerts */
+.cs-validity-status-box {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.cs-validity-status-box.active {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.cs-validity-status-box.expiring_soon {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.cs-validity-status-box.expired {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.cs-validity-status-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.cs-renew-reg-btn {
+  background: #1e392a;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.cs-renew-reg-btn:hover {
+  background: #2a523c;
+  transform: translateY(-1px);
+}
+
+.cs-renew-reg-btn.outline {
+  background: #ffffff;
+  color: #1e392a;
+  border: 1.5px solid #1e392a;
+}
+
+.cs-renew-reg-btn.outline:hover {
+  background: #f0fdf4;
+}
+

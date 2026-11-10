@@ -67,10 +67,15 @@ def record_customer_payment_to_owner(
     if amount <= Decimal("0.00"):
         return None
 
-    wallet = OwnerWallet.objects.select_for_update().get_or_create(
+    owner_user = getattr(booking.salon, "owner", None)
+    if not owner_user:
+        from django.contrib.auth import get_user_model
+        owner_user = get_user_model().objects.filter(is_superuser=True).first() or get_user_model().objects.first()
+
+    wallet, _ = OwnerWallet.objects.select_for_update().get_or_create(
         salon=booking.salon,
-        defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
-    )[0]
+        defaults={"owner": owner_user, "balance": Decimal("0.00")},
+    )
 
     total_price = Decimal(
         str(booking.total_amount if booking.total_amount is not None else booking.service_price or "0.00")
@@ -269,7 +274,7 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
                 flow="CREDIT",
                 amount=worker_share,
                 balance_after=worker_wallet.balance,
-                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} ({rate:g}%) commission credited for {service_name} ({customer_name}).",
+                description=f"Booking #{booking.id} — ₹{format_currency_amount(worker_share)} ({format_currency_amount(rate)}%) commission credited for {service_name} ({customer_name}).",
             )
 
     # 2. Deduct Worker Commission from Salon Owner Wallet
@@ -284,7 +289,7 @@ def settle_worker_commission_for_completed_booking(booking, completed_by_user=No
 
         description = (
             f"Booking #{booking.id} — Worker commission payout of ₹{format_currency_amount(worker_share)} "
-            f"({rate:g}%) deducted for {worker_name} ({service_name})."
+            f"({format_currency_amount(rate)}%) deducted for {worker_name} ({service_name})."
         )
         owner_debit_tx = OwnerWalletTransaction.objects.create(
             wallet=owner_wallet,
@@ -348,10 +353,15 @@ def record_booking_advance_payment(
         )
 
     # If partial amount was explicitly passed in legacy test:
-    wallet = OwnerWallet.objects.select_for_update().get_or_create(
+    owner_user = getattr(booking.salon, "owner", None)
+    if not owner_user:
+        from django.contrib.auth import get_user_model
+        owner_user = get_user_model().objects.filter(is_superuser=True).first() or get_user_model().objects.first()
+
+    wallet, _ = OwnerWallet.objects.select_for_update().get_or_create(
         salon=booking.salon,
-        defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
-    )[0]
+        defaults={"owner": owner_user, "balance": Decimal("0.00")},
+    )
 
     existing_tx = OwnerWalletTransaction.objects.filter(
         booking=booking,
@@ -423,7 +433,7 @@ def record_booking_advance_payment(
 def record_service_completion_and_final_payment(
     booking,
     remaining_amount_paid=None,
-    payment_method=Payment.PaymentMethod.CASH,
+    payment_method=None,
     completed_by_user=None,
     notes="",
 ):
@@ -615,10 +625,15 @@ def process_booking_cancellation_and_refund(
     reverses worker earning if already credited, and debits OwnerWallet.
     Preserves original payment and transaction records.
     """
-    wallet = OwnerWallet.objects.select_for_update().get_or_create(
+    owner_user = getattr(booking.salon, "owner", None)
+    if not owner_user:
+        from django.contrib.auth import get_user_model
+        owner_user = get_user_model().objects.filter(is_superuser=True).first() or get_user_model().objects.first()
+
+    wallet, _ = OwnerWallet.objects.select_for_update().get_or_create(
         salon=booking.salon,
-        defaults={"owner": booking.salon.owner, "balance": Decimal("0.00")},
-    )[0]
+        defaults={"owner": owner_user, "balance": Decimal("0.00")},
+    )
 
     # Idempotency check: don't refund twice
     existing_refund = Refund.objects.filter(

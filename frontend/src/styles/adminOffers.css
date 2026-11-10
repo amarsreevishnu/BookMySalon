@@ -1158,3 +1158,124 @@
   cursor: pointer;
 }
 
+/* Pagination Bar Styling */
+.aom-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid #e3ebe5;
+  border-radius: 12px;
+  margin-top: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.aom-pagination-info {
+  font-size: 13px;
+  color: #5c7263;
+}
+
+.aom-pagination-info strong {
+  color: #172a1d;
+  font-weight: 700;
+}
+
+.aom-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.aom-pagination-size-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #5c7263;
+  font-weight: 600;
+}
+
+.aom-select-compact {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #d4dfd7;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #172a1d;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.aom-select-compact:focus {
+  border-color: #234d34;
+}
+
+.aom-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aom-pagination-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #d4dfd7;
+  background: #ffffff;
+  color: #172a1d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.aom-pagination-btn:hover:not(:disabled):not(.active) {
+  background: #edf4ef;
+  border-color: #72a984;
+  color: #172a1d;
+}
+
+.aom-pagination-btn.active {
+  background: #234d34;
+  color: #ffffff;
+  border-color: #234d34;
+  cursor: default;
+}
+
+.aom-pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+}
+
+.aom-pagination-ellipsis {
+  padding: 0 4px;
+  font-size: 13px;
+  color: #708477;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .aom-pagination-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .aom-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+

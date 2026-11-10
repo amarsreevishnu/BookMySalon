@@ -7,45 +7,44 @@ from django.utils import timezone
 
 
 def generate_subscription_payment_id():
-    """Generates unique payment tracking ID e.g. SUBPAY-20261105-A1B2C3D4."""
+    
     date_str = timezone.now().strftime("%Y%m%d")
     short_uuid = uuid.uuid4().hex[:8].upper()
     return f"SUBPAY-{date_str}-{short_uuid}"
 
 
 def generate_admin_wallet_tx_id():
-    """Generates unique platform admin wallet transaction ID e.g. ATX-20261105-A1B2C3D4."""
+    
     date_str = timezone.now().strftime("%Y%m%d")
     short_uuid = uuid.uuid4().hex[:8].upper()
     return f"ATX-{date_str}-{short_uuid}"
 
 
 def generate_subscription_receipt():
-    """Generates unique subscription invoice/receipt ID e.g. INV-SUB-202611-ABCD."""
+    
     date_str = timezone.now().strftime("%Y%m")
     short_uuid = uuid.uuid4().hex[:6].upper()
     return f"INV-SUB-{date_str}-{short_uuid}"
 
 
 class SubscriptionPlan(models.Model):
-    """
-    Tiered subscription durations offered to salon owners.
-    Configurable from Super Admin dashboard.
-    """
+  
     class DurationKey(models.TextChoices):
         MONTHLY = "MONTHLY", "1 Month"
+        QUARTERLY = "QUARTERLY", "3 Months"
         HALF_YEARLY = "HALF_YEARLY", "6 Months"
         YEARLY = "YEARLY", "1 Year"
+        BIENNIAL = "BIENNIAL", "2 Years"
 
     duration_key = models.CharField(
-        max_length=20,
-        choices=DurationKey.choices,
+        max_length=60,
+        blank=True,
         unique=True,
         help_text="Key identifying the billing cycle duration.",
     )
     name = models.CharField(max_length=100, help_text="User-facing plan name.")
     duration_months = models.PositiveIntegerField(
-        help_text="Duration in months (e.g. 1, 6, 12)."
+        help_text="Duration in months (e.g. 1, 3, 6, 12, 24)."
     )
     price = models.DecimalField(
         max_digits=10,
@@ -86,6 +85,20 @@ class SubscriptionPlan(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        if not self.duration_key:
+            from django.utils.text import slugify
+            base_key = slugify(self.name).upper().replace("-", "_")[:45] if self.name else ""
+            if not base_key:
+                base_key = f"PLAN_{self.duration_months}M"
+            key = base_key
+            counter = 1
+            while SubscriptionPlan.objects.filter(duration_key=key).exclude(pk=self.pk).exists():
+                key = f"{base_key}_{counter}"
+                counter += 1
+            self.duration_key = key
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["display_order", "duration_months"]
         verbose_name = "Subscription Plan"
@@ -96,9 +109,7 @@ class SubscriptionPlan(models.Model):
 
 
 class SubscriptionSetting(models.Model):
-    """
-    Singleton configuration for platform trial duration and reminder policies.
-    """
+    
     default_trial_days = models.PositiveIntegerField(
         default=30,
         help_text="Default number of free trial days granted upon salon approval.",
@@ -202,7 +213,7 @@ class SalonSubscription(models.Model):
 
     @property
     def is_currently_active(self):
-        """Returns True if the salon subscription or trial is currently active and unexpired."""
+        
         now = timezone.now()
         if self.status in [self.Status.TRIAL, self.Status.ACTIVE]:
             return self.end_date >= now
@@ -210,7 +221,7 @@ class SalonSubscription(models.Model):
 
     @property
     def days_remaining(self):
-        """Number of full days remaining until expiration. Returns 0 if expired."""
+        
         now = timezone.now()
         if self.end_date <= now:
             return 0
@@ -219,11 +230,11 @@ class SalonSubscription(models.Model):
 
     @property
     def is_expiring_soon(self):
-        """Returns True if active and expiration is within 7 days."""
+        
         return self.is_currently_active and self.days_remaining <= 7
 
     def sync_status_with_time(self, save=True):
-        """Idempotently updates status to EXPIRED if end_date has elapsed."""
+        
         now = timezone.now()
         if self.status in [self.Status.TRIAL, self.Status.ACTIVE] and self.end_date < now:
             self.status = self.Status.EXPIRED
@@ -234,10 +245,7 @@ class SalonSubscription(models.Model):
 
 
 class SubscriptionPayment(models.Model):
-    """
-    Razorpay payment records specifically for salon subscriptions.
-    Completely decoupled from customer appointment booking payments.
-    """
+    
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
         SUCCESS = "SUCCESS", "Success"
@@ -301,9 +309,7 @@ class SubscriptionPayment(models.Model):
 
 
 class SubscriptionHistory(models.Model):
-    """
-    Audit log of all subscription transitions, purchases, renewals and admin extensions.
-    """
+    
     class Action(models.TextChoices):
         TRIAL_ACTIVATED = "TRIAL_ACTIVATED", "Free Trial Activated"
         PAID_ACTIVATED = "PAID_ACTIVATED", "Paid Subscription Activated"
@@ -350,10 +356,7 @@ class SubscriptionHistory(models.Model):
 
 
 class SuperAdminWallet(models.Model):
-    """
-    Central Platform Wallet for BookMySalon Super Admin.
-    100% of subscription revenue collected from salon owners is credited here.
-    """
+    
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -412,10 +415,7 @@ class SuperAdminWallet(models.Model):
 
 
 class SuperAdminWalletTransaction(models.Model):
-    """
-    Audited transactions for the Super Admin Platform Wallet.
-    Every subscription purchase generates an immutable CREDIT record.
-    """
+    
     class TransactionType(models.TextChoices):
         SUBSCRIPTION_CREDIT = "SUBSCRIPTION_CREDIT", "Subscription Payment Credit"
         PAYOUT = "PAYOUT", "Withdrawal / Payout"

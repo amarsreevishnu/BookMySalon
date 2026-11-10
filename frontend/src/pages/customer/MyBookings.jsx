@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
 import "../../styles/booking.css";
 
@@ -371,9 +372,18 @@ export default function MyBookings() {
 
         {/* Loading State */}
         {loading && (
-          <div className="bk-loading" style={{ padding: "60px 0" }}>
-            <div className="bk-spinner" />
-            <p>Loading your appointments…</p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "360px",
+              padding: "60px 20px",
+              width: "100%",
+            }}
+          >
+            <SalonLoader size={84} label="Loading Your Appointments..." />
           </div>
         )}
 

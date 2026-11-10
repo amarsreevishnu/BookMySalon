@@ -6,6 +6,7 @@ import useFavorites from "../../hooks/useFavorites";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonsExplore.css";
 import CustomerHeader from "../../components/customer/CustomerHeader";
+import SalonLoader from "../../components/common/Loader";
 
 
 export function formatTime12(timeStr) {
@@ -560,26 +561,7 @@ export default function SalonsExplore() {
           </div>
 
           
-          <div className="instant-slots-card">
-            <div>
-              <div className="instant-slots-title">
-                <span>⚡</span>
-                <span>Instant Slots</span>
-              </div>
-              <div className="instant-slots-sub">
-                Available in next 30 mins
-              </div>
-            </div>
-
-            <label className="filter-toggle-switch">
-              <input
-                type="checkbox"
-                checked={instantSlots}
-                onChange={(e) => setInstantSlots(e.target.checked)}
-              />
-              <span className="slider-round" />
-            </label>
-          </div>
+          
 
           
           <div className="filter-section-block">
@@ -760,7 +742,22 @@ export default function SalonsExplore() {
           </div>
 
           {/* Salon Cards List */}
-          {filteredSalons.length === 0 ? (
+          {loading ? (
+            <div
+              className="salons-loading-container"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "400px",
+                padding: "80px 20px",
+                width: "100%",
+              }}
+            >
+              <SalonLoader size={84} label="Discovering Salons..." />
+            </div>
+          ) : filteredSalons.length === 0 ? (
             <div className="salons-empty-state">
               <div className="salons-empty-icon">🌿</div>
               <h3 className="salons-empty-title">No matching salons found</h3>
@@ -781,7 +778,7 @@ export default function SalonsExplore() {
                 <article key={salon.id} className="salon-explore-card">
                   {/* Media Left */}
                   <div className="salon-card-media">
-                    <Link to={`/customer/salons/${salon.id}`} style={{ display: "block" }}>
+                    <Link to={`/customer/salons/${salon.id}`} style={{ display: "block", height: "100%" }}>
                       <img
                         src={resolveImageUrl(salon.image)}
                         alt={salon.name}
@@ -789,9 +786,21 @@ export default function SalonsExplore() {
                       />
                     </Link>
                     
-                    <span className={`salon-badge-overlay ${salon.badge_type || "organic"}`}>
-                      {salon.badge || "● Verified Organic"}
+                    <span className={`salon-badge-overlay ${salon.badge_type || "partner"}`}>
+                      {salon.badge || "● Verified Partner"}
                     </span>
+
+                    {/* Starting price / price tier overlay badge */}
+                    <div className="salon-card-price-overlay">
+                      {salon.starting_price
+                        ? `From ₹${salon.starting_price}`
+                        : salon.price_tier === 3
+                        ? "₹₹₹ Luxury"
+                        : salon.price_tier === 2
+                        ? "₹₹ Moderate"
+                        : "₹ Budget"}
+                    </div>
+
                     <button
                       type="button"
                       className={`btn-fav-toggle ${isFavorite(salon.id) ? "saved" : ""}`}
@@ -806,20 +815,61 @@ export default function SalonsExplore() {
                   <div className="salon-card-content">
                     <div className="salon-card-header-group">
                       <div className="salon-card-top-row">
-                        <Link to={`/customer/salons/${salon.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                        <Link to={`/customer/salons/${salon.id}`} className="salon-card-name-link">
                           <h3 className="salon-card-name" title={salon.name}>{salon.name}</h3>
                         </Link>
-                        <span className="salon-card-rating">
-                          <span className="rating-star">★</span>
-                          <span className="rating-val">{salon.rating || "4.9"}</span>
-                          <span className="rating-count">({salon.review_count ? salon.review_count : "Verified"})</span>
-                        </span>
+
+                        {/* Dynamic Rating & Review Count */}
+                        {salon.rating ? (
+                          <div
+                            className="salon-card-rating"
+                            title={`${Number(salon.rating).toFixed(1)} out of 5 stars based on ${salon.review_count || 0} reviews`}
+                          >
+                            <span className="rating-star">★</span>
+                            <span className="rating-val">{Number(salon.rating).toFixed(1)}</span>
+                            {salon.review_count > 0 && (
+                              <span className="rating-count">({salon.review_count})</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="salon-card-rating new-partner" title="New partner salon on BookMySalon">
+                            <span className="rating-star">★</span>
+                            <span className="rating-val">New</span>
+                          </div>
+                        )}
                       </div>
 
+                      {salon.tagline && (
+                        <p className="salon-card-tagline" title={salon.tagline}>
+                          {salon.tagline}
+                        </p>
+                      )}
+
                       <p className="salon-card-meta">
-                        <span>📍 {salon.address_line || salon.city || "Kerala"}</span>
-                        <span>•</span>
-                        <span>{(salon.tags && salon.tags.length > 0 ? salon.tags : ["Hair & Styling", "AC"]).slice(0, 3).join(" • ")}</span>
+                        <span className="salon-meta-item">
+                          <span>📍</span>
+                          <span>{salon.address_line || salon.city || "Kerala"}</span>
+                        </span>
+                        <span className="salon-meta-dot">•</span>
+                        <span className="salon-meta-item">
+                          <span>{salon.distance_km || 1.5} km</span>
+                        </span>
+                        <span className="salon-meta-dot">•</span>
+                        <span className="salon-meta-item salon-meta-atmosphere">
+                          {salon.gender_category === "women-only"
+                            ? "Women Only"
+                            : salon.gender_category === "men's care"
+                            ? "Men's Care"
+                            : "Unisex"}
+                        </span>
+                        {salon.tags && salon.tags.length > 0 && (
+                          <>
+                            <span className="salon-meta-dot">•</span>
+                            <span className="salon-meta-item">
+                              {salon.tags.slice(0, 2).join(" • ")}
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -828,31 +878,22 @@ export default function SalonsExplore() {
                       const hoursInfo = getSalonOpeningHoursInfo(salon, selectedDate);
                       return (
                         <div className="salon-slot-row">
-                          {/* {hoursInfo.isHoliday ? (
-                            <span
-                              className="salon-slot-pill red"
-                              style={{
-                                background: "#fee2e2",
-                                color: "#b91c1c",
-                                borderColor: "#fca5a5",
-                              }}
-                            >
-                              <span className="slot-pill-icon" style={{ color: "#ef4444" }}>●</span>
-                              <span>{hoursInfo.statusText}</span>
-                            </span>
-                          ) : (
-                            <span className="salon-slot-pill green">
-                              <span className="slot-pill-icon">●</span>
-                              <span>{salon.instant_slot_text || "Open today • Verified Partner"}</span>
-                            </span>
-                          )} */}
-                          <span
-                            className="salon-slot-pill grey"
-                            style={hoursInfo.isHoliday ? { background: "#fff1f2", color: "#be123c", borderColor: "#fecdd3" } : {}}
-                          >
+                          <span className={`salon-slot-pill ${hoursInfo.isHoliday ? "closed" : "open"}`}>
+                            <span className={`status-indicator-dot ${hoursInfo.isHoliday ? "dot-red" : "dot-green"}`}></span>
+                            <span>{hoursInfo.statusText}</span>
+                          </span>
+
+                          <span className="salon-slot-pill grey">
                             <span className="slot-pill-icon">⏱</span>
                             <span>{hoursInfo.hoursText}</span>
                           </span>
+
+                          {salon.has_instant_slot && (
+                            <span className="salon-slot-pill instant">
+                              <span className="slot-pill-icon">⚡</span>
+                              <span>Instant Slot</span>
+                            </span>
+                          )}
                         </div>
                       );
                     })()}
@@ -867,21 +908,39 @@ export default function SalonsExplore() {
                           </div>
                         ))
                       ) : (
-                        <div className="service-tariff-col" style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--explore-text-muted)" }}>
+                        <div className="service-tariff-col empty" style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--explore-text-muted)" }}>
                           <span className="service-tariff-name">Services available upon inquiry</span>
                           <span className="service-tariff-price">₹299+</span>
                         </div>
                       )}
                     </div>
+
+                    {/* Customer Review Quote or Hygiene Standard Reassurance */}
+                    {salon.latest_review && salon.latest_review.comment ? (
+                      <div className="salon-card-review-quote" title={`Verified client review: "${salon.latest_review.comment}"`}>
+                        <span className="quote-icon">“</span>
+                        <span className="quote-comment">{salon.latest_review.comment}</span>
+                        <span className="quote-author">
+                          — {salon.latest_review.customer_name} ({salon.latest_review.rating}★)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="salon-card-review-quote fallback" title={salon.purity_note}>
+                        <span className="purity-icon">🌿</span>
+                        <span className="quote-comment">
+                          {salon.purity_note || "Certified clean & botanical hygiene standards"}
+                        </span>
+                      </div>
+                    )}
                       
                     {/* Footer & Actions */}
                     <div className="salon-card-bottom-row">
-                      <span className="salon-purity-text" title={salon.purity_note}>
-                        🌿 {salon.purity_note || "Standard clean hygiene certified"}
-                      </span>
+                      <div className="salon-card-trust-badge">
+                        <span className="trust-shield">🛡️</span>
+                        <span>Verified Partner</span>
+                      </div>
 
                       <div className="salon-card-btn-group">
-                       
                         <Link
                           to={`/customer/salons/${salon.id}`}
                           className="btn-view-salon"
@@ -908,7 +967,7 @@ export default function SalonsExplore() {
           )}
 
           {/* Pagination Controls */}
-          {totalCount > 0 && (
+          {!loading && totalCount > 0 && (
             <div className="explore-pagination-row">
               <div className="pagination-info-group">
                 <span className="pagination-counter">
@@ -1043,7 +1102,10 @@ export default function SalonsExplore() {
 
             <div className="modal-body">
               <div>
-                <span className="modal-rating-badge">★ {bookingModalSalon.rating || "4.9"}</span>
+                <span className="modal-rating-badge">
+                  ★ {bookingModalSalon.rating ? Number(bookingModalSalon.rating).toFixed(1) : "New"}
+                  {bookingModalSalon.review_count > 0 && ` (${bookingModalSalon.review_count})`}
+                </span>
                 <h2 className="modal-title" style={{ marginTop: "6px" }}>Book Slot at {bookingModalSalon.name}</h2>
                 <p style={{ fontSize: "12px", color: "var(--explore-text-muted)", margin: "4px 0 0" }}>
                   📍 {bookingModalSalon.address_line || bookingModalSalon.city}
@@ -1167,7 +1229,10 @@ export default function SalonsExplore() {
 
             <div className="modal-body">
               <div>
-                <span className="modal-rating-badge">★ {detailsModalSalon.rating || "4.9"} ({detailsModalSalon.review_count ? `${detailsModalSalon.review_count} verified reviews` : "Verified Partner"})</span>
+                <span className="modal-rating-badge">
+                  ★ {detailsModalSalon.rating ? Number(detailsModalSalon.rating).toFixed(1) : "New"}
+                  {detailsModalSalon.review_count > 0 ? ` (${detailsModalSalon.review_count} verified reviews)` : " (Verified Partner)"}
+                </span>
                 <h2 className="modal-title" style={{ marginTop: "6px" }}>{detailsModalSalon.name}</h2>
                 <p style={{ fontSize: "12px", color: "var(--explore-text-muted)", margin: "4px 0 0" }}>
                   📍 {detailsModalSalon.address_line || detailsModalSalon.city}

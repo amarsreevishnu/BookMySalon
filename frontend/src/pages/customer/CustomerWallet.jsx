@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import CustomerHeader from "../../components/customer/CustomerHeader";
+import SalonLoader from "../../components/common/Loader";
 import api from "../../api/axios";
 import "../../styles/customerWallet.css";
 
@@ -448,8 +449,18 @@ export default function CustomerWallet() {
 
           {/* Transactions Table / Rows */}
           {txLoading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-              Loading transactions…
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "220px",
+                padding: "40px 20px",
+                width: "100%",
+              }}
+            >
+              <SalonLoader size={72} label="Loading Transactions..." />
             </div>
           ) : transactions.length === 0 ? (
             <div className="c-wallet-empty">

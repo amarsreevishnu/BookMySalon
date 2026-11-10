@@ -1,5 +1,6 @@
 import json
 import re
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
@@ -386,6 +387,18 @@ class AdminUserDetailView(generics.RetrieveAPIView):
 class AdminUserToggleBlockView(APIView):
     permission_classes = [IsAdminUserRole]
 
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        from .services import get_customer_blocking_summary
+        summary = get_customer_blocking_summary(user)
+        return Response(
+            {
+                "user": UserSerializer(user).data,
+                "summary": summary,
+            },
+            status=status.HTTP_200_OK,
+        )
+
     def post(self, request, pk):
         user = get_object_or_404(User, pk=pk)
 
@@ -400,16 +413,48 @@ class AdminUserToggleBlockView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user.is_active = not user.is_active
-        user.save(update_fields=["is_active"])
-        status_text = "active" if user.is_active else "blocked"
-        return Response(
-            {
-                "message": f"User {user.email} is now {status_text}.",
-                "user": UserSerializer(user).data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        if user.is_active:
+            # Action: BLOCK the user
+            admin_notes = request.data.get("admin_notes", "")
+            from .services import handle_customer_blocked
+            block_result = handle_customer_blocked(
+                customer=user,
+                admin_user=request.user,
+                admin_notes=admin_notes,
+                reason="USER_BLOCKED_BY_ADMIN",
+            )
+            user.refresh_from_db()
+            cancelled_count = block_result.get("cancelled_bookings_count", 0)
+            refunded_amount = block_result.get("total_refunded_amount", Decimal("0.00"))
+
+            return Response(
+                {
+                    "message": (
+                        f"Customer {user.email} is now blocked. "
+                        f"{cancelled_count} upcoming booking(s) cancelled and ₹{refunded_amount} refunded to wallet."
+                        if cancelled_count > 0
+                        else f"User {user.email} is now blocked."
+                    ),
+                    "user": UserSerializer(user).data,
+                    "cancelled_bookings_count": cancelled_count,
+                    "refunded_bookings_count": block_result.get("refunded_bookings_count", 0),
+                    "total_refunded_amount": str(refunded_amount),
+                    "in_progress_bookings_count": block_result.get("in_progress_bookings_count", 0),
+                    "email_sent": block_result.get("email_sent", False),
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            # Action: UNBLOCK the user
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+            return Response(
+                {
+                    "message": f"User {user.email} is now active.",
+                    "user": UserSerializer(user).data,
+                },
+                status=status.HTTP_200_OK,
+            )
 
 
 

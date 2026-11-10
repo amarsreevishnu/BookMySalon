@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/offersPage.css";
 
 const CATEGORIES = [
@@ -122,8 +123,18 @@ export default function OffersPage() {
 
         {/* Deals Grid */}
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#64748b" }}>
-            <p>Discovering verified salon promotions...</p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "360px",
+              padding: "60px 20px",
+              width: "100%",
+            }}
+          >
+            <SalonLoader size={84} label="Discovering Salon Offers..." />
           </div>
         ) : filteredOffers.length === 0 ? (
           <div className="deals-empty">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import api from "../../api/axios";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/adminServices.css";
 
 export default function AdminServicesList() {
@@ -475,7 +476,8 @@ export default function AdminServicesList() {
               <div className="admin-table-card">
                 {loading ? (
                   <div className="admin-empty-state">
-                    <p>Loading platform catalog...</p>
+                    {/* <p>Loading platform catalog...</p> */}
+                    <SalonLoader size={84} label="Loading platform catalog...." />
                   </div>
                 ) : filteredServices.length === 0 ? (
                   <div className="admin-empty-state">

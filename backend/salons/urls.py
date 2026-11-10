@@ -37,6 +37,7 @@ from .views import (
     WorkerProfileView,
 )
 from accounts.views import OwnerChangePasswordView, WorkerChangePasswordView
+from bookings.views import OwnerBookingEligibleWorkersView, OwnerBookingReassignWorkerView
 
 
 urlpatterns = [
@@ -154,6 +155,16 @@ urlpatterns = [
         "owner/bookings/<int:pk>/status/",
         WorkerBookingStatusUpdateView.as_view(),
         name="owner-booking-status-update",
+    ),
+    path(
+        "owner/bookings/<int:pk>/eligible-workers/",
+        OwnerBookingEligibleWorkersView.as_view(),
+        name="owner-booking-eligible-workers",
+    ),
+    path(
+        "owner/bookings/<int:pk>/reassign-worker/",
+        OwnerBookingReassignWorkerView.as_view(),
+        name="owner-booking-reassign-worker",
     ),
     path(
         "owner/profile/",

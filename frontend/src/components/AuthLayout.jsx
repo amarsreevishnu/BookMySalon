@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import "../styles/auth.css";
+import logo from "../assets/logo.png";
 
 function AuthLayout({
   title,
@@ -18,7 +19,9 @@ function AuthLayout({
         <section className="auth-form-panel">
           <div className="auth-top-bar">
             <Link to="/" className="auth-logo">
-              <div className="explore-brand-icon">✂</div>
+              <div className="explore-brand-icon">
+                <img src={logo} alt="BookMySalon Logo" />
+              </div>
               <span className="explore-brand-name">BookMySalon</span>
             </Link>
 

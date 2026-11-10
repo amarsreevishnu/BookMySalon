@@ -5,6 +5,31 @@ import NotificationBell from "../../components/common/NotificationBell";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/adminSubscriptions.css";
 
+const getPageNumbers = (current = 1, total = 1) => {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeCurrent = Math.max(1, Math.min(Number(current) || 1, safeTotal));
+  if (safeTotal <= 5) {
+    return Array.from({ length: safeTotal }, (_, i) => i + 1);
+  }
+  const pages = [];
+  pages.push(1);
+  if (safeCurrent > 3) {
+    pages.push("...");
+  }
+  const start = Math.max(2, safeCurrent - 1);
+  const end = Math.min(safeTotal - 1, safeCurrent + 1);
+  for (let i = start; i <= end; i++) {
+    if (!pages.includes(i)) pages.push(i);
+  }
+  if (safeCurrent < safeTotal - 2) {
+    pages.push("...");
+  }
+  if (!pages.includes(safeTotal)) {
+    pages.push(safeTotal);
+  }
+  return pages;
+};
+
 export default function AdminSubscriptionsManagement() {
   const [activeTab, setActiveTab] = useState("salons"); // salons, plans, wallet, payments
 
@@ -25,8 +50,10 @@ export default function AdminSubscriptionsManagement() {
   const [salonsLoading, setSalonsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  console.log(salonsSubs);
-  
+  const [salonsPage, setSalonsPage] = useState(1);
+  const [salonsPageSize, setSalonsPageSize] = useState(10);
+  const [salonsTotalCount, setSalonsTotalCount] = useState(0);
+  const [salonsTotalPages, setSalonsTotalPages] = useState(1);
 
   // Plans & Settings state
   const [plans, setPlans] = useState([]);
@@ -34,14 +61,43 @@ export default function AdminSubscriptionsManagement() {
   const [savingPlanId, setSavingPlanId] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // Create / Edit Plan Modal state
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planForm, setPlanForm] = useState({
+    name: "",
+    duration_months: 1,
+    price: "",
+    original_price: "",
+    badge_text: "",
+    description: "",
+    features: "",
+    is_active: true,
+  });
+  const [submittingPlan, setSubmittingPlan] = useState(false);
+  const [togglingPlanId, setTogglingPlanId] = useState(null);
+
+  // View Subscribed Salons Modal state
+  const [viewingPlanSalons, setViewingPlanSalons] = useState(null);
+  const [planSalonsData, setPlanSalonsData] = useState({ salons: [], active_salons_count: 0, total_salons_count: 0 });
+  const [planSalonsLoading, setPlanSalonsLoading] = useState(false);
+
   // Platform Wallet & Transactions state
   const [walletData, setWalletData] = useState({ balance: "0.00", total_subscription_revenue: "0.00" });
   const [transactions, setTransactions] = useState([]);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [walletPage, setWalletPage] = useState(1);
+  const [walletPageSize, setWalletPageSize] = useState(10);
+  const [walletTotalCount, setWalletTotalCount] = useState(0);
+  const [walletTotalPages, setWalletTotalPages] = useState(1);
 
   // Payments / Invoices state
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentsPageSize, setPaymentsPageSize] = useState(10);
+  const [paymentsTotalCount, setPaymentsTotalCount] = useState(0);
+  const [paymentsTotalPages, setPaymentsTotalPages] = useState(1);
 
   // Extend Modal state
   const [extendModalSalon, setExtendModalSalon] = useState(null);
@@ -71,17 +127,25 @@ export default function AdminSubscriptionsManagement() {
   const fetchSalonsSubs = useCallback(async () => {
     setSalonsLoading(true);
     try {
-      const params = {};
+      const params = {
+        page: salonsPage,
+        page_size: salonsPageSize,
+      };
       if (searchQuery) params.search = searchQuery;
       if (statusFilter !== "all") params.status = statusFilter;
       const res = await api.get("/subscriptions/admin/salons/", { params });
-      setSalonsSubs(res.data || []);
+      const dataList = Array.isArray(res.data)
+        ? res.data
+        : res.data?.results || res.data?.salons || [];
+      setSalonsSubs(dataList);
+      setSalonsTotalCount(res.data?.total_count ?? res.data?.count ?? dataList.length);
+      setSalonsTotalPages(res.data?.total_pages ?? 1);
     } catch (err) {
       console.error("Error fetching salon subscriptions:", err);
     } finally {
       setSalonsLoading(false);
     }
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, salonsPage, salonsPageSize]);
 
   // 3. Fetch Plans & Settings
   const fetchPlansAndSettings = useCallback(async () => {
@@ -101,28 +165,46 @@ export default function AdminSubscriptionsManagement() {
   const fetchWallet = useCallback(async () => {
     setWalletLoading(true);
     try {
-      const res = await api.get("/subscriptions/admin/wallet/");
+      const params = {
+        page: walletPage,
+        page_size: walletPageSize,
+      };
+      const res = await api.get("/subscriptions/admin/wallet/", { params });
       if (res.data?.wallet) setWalletData(res.data.wallet);
-      if (res.data?.transactions) setTransactions(res.data.transactions);
+      const txs = Array.isArray(res.data?.transactions)
+        ? res.data.transactions
+        : res.data?.results || [];
+      setTransactions(txs);
+      setWalletTotalCount(res.data?.total_count ?? res.data?.count ?? txs.length);
+      setWalletTotalPages(res.data?.total_pages ?? 1);
     } catch (err) {
       console.error("Error fetching platform wallet:", err);
     } finally {
       setWalletLoading(false);
     }
-  }, []);
+  }, [walletPage, walletPageSize]);
 
   // 5. Fetch Payments
   const fetchPayments = useCallback(async () => {
     setPaymentsLoading(true);
     try {
-      const res = await api.get("/subscriptions/admin/payments/");
-      setPayments(res.data || []);
+      const params = {
+        page: paymentsPage,
+        page_size: paymentsPageSize,
+      };
+      const res = await api.get("/subscriptions/admin/payments/", { params });
+      const pmts = Array.isArray(res.data)
+        ? res.data
+        : res.data?.results || res.data?.payments || [];
+      setPayments(pmts);
+      setPaymentsTotalCount(res.data?.total_count ?? res.data?.count ?? pmts.length);
+      setPaymentsTotalPages(res.data?.total_pages ?? 1);
     } catch (err) {
       console.error("Error fetching payments log:", err);
     } finally {
       setPaymentsLoading(false);
     }
-  }, []);
+  }, [paymentsPage, paymentsPageSize]);
 
   useEffect(() => {
     fetchStats();
@@ -135,17 +217,125 @@ export default function AdminSubscriptionsManagement() {
     if (activeTab === "payments") fetchPayments();
   }, [activeTab, fetchSalonsSubs, fetchWallet, fetchPayments]);
 
-  // Handle plan price/feature edit
-  const handleUpdatePlan = async (planId, updatedFields) => {
-    setSavingPlanId(planId);
+  // Open modal to create a new plan
+  const handleOpenCreatePlan = () => {
+    setEditingPlan(null);
+    setPlanForm({
+      name: "",
+      duration_months: 1,
+      price: "",
+      original_price: "",
+      badge_text: "",
+      description: "Save more with our flexible salon subscription plan with 0% platform booking commission.",
+      features: "0% platform booking commission\nUnlimited specialist workers & service catalog\nVerified Salon Badge on explore\nAutomated appointment reminders\nPriority customer support",
+      is_active: true,
+    });
+    setIsPlanModalOpen(true);
+  };
+
+  // Open modal to edit an existing plan
+  const handleOpenEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name || "",
+      duration_months: plan.duration_months || 1,
+      price: plan.price || "",
+      original_price: plan.original_price || "",
+      badge_text: plan.badge_text || "",
+      description: plan.description || "",
+      features: Array.isArray(plan.features) ? plan.features.join("\n") : (plan.features || ""),
+      is_active: Boolean(plan.is_active),
+    });
+    setIsPlanModalOpen(true);
+  };
+
+  // Save (Create or Update) plan
+  const handleSavePlan = async (e) => {
+    e.preventDefault();
+    if (!planForm.name.trim()) {
+      showToast("Please enter a plan name.");
+      return;
+    }
+    if (!planForm.duration_months || Number(planForm.duration_months) < 1) {
+      showToast("Please specify a valid duration of at least 1 month.");
+      return;
+    }
+    if (planForm.price === "" || Number(planForm.price) < 0) {
+      showToast("Please specify a valid plan price.");
+      return;
+    }
+
+    setSubmittingPlan(true);
+
+    const payload = {
+      name: planForm.name.trim(),
+      duration_months: Number(planForm.duration_months),
+      price: Number(planForm.price),
+      original_price: planForm.original_price ? Number(planForm.original_price) : null,
+      badge_text: planForm.badge_text.trim(),
+      description: planForm.description.trim() || "Full access to BookMySalon platform with 0% booking commission.",
+      features: planForm.features,
+      is_active: Boolean(planForm.is_active),
+    };
+
     try {
-      const res = await api.put(`/subscriptions/admin/plans/${planId}/`, updatedFields);
-      setPlans((prev) => prev.map((p) => (p.id === planId ? res.data : p)));
-      showToast("Plan details updated successfully!");
+      if (editingPlan) {
+        const res = await api.put(`/subscriptions/admin/plans/${editingPlan.id}/`, payload);
+        setPlans((prev) => prev.map((p) => (p.id === editingPlan.id ? res.data : p)));
+        showToast(`Plan "${res.data.name}" updated successfully! (Applies to all future purchases)`);
+      } else {
+        const res = await api.post("/subscriptions/admin/plans/", payload);
+        setPlans((prev) => [...prev, res.data]);
+        showToast(`New plan "${res.data.name}" created and immediately active!`);
+      }
+      setIsPlanModalOpen(false);
+      setEditingPlan(null);
+      fetchPlansAndSettings();
     } catch (err) {
-      showToast(err.response?.data?.error || "Failed to update plan.");
+      const errData = err.response?.data;
+      const errMsg =
+        typeof errData === "string"
+          ? errData
+          : errData?.error || Object.values(errData || {})[0] || "Failed to save plan.";
+      showToast(Array.isArray(errMsg) ? errMsg[0] : String(errMsg));
     } finally {
-      setSavingPlanId(null);
+      setSubmittingPlan(false);
+    }
+  };
+
+  // Toggle active / inactive status of plan
+  const handleTogglePlanStatus = async (plan) => {
+    setTogglingPlanId(plan.id);
+    const newStatus = !plan.is_active;
+    try {
+      const res = await api.patch(`/subscriptions/admin/plans/${plan.id}/`, {
+        is_active: newStatus,
+      });
+      setPlans((prev) => prev.map((p) => (p.id === plan.id ? res.data : p)));
+      showToast(
+        newStatus
+          ? `Plan "${plan.name}" is now Active and immediately available to salons!`
+          : `Plan "${plan.name}" is now Inactive. New salon purchases are paused.`
+      );
+    } catch (err) {
+      showToast(err.response?.data?.error || "Failed to update plan status.");
+    } finally {
+      setTogglingPlanId(null);
+    }
+  };
+
+  // View salons subscribed to a plan
+  const handleViewPlanSalons = async (plan) => {
+    setViewingPlanSalons(plan);
+    setPlanSalonsLoading(true);
+    try {
+      const res = await api.get(`/subscriptions/admin/plans/${plan.id}/salons/`);
+      setPlanSalonsData(res.data);
+    } catch (err) {
+      console.error("Error fetching subscribed salons:", err);
+      showToast("Failed to fetch salons for this plan.");
+    } finally {
+      setPlanSalonsLoading(false);
     }
   };
 
@@ -185,6 +375,91 @@ export default function AdminSubscriptionsManagement() {
     } finally {
       setExtendSubmitting(false);
     }
+  };
+
+  const renderPaginationBar = (
+    currentPage,
+    totalPages,
+    totalCount,
+    pageSize,
+    onPageChange,
+    onPageSizeChange,
+    label = "records"
+  ) => {
+    if (totalCount === 0) return null;
+
+    const startRecord = (currentPage - 1) * pageSize + 1;
+    const endRecord = Math.min(currentPage * pageSize, totalCount);
+
+    return (
+      <div className="admin-subs-pagination-bar">
+        <div className="admin-subs-pagination-info">
+          Showing <strong>{startRecord}</strong>–<strong>{endRecord}</strong> of{" "}
+          <strong>{totalCount}</strong> {label}
+        </div>
+
+        <div className="admin-subs-pagination-controls">
+          <div className="admin-subs-pagination-size-select">
+            <span>Rows per page:</span>
+            <select
+              className="admin-subs-select-compact"
+              value={pageSize}
+              onChange={(e) => {
+                onPageSizeChange(Number(e.target.value));
+                onPageChange(1);
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+
+          <div className="admin-subs-pagination-buttons">
+            <button
+              type="button"
+              className="admin-subs-pagination-btn"
+              disabled={currentPage <= 1}
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              aria-label="Previous Page"
+            >
+              ‹ Prev
+            </button>
+
+            {getPageNumbers(currentPage, totalPages).map((pageNum, idx) => {
+              if (pageNum === "...") {
+                return (
+                  <span key={`ellipsis-${idx}`} className="admin-subs-pagination-ellipsis">
+                    …
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={`page-${pageNum}`}
+                  type="button"
+                  className={`admin-subs-pagination-btn ${pageNum === currentPage ? "active" : ""}`}
+                  onClick={() => onPageChange(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              className="admin-subs-pagination-btn"
+              disabled={currentPage >= totalPages}
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              aria-label="Next Page"
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -311,7 +586,10 @@ export default function AdminSubscriptionsManagement() {
                   type="text"
                   placeholder="Search salon name, city, owner email..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSalonsPage(1);
+                  }}
                 />
               </div>
 
@@ -327,7 +605,10 @@ export default function AdminSubscriptionsManagement() {
                     key={f.key}
                     type="button"
                     className={`admin-subs-filter-chip ${statusFilter === f.key ? "active" : ""}`}
-                    onClick={() => setStatusFilter(f.key)}
+                    onClick={() => {
+                      setStatusFilter(f.key);
+                      setSalonsPage(1);
+                    }}
                   >
                     {f.label}
                   </button>
@@ -344,7 +625,8 @@ export default function AdminSubscriptionsManagement() {
                 No salon subscriptions match the selected criteria.
               </div>
             ) : (
-              <div className="admin-subs-table-wrap">
+              <>
+                <div className="admin-subs-table-wrap">
                 <table className="admin-subs-table">
                   <thead>
                     <tr>
@@ -452,60 +734,166 @@ export default function AdminSubscriptionsManagement() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* TAB 2: Plan Pricing & Trial Settings */}
+              {renderPaginationBar(
+                salonsPage,
+                salonsTotalPages,
+                salonsTotalCount,
+                salonsPageSize,
+                setSalonsPage,
+                setSalonsPageSize,
+                "salons"
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+        {/* TAB 2: Subscription Plans Management & Trial Settings */}
         {activeTab === "plans" && (
           <div className="admin-subs-panel">
-            <h2 style={{ fontSize: "18px", color: "#163622", marginTop: 0, marginBottom: "8px" }}>
-              Configure Subscription Plans & Billing Rates
-            </h2>
-            <p style={{ color: "#557260", fontSize: "13.5px", marginBottom: "24px" }}>
-              Update the subscription rates offered to salon owners. Changes take effect immediately for all upcoming purchases.
-            </p>
+            <div className="admin-plans-header-row">
+              <div>
+                <h2 style={{ fontSize: "20px", color: "#163622", margin: "0 0 6px 0" }}>
+                  Subscription Plans Management
+                </h2>
+                <p style={{ color: "#557260", fontSize: "13.5px", margin: 0 }}>
+                  Create and manage dynamic subscription tiers. Deactivating a plan prevents new purchases without affecting existing subscriptions.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="admin-btn-primary admin-create-plan-btn"
+                onClick={handleOpenCreatePlan}
+              >
+                <span>➕</span>
+                <span>Create New Plan</span>
+              </button>
+            </div>
 
             <div className="admin-plans-grid">
-              {plans.map((p) => (
-                <div key={p.id} className={`admin-plan-card ${p.badge_text ? "featured" : ""}`}>
-                  {p.badge_text && <div className="admin-plan-badge-top">{p.badge_text}</div>}
+              {plans.map((p) => {
+                const isActive = Boolean(p.is_active);
+                const isToggling = togglingPlanId === p.id;
+                const durationLabel =
+                  p.duration_months === 1
+                    ? "1 Month (Monthly)"
+                    : p.duration_months === 3
+                    ? "3 Months (Quarterly)"
+                    : p.duration_months === 6
+                    ? "6 Months (Half-Yearly)"
+                    : p.duration_months === 12
+                    ? "12 Months (Yearly)"
+                    : p.duration_months === 24
+                    ? "24 Months (2-Year Premium)"
+                    : `${p.duration_months} Months`;
 
-                  <div className="admin-plan-card-header">
-                    <h3>{p.name}</h3>
-                    <div className="admin-plan-duration-tag">Billing Duration: {p.duration_months} Month(s)</div>
-                  </div>
-
-                  <div className="admin-plan-price-editor">
-                    <span className="admin-plan-currency-sym">₹</span>
-                    <input
-                      type="number"
-                      className="admin-plan-price-input"
-                      value={p.price}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPlans((prev) => prev.map((item) => (item.id === p.id ? { ...item, price: val } : item)));
-                      }}
-                    />
-                    <span style={{ fontSize: "13px", color: "#668472" }}>/ {p.duration_months} mo</span>
-                  </div>
-
-                  <ul className="admin-plan-features-list">
-                    {(p.features || []).map((feat, idx) => (
-                      <li key={idx}>{feat}</li>
-                    ))}
-                  </ul>
-
-                  <button
-                    type="button"
-                    className="admin-plan-save-btn"
-                    disabled={savingPlanId === p.id}
-                    onClick={() => handleUpdatePlan(p.id, { price: p.price })}
+                return (
+                  <div
+                    key={p.id}
+                    className={`admin-plan-card ${isActive ? "active-plan" : "inactive-plan"} ${p.badge_text ? "featured" : ""}`}
                   >
-                    {savingPlanId === p.id ? "Saving Rate..." : "Save Plan Price"}
-                  </button>
-                </div>
-              ))}
+                    <div className="admin-plan-card-top-status">
+                      <span className={`admin-plan-status-pill ${isActive ? "active" : "inactive"}`}>
+                        <span className="status-dot" />
+                        {isActive ? "Active (Live)" : "Inactive (Hidden)"}
+                      </span>
+                      {p.badge_text && (
+                        <span className="admin-plan-marketing-badge">{p.badge_text}</span>
+                      )}
+                    </div>
+
+                    <div className="admin-plan-card-header">
+                      <h3>{p.name}</h3>
+                      <div className="admin-plan-duration-tag">
+                        <span>⏱</span>
+                        <span>{durationLabel}</span>
+                      </div>
+                    </div>
+
+                    <div className="admin-plan-pricing-display">
+                      <div className="admin-plan-price-main">
+                        <span className="admin-plan-currency-sym">₹</span>
+                        <span className="admin-plan-price-val">
+                          {Number(p.price).toLocaleString("en-IN")}
+                        </span>
+                        <span className="admin-plan-cycle">
+                          / {p.duration_months === 1 ? "mo" : `${p.duration_months} mos`}
+                        </span>
+                      </div>
+                      {p.original_price && Number(p.original_price) > Number(p.price) && (
+                        <div className="admin-plan-original-row">
+                          <span className="admin-plan-orig-val">
+                            ₹{Number(p.original_price).toLocaleString("en-IN")}
+                          </span>
+                          <span className="admin-plan-savings-pill">
+                            Save {Math.round(((Number(p.original_price) - Number(p.price)) / Number(p.original_price)) * 100)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {p.description && (
+                      <p className="admin-plan-description" title={p.description}>
+                        {p.description}
+                      </p>
+                    )}
+
+                    {/* Subscribed Salons Counter Button */}
+                    <button
+                      type="button"
+                      className="admin-plan-subscribers-pill"
+                      onClick={() => handleViewPlanSalons(p)}
+                      title="Click to view all subscribed salons"
+                    >
+                      <span className="subscribers-icon">🏪</span>
+                      <span className="subscribers-count">
+                        <strong>{p.active_salons_count || 0}</strong> Active Salons
+                        <span className="subscribers-total">({p.total_salons_count || 0} Total)</span>
+                      </span>
+                      <span className="subscribers-arrow">&rarr;</span>
+                    </button>
+
+                    <ul className="admin-plan-features-list">
+                      {(p.features || []).map((feat, idx) => (
+                        <li key={idx}>{feat}</li>
+                      ))}
+                    </ul>
+
+                    <div className="admin-plan-card-actions">
+                      <button
+                        type="button"
+                        className="admin-plan-action-btn edit"
+                        onClick={() => handleOpenEditPlan(p)}
+                      >
+                        <span>✏️</span>
+                        <span>Edit Plan</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`admin-plan-action-btn toggle ${isActive ? "deactivate" : "activate"}`}
+                        disabled={isToggling}
+                        onClick={() => handleTogglePlanStatus(p)}
+                      >
+                        <span>{isActive ? "⏸" : "▶"}</span>
+                        <span>{isToggling ? "Updating..." : isActive ? "Deactivate" : "Activate"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="admin-plan-action-btn salons"
+                        onClick={() => handleViewPlanSalons(p)}
+                        title="View salons currently on this plan"
+                      >
+                        <span>👥</span>
+                        <span>Salons</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Trial Settings Box */}
@@ -565,7 +953,8 @@ export default function AdminSubscriptionsManagement() {
                 No wallet transactions recorded yet.
               </div>
             ) : (
-              <div className="admin-subs-table-wrap">
+              <>
+                <div className="admin-subs-table-wrap">
                 <table className="admin-subs-table">
                   <thead>
                     <tr>
@@ -610,9 +999,20 @@ export default function AdminSubscriptionsManagement() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
+
+              {renderPaginationBar(
+                walletPage,
+                walletTotalPages,
+                walletTotalCount,
+                walletPageSize,
+                setWalletPage,
+                setWalletPageSize,
+                "transactions"
+              )}
+            </>
+          )}
+        </div>
+      )}
 
         {/* TAB 4: Payment Invoices & Audits */}
         {activeTab === "payments" && (
@@ -631,7 +1031,8 @@ export default function AdminSubscriptionsManagement() {
                 No subscription payments recorded yet.
               </div>
             ) : (
-              <div className="admin-subs-table-wrap">
+              <>
+                <div className="admin-subs-table-wrap">
                 <table className="admin-subs-table">
                   <thead>
                     <tr>
@@ -678,9 +1079,20 @@ export default function AdminSubscriptionsManagement() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
+
+              {renderPaginationBar(
+                paymentsPage,
+                paymentsTotalPages,
+                paymentsTotalCount,
+                paymentsPageSize,
+                setPaymentsPage,
+                setPaymentsPageSize,
+                "invoices"
+              )}
+            </>
+          )}
+        </div>
+      )}
       </main>
 
       {/* Manual Extension Modal */}
@@ -750,6 +1162,335 @@ export default function AdminSubscriptionsManagement() {
         </div>
       )}
 
+      {/* Create / Edit Plan Modal */}
+      {isPlanModalOpen && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal-card admin-modal-wide">
+            <div className="admin-modal-header">
+              <div>
+                <h3>{editingPlan ? `Edit Subscription Plan: ${editingPlan.name}` : "Create New Subscription Plan"}</h3>
+                <p style={{ margin: "4px 0 0 0", fontSize: "12.5px", color: "#557260" }}>
+                  {editingPlan
+                    ? "Editing applies to future salon purchases. Existing subscriptions retain their original price, duration, and benefits."
+                    : "New subscription plans become available to salons immediately once activated."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="admin-modal-close-btn"
+                onClick={() => {
+                  setIsPlanModalOpen(false);
+                  setEditingPlan(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePlan}>
+              <div className="admin-modal-grid-2">
+                <div className="admin-modal-form-group">
+                  <label>Plan Name *</label>
+                  <input
+                    type="text"
+                    value={planForm.name}
+                    onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                    placeholder="e.g. 2-Year Premium, Quarterly Pro..."
+                    required
+                  />
+                </div>
+
+                <div className="admin-modal-form-group">
+                  <label>Marketing Badge (Optional)</label>
+                  <input
+                    type="text"
+                    value={planForm.badge_text}
+                    onChange={(e) => setPlanForm({ ...planForm, badge_text: e.target.value })}
+                    placeholder="e.g. Best Value, Save 40%, Most Popular..."
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-form-group">
+                <label>Billing Duration (Months) *</label>
+                <div className="admin-duration-presets">
+                  {[
+                    { months: 1, label: "1 Mo (Monthly)" },
+                    { months: 3, label: "3 Mos (Quarterly)" },
+                    { months: 6, label: "6 Mos (Half-Yearly)" },
+                    { months: 12, label: "12 Mos (Yearly)" },
+                    { months: 24, label: "24 Mos (2-Year Premium)" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.months}
+                      type="button"
+                      className={`admin-duration-preset-btn ${Number(planForm.duration_months) === preset.months ? "active" : ""}`}
+                      onClick={() => setPlanForm({ ...planForm, duration_months: preset.months })}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px" }}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={planForm.duration_months}
+                    onChange={(e) => setPlanForm({ ...planForm, duration_months: e.target.value })}
+                    placeholder="Duration in months..."
+                    style={{ maxWidth: "160px" }}
+                    required
+                  />
+                  <span style={{ fontSize: "13px", color: "#4f6758", fontWeight: 600 }}>
+                    Month(s) = {Number(planForm.duration_months || 0) * 30} Days Platform Access
+                  </span>
+                </div>
+              </div>
+
+              <div className="admin-modal-grid-2">
+                <div className="admin-modal-form-group">
+                  <label>Current Plan Price (₹ INR) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={planForm.price}
+                    onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })}
+                    placeholder="e.g. 7999"
+                    required
+                  />
+                </div>
+
+                <div className="admin-modal-form-group">
+                  <label>Original Strikethrough Price (₹ INR, Optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={planForm.original_price}
+                    onChange={(e) => setPlanForm({ ...planForm, original_price: e.target.value })}
+                    placeholder="e.g. 11999 (shows savings strikethrough)"
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-form-group">
+                <label>Description *</label>
+                <textarea
+                  rows="2"
+                  value={planForm.description}
+                  onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
+                  placeholder="e.g. Save more with a 2-year plan. 100% revenue model with zero commission..."
+                  required
+                />
+              </div>
+
+              <div className="admin-modal-form-group">
+                <label>Features (One bullet point per line) *</label>
+                <textarea
+                  rows="4"
+                  value={planForm.features}
+                  onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })}
+                  placeholder={"All premium features\n0% platform booking commission\nUnlimited specialist workers & service catalog\nVerified Salon Badge on explore\nAutomated appointment reminders"}
+                  required
+                />
+              </div>
+
+              <div className="admin-modal-form-group">
+                <label>Plan Status *</label>
+                <div className="admin-status-radio-group">
+                  <label className={`admin-status-radio-label ${planForm.is_active ? "selected active" : ""}`}>
+                    <input
+                      type="radio"
+                      name="planStatus"
+                      checked={Boolean(planForm.is_active)}
+                      onChange={() => setPlanForm({ ...planForm, is_active: true })}
+                    />
+                    <div>
+                      <strong>Active (Live)</strong>
+                      <span>Immediately purchasable by salon owners</span>
+                    </div>
+                  </label>
+
+                  <label className={`admin-status-radio-label ${!planForm.is_active ? "selected inactive" : ""}`}>
+                    <input
+                      type="radio"
+                      name="planStatus"
+                      checked={!planForm.is_active}
+                      onChange={() => setPlanForm({ ...planForm, is_active: false })}
+                    />
+                    <div>
+                      <strong>Inactive (Deactivated)</strong>
+                      <span>Hidden from salons; new purchases paused</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-modal-actions">
+                <button
+                  type="button"
+                  className="admin-btn-secondary"
+                  onClick={() => {
+                    setIsPlanModalOpen(false);
+                    setEditingPlan(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="admin-btn-primary" disabled={submittingPlan}>
+                  {submittingPlan ? "Saving Plan..." : editingPlan ? "Save Plan Changes" : "Create & Activate Plan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Subscribed Salons Modal */}
+      {viewingPlanSalons && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal-card admin-modal-wide">
+            <div className="admin-modal-header">
+              <div>
+                <h3>Subscribed Salons: {viewingPlanSalons.name}</h3>
+                <p style={{ margin: "4px 0 0 0", fontSize: "12.5px", color: "#557260" }}>
+                  Billing Duration: {viewingPlanSalons.duration_months} Month(s) • ₹{Number(viewingPlanSalons.price).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="admin-modal-close-btn"
+                onClick={() => {
+                  setViewingPlanSalons(null);
+                  setPlanSalonsData({ salons: [], active_salons_count: 0, total_salons_count: 0 });
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="admin-plan-salons-summary-bar">
+              <div className="salons-summary-chip active">
+                <span className="dot" />
+                <span>Active Subscriptions: <strong>{planSalonsData.active_salons_count || 0}</strong></span>
+              </div>
+              <div className="salons-summary-chip total">
+                <span>Total Enrolled: <strong>{planSalonsData.total_salons_count || 0}</strong></span>
+              </div>
+            </div>
+
+            {planSalonsLoading ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#668472" }}>
+                Loading subscribed salons...
+              </div>
+            ) : !planSalonsData.salons || planSalonsData.salons.length === 0 ? (
+              <div className="admin-plan-salons-empty">
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>🏪</div>
+                <h4>No Salons Subscribed Yet</h4>
+                <p>No partner salon has subscribed to "{viewingPlanSalons.name}" yet.</p>
+              </div>
+            ) : (
+              <div style={{ maxHeight: "420px", overflowY: "auto" }}>
+                <table className="admin-subs-table">
+                  <thead>
+                    <tr>
+                      <th>Salon</th>
+                      <th>Owner Email</th>
+                      <th>Status</th>
+                      <th>Active Period</th>
+                      <th>Days Left</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planSalonsData.salons.map((sub) => {
+                      const isExpired = !sub.is_currently_active;
+                      const isExpiringSoon = sub.is_expiring_soon;
+
+                      return (
+                        <tr key={sub.id}>
+                          <td>
+                            <div className="admin-sub-salon-cell">
+                              <img
+                                src={resolveImageUrl(sub.salon_cover_image)}
+                                alt=""
+                                className="admin-sub-salon-avatar"
+                              />
+                              <div>
+                                <div className="admin-sub-salon-name">{sub.salon_name}</div>
+                                <div className="admin-sub-salon-city">📍 {sub.salon_city || "Kerala"}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "13px", color: "#4f6758" }}>{sub.owner_email}</span>
+                          </td>
+                          <td>
+                            {isExpired ? (
+                              <span className="admin-sub-badge expired">
+                                <span className="admin-sub-badge-dot" /> Expired
+                              </span>
+                            ) : isExpiringSoon ? (
+                              <span className="admin-sub-badge expiring">
+                                <span className="admin-sub-badge-dot" /> Expiring Soon ({sub.days_remaining}d)
+                              </span>
+                            ) : (
+                              <span className="admin-sub-badge active">
+                                <span className="admin-sub-badge-dot" /> Paid Active
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: "12.5px", color: "#4f6758" }}>
+                            {new Date(sub.start_date).toLocaleDateString("en-IN", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}{" "}
+                            &rarr;{" "}
+                            <strong>
+                              {new Date(sub.end_date).toLocaleDateString("en-IN", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </strong>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color: isExpired ? "#c5221f" : sub.days_remaining <= 7 ? "#b06000" : "#1e693b",
+                              }}
+                            >
+                              {isExpired ? "0 days" : `${sub.days_remaining} days`}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <button
+                              type="button"
+                              className="admin-sub-action-btn"
+                              onClick={() => {
+                                setExtendModalSalon(sub);
+                                setExtendDays(30);
+                                setExtendReason("");
+                              }}
+                            >
+                              <span>➕</span>
+                              <span>Extend</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="admin-toast-banner">
@@ -760,4 +1501,3 @@ export default function AdminSubscriptionsManagement() {
     </div>
   );
 }
-

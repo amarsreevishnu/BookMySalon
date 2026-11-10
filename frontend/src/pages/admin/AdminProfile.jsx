@@ -367,10 +367,7 @@ export default function AdminProfile() {
 
         {/* Content Container */}
         <div className="admin-content-container admin-profile-page">
-          {/* Breadcrumb */}
-          <div className="admin-breadcrumb">
-            Platform Operations &gt; Super Admin Authority &gt; Operator Profile
-          </div>
+        
 
           {/* Profile Hero Card */}
           <div className="admin-profile-hero">
@@ -452,59 +449,7 @@ export default function AdminProfile() {
               )}
             </div>
           </div>
-
-          {/* Master Clearance Stats Row */}
-          <div className="admin-profile-stats-grid">
-            <div className="admin-profile-stat-box">
-              <div className="admin-stat-icon-wrap gold">
-                <span>👑</span>
-              </div>
-              <div className="admin-stat-info">
-                <span className="admin-stat-label">Security Clearance</span>
-                <span className="admin-stat-val">Tier 0 (Root)</span>
-                <span className="admin-stat-sub">Highest Platform Authority</span>
-              </div>
-            </div>
-
-            <div className="admin-profile-stat-box">
-              <div className="admin-stat-icon-wrap">
-                <span>🏪</span>
-              </div>
-              <div className="admin-stat-info">
-                <span className="admin-stat-label">Venues Supervised</span>
-                <span className="admin-stat-val">
-                  {platformCounts.salonsCount} Salons
-                </span>
-                <span className="admin-stat-sub">
-                  {platformCounts.pendingCount} Pending Audits
-                </span>
-              </div>
-            </div>
-
-            <div className="admin-profile-stat-box">
-              <div className="admin-stat-icon-wrap blue">
-                <span>👥</span>
-              </div>
-              <div className="admin-stat-info">
-                <span className="admin-stat-label">Registered Clients</span>
-                <span className="admin-stat-val">
-                  {platformCounts.usersCount} Customers
-                </span>
-                <span className="admin-stat-sub">Across All Regional Hubs</span>
-              </div>
-            </div>
-
-            <div className="admin-profile-stat-box">
-              <div className="admin-stat-icon-wrap purple">
-                <span>🔑</span>
-              </div>
-              <div className="admin-stat-info">
-                <span className="admin-stat-label">Session Protocol</span>
-                <span className="admin-stat-val">JWT Active</span>
-                <span className="admin-stat-sub">Encrypted Bearer Session</span>
-              </div>
-            </div>
-          </div>
+          
 
           {/* Navigation Tabs */}
           <div className="admin-profile-tabs-wrap">

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
+import logo from "../../assets/logo.png"
 import "../../styles/createSalon.css";
 
 const DEFAULT_DAYS = [
@@ -203,6 +204,46 @@ export default function CreateSalon() {
   ]);
   const [images, setImages] = useState(SAMPLE_IMAGES);
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
+
+  // Registration & Verification Documents
+  const regCertInputRef = useRef(null);
+  const gstCertInputRef = useRef(null);
+  const ownerIdInputRef = useRef(null);
+  const ownerPhotoInputRef = useRef(null);
+
+  const [documents, setDocuments] = useState({
+    registration_certificate: "",
+    gst_certificate: "",
+    owner_id_proof: "",
+    owner_profile_photo: "",
+    registration_number: "",
+    registration_valid_from: "",
+    registration_valid_to: "",
+    gst_number: "",
+    owner_id_type: "Aadhaar Card",
+    owner_id_number: "",
+  });
+
+  const [documentMeta, setDocumentMeta] = useState({
+    registration_certificate: null,
+    gst_certificate: null,
+    owner_id_proof: null,
+    owner_profile_photo: null,
+  });
+
+  const [documentErrors, setDocumentErrors] = useState({
+    registration_certificate: "",
+    gst_certificate: "",
+    owner_id_proof: "",
+    owner_profile_photo: "",
+    registration_number: "",
+    registration_valid_from: "",
+    registration_valid_to: "",
+    gst_number: "",
+    owner_id_type: "",
+    owner_id_number: "",
+  });
+
   const [activeStep, setActiveStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -256,6 +297,8 @@ export default function CreateSalon() {
           if (parsed.services && parsed.services.length > 0) setServices(parsed.services);
           if (parsed.selectedAmenities) setSelectedAmenities(parsed.selectedAmenities);
           if (parsed.images && parsed.images.length > 0) setImages(parsed.images);
+          if (parsed.documents) setDocuments(parsed.documents);
+          if (parsed.documentMeta) setDocumentMeta(parsed.documentMeta);
           setLastSaved("Draft restored from storage");
         }
       } catch {
@@ -325,6 +368,61 @@ export default function CreateSalon() {
           if (data.admin_notes) {
             setRejectionNotes(data.admin_notes);
           }
+
+          if (data.registration_certificate) {
+            setDocuments((prev) => ({ ...prev, registration_certificate: data.registration_certificate }));
+            setDocumentMeta((prev) => ({
+              ...prev,
+              registration_certificate: {
+                name: "Salon Registration Certificate",
+                type: data.registration_certificate.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE",
+                ext: (data.registration_certificate.split(".").pop() || "PDF").toUpperCase(),
+              },
+            }));
+          }
+          if (data.gst_certificate) {
+            setDocuments((prev) => ({ ...prev, gst_certificate: data.gst_certificate }));
+            setDocumentMeta((prev) => ({
+              ...prev,
+              gst_certificate: {
+                name: "GST Certificate",
+                type: data.gst_certificate.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE",
+                ext: (data.gst_certificate.split(".").pop() || "PDF").toUpperCase(),
+              },
+            }));
+          }
+          if (data.owner_id_proof) {
+            setDocuments((prev) => ({ ...prev, owner_id_proof: data.owner_id_proof }));
+            setDocumentMeta((prev) => ({
+              ...prev,
+              owner_id_proof: {
+                name: "Owner ID Proof (Aadhaar/PAN)",
+                type: data.owner_id_proof.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE",
+                ext: (data.owner_id_proof.split(".").pop() || "PNG").toUpperCase(),
+              },
+            }));
+          }
+          if (data.owner_profile_photo) {
+            setDocuments((prev) => ({ ...prev, owner_profile_photo: data.owner_profile_photo }));
+            setDocumentMeta((prev) => ({
+              ...prev,
+              owner_profile_photo: {
+                name: "Owner Profile Photo",
+                type: data.owner_profile_photo.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE",
+                ext: (data.owner_profile_photo.split(".").pop() || "JPG").toUpperCase(),
+              },
+            }));
+          }
+
+          setDocuments((prev) => ({
+            ...prev,
+            registration_number: data.registration_number || prev.registration_number || "",
+            registration_valid_from: data.registration_valid_from || prev.registration_valid_from || "",
+            registration_valid_to: data.registration_valid_to || prev.registration_valid_to || "",
+            gst_number: data.gst_number || prev.gst_number || "",
+            owner_id_type: data.owner_id_type || prev.owner_id_type || "Aadhaar Card",
+            owner_id_number: data.owner_id_number || prev.owner_id_number || "",
+          }));
 
           setLastSaved("Application details pre-filled");
         }
@@ -649,6 +747,186 @@ export default function CreateSalon() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleDocumentFileChange = async (field, file) => {
+    if (!file) return;
+
+    setDocumentErrors((prev) => ({ ...prev, [field]: "" }));
+
+    const validTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    const validExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
+    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+
+    const isValidType =
+      validTypes.includes(file.type?.toLowerCase()) ||
+      validExtensions.includes(ext);
+
+    if (!isValidType) {
+      setDocumentErrors((prev) => ({
+        ...prev,
+        [field]: "Unsupported format. Allowed formats: PDF, JPG, JPEG, and PNG.",
+      }));
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setDocumentErrors((prev) => ({
+        ...prev,
+        [field]: "File size exceeds 10MB limit. Please select a smaller file.",
+      }));
+      return;
+    }
+
+    const isPdf = file.type === "application/pdf" || ext === ".pdf";
+
+    if (isPdf) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        setDocuments((prev) => ({ ...prev, [field]: result }));
+        setDocumentMeta((prev) => ({
+          ...prev,
+          [field]: {
+            name: file.name,
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            type: "PDF",
+            ext: "PDF",
+          },
+        }));
+      };
+      reader.onerror = () => {
+        setDocumentErrors((prev) => ({
+          ...prev,
+          [field]: "Failed to read file. Please try again.",
+        }));
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Compress image documents client-side to keep payload lightweight and fast
+      try {
+        const compressedDataUrl = await compressImage(file, 1600, 1600, 0.82);
+        if (compressedDataUrl) {
+          const approxBytes = Math.round((compressedDataUrl.length * 3) / 4);
+          const sizeStr = approxBytes >= 1024 * 1024
+            ? (approxBytes / (1024 * 1024)).toFixed(2) + " MB"
+            : Math.round(approxBytes / 1024) + " KB";
+
+          setDocuments((prev) => ({ ...prev, [field]: compressedDataUrl }));
+          setDocumentMeta((prev) => ({
+            ...prev,
+            [field]: {
+              name: file.name,
+              size: sizeStr,
+              type: "IMAGE",
+              ext: ext.toUpperCase().replace(".", "") || "JPG",
+            },
+          }));
+        } else {
+          throw new Error("Could not compress image");
+        }
+      } catch (imgErr) {
+        console.warn("Fallback to raw image read for document:", imgErr);
+        const reader = new FileReader();
+        reader.onload = () => {
+          setDocuments((prev) => ({ ...prev, [field]: reader.result }));
+          setDocumentMeta((prev) => ({
+            ...prev,
+            [field]: {
+              name: file.name,
+              size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+              type: "IMAGE",
+              ext: ext.toUpperCase().replace(".", "") || "JPG",
+            },
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const handleRemoveDocument = (field) => {
+    setDocuments((prev) => ({ ...prev, [field]: "" }));
+    setDocumentMeta((prev) => ({ ...prev, [field]: null }));
+    setDocumentErrors((prev) => ({ ...prev, [field]: "" }));
+    if (field === "registration_certificate" && regCertInputRef.current) {
+      regCertInputRef.current.value = "";
+    } else if (field === "gst_certificate" && gstCertInputRef.current) {
+      gstCertInputRef.current.value = "";
+    } else if (field === "owner_id_proof" && ownerIdInputRef.current) {
+      ownerIdInputRef.current.value = "";
+    } else if (field === "owner_profile_photo" && ownerPhotoInputRef.current) {
+      ownerPhotoInputRef.current.value = "";
+    }
+  };
+
+  const getRegistrationValidityInfo = (validFrom, validTo) => {
+    if (!validTo) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const parts = validTo.split("-").map(Number);
+    if (parts.length !== 3) return null;
+    const toDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    toDate.setHours(0, 0, 0, 0);
+
+    const diffTime = toDate.getTime() - today.getTime();
+    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const formatDateStr = (dStr) => {
+      if (!dStr) return "";
+      const p = dStr.split("-");
+      if (p.length !== 3) return dStr;
+      return `${p[2]}-${p[1]}-${p[0]}`;
+    };
+
+    if (daysLeft < 0) {
+      return {
+        status: "expired",
+        daysLeft,
+        badgeText: `🔴 Registration Expired (${Math.abs(daysLeft)} days ago on ${formatDateStr(validTo)})`,
+        message: `Your registration expired on ${formatDateStr(validTo)}. Please upload your renewed registration certificate.`,
+      };
+    } else if (daysLeft <= 30) {
+      return {
+        status: "expiring_soon",
+        daysLeft,
+        badgeText: `⚠️ Expiring in ${daysLeft} day${daysLeft === 1 ? "" : "s"} (${formatDateStr(validTo)})`,
+        message: `Registration valid until ${formatDateStr(validTo)}. Expiry alert is active; renewal recommended.`,
+      };
+    } else {
+      return {
+        status: "active",
+        daysLeft,
+        badgeText: `🟢 Active • Valid till ${formatDateStr(validTo)} (${daysLeft} days remaining)`,
+        message: `Registration is active from ${formatDateStr(validFrom) || "issued"} to ${formatDateStr(validTo)}.`,
+      };
+    }
+  };
+
+  const handleAddNewRegistration = () => {
+    setDocuments((prev) => ({
+      ...prev,
+      registration_certificate: "",
+      registration_number: "",
+      registration_valid_from: "",
+      registration_valid_to: "",
+    }));
+    setDocumentMeta((prev) => ({
+      ...prev,
+      registration_certificate: null,
+    }));
+    setDocumentErrors((prev) => ({
+      ...prev,
+      registration_certificate: "",
+      registration_number: "",
+      registration_valid_from: "",
+      registration_valid_to: "",
+    }));
+    if (regCertInputRef.current) {
+      regCertInputRef.current.value = "";
+      setTimeout(() => regCertInputRef.current?.click(), 80);
+    }
+  };
+
   const handleAddService = (e) => {
     if (e) e.preventDefault();
     setServiceError("");
@@ -713,6 +991,8 @@ export default function CreateSalon() {
         services,
         selectedAmenities,
         images,
+        documents,
+        documentMeta,
         savedAt: new Date().toISOString(),
       };
       try {
@@ -746,10 +1026,17 @@ export default function CreateSalon() {
     pricing: services.length > 0,
     amenities: selectedAmenities.length > 0,
     photos: images.length > 0,
+    documents: Boolean(
+      documents.registration_certificate &&
+      documents.registration_valid_to &&
+      documents.owner_id_proof &&
+      documents.owner_id_number.trim() &&
+      documents.owner_profile_photo
+    ),
   };
 
   const completedCount = Object.values(checklist).filter(Boolean).length;
-  const readinessPercent = Math.round((completedCount / 7) * 100);
+  const readinessPercent = Math.round((completedCount / 8) * 100);
 
   const minPrice = services.length > 0
     ? Math.min(
@@ -836,6 +1123,33 @@ export default function CreateSalon() {
       return;
     }
 
+    // Validate Required Documents & Registration Details
+    const docErrors = {};
+    if (!documents.registration_certificate) {
+      docErrors.registration_certificate = "Salon Registration Certificate is required.";
+    }
+    if (!documents.registration_valid_to) {
+      docErrors.registration_valid_to = "Registration Valid Till (expiry date) is required.";
+    } else if (documents.registration_valid_from && documents.registration_valid_to < documents.registration_valid_from) {
+      docErrors.registration_valid_to = "Registration Valid Till date must be after Valid From date.";
+    }
+    if (!documents.owner_id_proof) {
+      docErrors.owner_id_proof = "Owner ID Proof (Aadhaar/PAN) is required.";
+    }
+    if (!documents.owner_id_number?.trim()) {
+      docErrors.owner_id_number = "Owner ID document number is required.";
+    }
+    if (!documents.owner_profile_photo) {
+      docErrors.owner_profile_photo = "Owner Profile Photo is required.";
+    }
+
+    if (Object.keys(docErrors).length > 0) {
+      setDocumentErrors((prev) => ({ ...prev, ...docErrors }));
+      setErrorMessage("Please complete all required registration, validity dates, and identity fields.");
+      scrollToSection(7, "card-documents");
+      return;
+    }
+
     if (isResubmitMode) {
       setShowConfirmModal(true);
     } else {
@@ -884,6 +1198,16 @@ export default function CreateSalon() {
         // If images[0] is base64, backend automatically assigns cover_image from images gallery to save bandwidth
         cover_image: images.length > 0 && !images[0].startsWith("data:image/") ? images[0] : "",
         images: images,
+        registration_certificate: documents.registration_certificate,
+        registration_number: (documents.registration_number || "").trim(),
+        registration_valid_from: documents.registration_valid_from || null,
+        registration_valid_to: documents.registration_valid_to || null,
+        gst_certificate: documents.gst_certificate,
+        gst_number: (documents.gst_number || "").trim().toUpperCase(),
+        owner_id_proof: documents.owner_id_proof,
+        owner_id_type: documents.owner_id_type || "Aadhaar Card",
+        owner_id_number: (documents.owner_id_number || "").trim(),
+        owner_profile_photo: documents.owner_profile_photo,
       };
 
       let response;
@@ -932,8 +1256,10 @@ export default function CreateSalon() {
       }
       let msg = "Failed to submit salon application. Please check all fields.";
       if (err.response?.status === 413) {
-        msg = "Image size is too high. Please select smaller photos or fewer images.";
-        msg = "Uploaded photos are too large. Please select smaller photos or fewer images.";
+        msg =
+          err.response?.data?.error ||
+          err.response?.data?.detail ||
+          "Uploaded files or payload is too large. Please select smaller photos or files (under 10MB each), or restart the Django backend server.";
       } else if (err.response?.data) {
         const data = err.response.data;
         if (typeof data === "string") {
@@ -943,10 +1269,8 @@ export default function CreateSalon() {
             data.includes("413") ||
             data.toLowerCase().includes("too large")
           ) {
-            msg = "Image size is too high. Please select smaller photos or fewer images.";
-            msg = "Uploaded photos are too large. Please select smaller photos or fewer images.";
+            msg = "Uploaded files or payload exceeds server limit. Please ensure photos/documents are under 10MB, or restart the Django backend server.";
           } else if (data.includes("<html") || data.includes("<!DOCTYPE")) {
-            msg = "Server encountered an error while creating salon. Please check your data and retry.";
             msg = "Server encountered an error while processing your request. Please check backend logs or database connection.";
           } else {
             msg = data;
@@ -958,6 +1282,18 @@ export default function CreateSalon() {
         } else if (data.message) {
           msg = data.message;
         } else {
+          const docKeys = ["registration_certificate", "gst_certificate", "owner_id_proof", "owner_profile_photo"];
+          const newDocErrors = {};
+          docKeys.forEach((k) => {
+            if (data[k]) {
+              newDocErrors[k] = Array.isArray(data[k]) ? data[k][0] : String(data[k]);
+            }
+          });
+          if (Object.keys(newDocErrors).length > 0) {
+            setDocumentErrors((prev) => ({ ...prev, ...newDocErrors }));
+            scrollToSection(7, "card-documents");
+          }
+
           const firstKey = Object.keys(data)[0];
           const errorVal = data[firstKey];
           msg = `${firstKey}: ${Array.isArray(errorVal) ? errorVal[0] : String(errorVal)}`;
@@ -967,7 +1303,7 @@ export default function CreateSalon() {
           err.message.includes("413") ||
           err.message.toLowerCase().includes("payload too large")
         ) {
-          msg = "Uploaded photos are too large. Please select smaller photos or fewer images.";
+          msg = "Uploaded files or payload exceeds server limit. Please select smaller photos/documents or restart the Django server.";
         } else if (err.message.toLowerCase().includes("network error") || !err.response) {
           msg = "Cannot connect to the backend server. Please verify Django server is running at http://127.0.0.1:8000 and PostgreSQL is started.";
         } else {
@@ -986,7 +1322,8 @@ export default function CreateSalon() {
       <header className="cs-header-nav">
         <div className="cs-header-nav-inner">
           <Link to="/" className="cs-brand-group">
-            <div className="cs-brand-logo">B</div>
+            <div className="cs-brand-logo"><img src={logo} alt="BookMySalon Logo" />
+            </div>
             <span className="cs-brand-name">BookMySalon</span>
             <span className="cs-brand-badge">PARTNER ONBOARDING</span>
           </Link>
@@ -1258,6 +1595,14 @@ export default function CreateSalon() {
             <span className="cs-step-num">6</span>
             Photo Gallery
           </button>
+          <button
+            type="button"
+            className={`cs-step-pill ${activeStep === 7 ? "active" : checklist.documents ? "completed" : ""}`}
+            onClick={() => scrollToSection(7, "card-documents")}
+          >
+            <span className="cs-step-num">7</span>
+            Registration & Documents
+          </button>
         </nav>
 
         {/* Error notification banner */}
@@ -1300,7 +1645,7 @@ export default function CreateSalon() {
                     <p>Provide your salon's core branding information</p>
                   </div>
                 </div>
-                <span className="cs-card-badge">Step 1 of 6</span>
+                <span className="cs-card-badge">Step 1 of 7</span>
               </div>
 
               <div className="cs-form-group">
@@ -1708,7 +2053,7 @@ export default function CreateSalon() {
                   </div>
                 </div>
                 <span className="cs-card-badge">
-                  Step 4 of 6 • {services.length} services configured
+                  Step 4 of 7 • {services.length} services configured
                 </span>
               </div>
 
@@ -1941,7 +2286,7 @@ export default function CreateSalon() {
                     <p>Highlight comfort amenities to rank higher in client search filters</p>
                   </div>
                 </div>
-                <span className="cs-card-badge">Step 5 of 6 • {selectedAmenities.length} selected</span>
+                <span className="cs-card-badge">Step 5 of 7 • {selectedAmenities.length} selected</span>
               </div>
 
               <div className="cs-amenities-grid">
@@ -1981,7 +2326,7 @@ export default function CreateSalon() {
                     <p>High-resolution salon photos increase client booking conversion by 2.5x</p>
                   </div>
                 </div>
-                <span className="cs-card-badge">Step 6 of 6 • {images.length} photos</span>
+                <span className="cs-card-badge">Step 6 of 7 • {images.length} photos</span>
               </div>
 
               {/* Dropzone */}
@@ -2038,6 +2383,560 @@ export default function CreateSalon() {
                   ))}
                 </div>
               )}
+            </section>
+
+            {/* Card 7: Salon Registration Information & Document Upload */}
+            <section className="cs-card" id="card-documents">
+              <div className="cs-card-header">
+                <div className="cs-card-title-group">
+                  <div className="cs-card-icon blue">📑</div>
+                  <div>
+                    <h2>Salon Registration Information & Document Upload</h2>
+                    <p>Collect business proof and owner verification documents for Super Admin review</p>
+                  </div>
+                </div>
+                <span className="cs-card-badge">Step 7 of 7</span>
+              </div>
+
+              <div className="cs-docs-grid">
+                {/* 1. Salon Registration Certificate (Required) */}
+                <div className={`cs-doc-card ${documentErrors.registration_certificate || documentErrors.registration_valid_to ? "has-error" : documents.registration_certificate ? "is-uploaded" : ""}`}>
+                  <div className="cs-doc-header">
+                    <h3 className="cs-doc-title">
+                      <span>📄 Salon Registration Certificate</span>
+                    </h3>
+                    <span className="cs-doc-badge-required">Required</span>
+                  </div>
+                  <p className="cs-doc-desc">Proof of business registration (Trade License, Shops & Establishment, or MSME)</p>
+
+                  <input
+                    ref={regCertInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleDocumentFileChange("registration_certificate", file);
+                    }}
+                  />
+
+                  {documents.registration_certificate ? (
+                    <div className="cs-doc-preview-box">
+                      <div className="cs-doc-thumb-wrap">
+                        {documentMeta.registration_certificate?.type === "PDF" ||
+                        (typeof documents.registration_certificate === "string" && (
+                          documents.registration_certificate.startsWith("data:application/pdf") ||
+                          documents.registration_certificate.toLowerCase().includes(".pdf")
+                        )) ? (
+                          <span className="cs-doc-pdf-icon">📕</span>
+                        ) : (
+                          <img
+                            src={resolveImageUrl(documents.registration_certificate)}
+                            alt="Registration Certificate Preview"
+                            className="cs-doc-thumb-img"
+                          />
+                        )}
+                      </div>
+                      <div className="cs-doc-meta">
+                        <div className="cs-doc-filesize">
+                          <span className="cs-doc-format-tag">{documentMeta.registration_certificate?.ext || "DOC"}</span>
+                          <span>{documentMeta.registration_certificate?.size || "Uploaded"}</span>
+                        </div>
+                      </div>
+                      <div className="cs-doc-actions">
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => {
+                            const url = documents.registration_certificate.startsWith("data:") || documents.registration_certificate.startsWith("http")
+                              ? documents.registration_certificate
+                              : resolveImageUrl(documents.registration_certificate);
+                            window.open(url, "_blank");
+                          }}
+                          title="View document"
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => regCertInputRef.current?.click()}
+                          title="Change document"
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn danger"
+                          onClick={() => handleRemoveDocument("registration_certificate")}
+                          title="Remove document"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cs-doc-upload-box"
+                      onClick={() => regCertInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleDocumentFileChange("registration_certificate", file);
+                      }}
+                    >
+                      <div className="cs-doc-upload-icon">📁</div>
+                      <div className="cs-doc-upload-text">Upload Registration Certificate</div>
+                      <div className="cs-doc-upload-hint">PDF, JPG, JPEG or PNG (Max 10MB)</div>
+                    </div>
+                  )}
+
+                  {documentErrors.registration_certificate && (
+                    <div className="cs-doc-error">
+                      <span>⚠️</span> {documentErrors.registration_certificate}
+                    </div>
+                  )}
+
+                  {/* Registration Details & Validity Dates */}
+                  <div className="cs-doc-inputs">
+                    <div className="cs-doc-field">
+                      <label className="cs-doc-field-label">
+                        Registration / Trade License No.
+                      </label>
+                      <input
+                        type="text"
+                        className="cs-doc-input"
+                        placeholder="e.g. TL-2026-98745 or MSME-123456"
+                        value={documents.registration_number || ""}
+                        onChange={(e) => setDocuments((prev) => ({ ...prev, registration_number: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="cs-doc-input-row">
+                      <div className="cs-doc-field">
+                        <label className="cs-doc-field-label">
+                          Valid From (Issue Date)
+                        </label>
+                        <input
+                          type="date"
+                          className="cs-doc-input"
+                          value={documents.registration_valid_from || ""}
+                          onChange={(e) => {
+                            setDocuments((prev) => ({ ...prev, registration_valid_from: e.target.value }));
+                            setDocumentErrors((prev) => ({ ...prev, registration_valid_to: "" }));
+                          }}
+                        />
+                      </div>
+
+                      <div className="cs-doc-field">
+                        <label className="cs-doc-field-label">
+                          <span>Valid Till (Expiry Date)<span className="required-star">*</span></span>
+                        </label>
+                        <input
+                          type="date"
+                          className={`cs-doc-input ${documentErrors.registration_valid_to ? "has-error" : ""}`}
+                          value={documents.registration_valid_to || ""}
+                          onChange={(e) => {
+                            setDocuments((prev) => ({ ...prev, registration_valid_to: e.target.value }));
+                            setDocumentErrors((prev) => ({ ...prev, registration_valid_to: "" }));
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {documentErrors.registration_valid_to && (
+                      <div className="cs-doc-error">
+                        <span>⚠️</span> {documentErrors.registration_valid_to}
+                      </div>
+                    )}
+
+                    {/* Expiry Status Alert & Renewal Option */}
+                    {documents.registration_valid_to && (() => {
+                      const info = getRegistrationValidityInfo(documents.registration_valid_from, documents.registration_valid_to);
+                      if (!info) return null;
+                      return (
+                        <div className={`cs-validity-status-box ${info.status}`}>
+                          <div className="cs-validity-status-left">
+                            <span>{info.badgeText}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="cs-renew-reg-btn"
+                            onClick={handleAddNewRegistration}
+                            title="Upload renewed registration certificate and dates"
+                          >
+                            + Add / Renew
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* 2. GST Certificate (Optional) */}
+                <div className={`cs-doc-card ${documentErrors.gst_certificate ? "has-error" : documents.gst_certificate ? "is-uploaded" : ""}`}>
+                  <div className="cs-doc-header">
+                    <h3 className="cs-doc-title">
+                      <span>📑 GST Certificate</span>
+                    </h3>
+                    <span className="cs-doc-badge-optional">Optional</span>
+                  </div>
+                  <p className="cs-doc-desc">Tax registration verification (optional if not GST registered)</p>
+
+                  <input
+                    ref={gstCertInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleDocumentFileChange("gst_certificate", file);
+                    }}
+                  />
+
+                  {documents.gst_certificate ? (
+                    <div className="cs-doc-preview-box">
+                      <div className="cs-doc-thumb-wrap">
+                        {documentMeta.gst_certificate?.type === "PDF" ||
+                        (typeof documents.gst_certificate === "string" && (
+                          documents.gst_certificate.startsWith("data:application/pdf") ||
+                          documents.gst_certificate.toLowerCase().includes(".pdf")
+                        )) ? (
+                          <span className="cs-doc-pdf-icon">📕</span>
+                        ) : (
+                          <img
+                            src={resolveImageUrl(documents.gst_certificate)}
+                            alt="GST Certificate Preview"
+                            className="cs-doc-thumb-img"
+                          />
+                        )}
+                      </div>
+                      <div className="cs-doc-meta">
+                        <div className="cs-doc-filesize">
+                          <span className="cs-doc-format-tag">{documentMeta.gst_certificate?.ext || "DOC"}</span>
+                          <span>{documentMeta.gst_certificate?.size || "Uploaded"}</span>
+                        </div>
+                      </div>
+                      <div className="cs-doc-actions">
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => {
+                            const url = documents.gst_certificate.startsWith("data:") || documents.gst_certificate.startsWith("http")
+                              ? documents.gst_certificate
+                              : resolveImageUrl(documents.gst_certificate);
+                            window.open(url, "_blank");
+                          }}
+                          title="View document"
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => gstCertInputRef.current?.click()}
+                          title="Change document"
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn danger"
+                          onClick={() => handleRemoveDocument("gst_certificate")}
+                          title="Remove document"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cs-doc-upload-box"
+                      onClick={() => gstCertInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleDocumentFileChange("gst_certificate", file);
+                      }}
+                    >
+                      <div className="cs-doc-upload-icon">📂</div>
+                      <div className="cs-doc-upload-text">Upload GST Certificate</div>
+                      <div className="cs-doc-upload-hint">PDF, JPG, JPEG or PNG (Max 10MB)</div>
+                    </div>
+                  )}
+
+                  {documentErrors.gst_certificate && (
+                    <div className="cs-doc-error">
+                      <span>⚠️</span> {documentErrors.gst_certificate}
+                    </div>
+                  )}
+
+                  {/* GST Details */}
+                  <div className="cs-doc-inputs">
+                    <div className="cs-doc-field">
+                      <label className="cs-doc-field-label">
+                        GSTIN / Tax Identification No. (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        className="cs-doc-input"
+                        placeholder="e.g. 29ABCDE1234F1Z5"
+                        maxLength={15}
+                        value={documents.gst_number || ""}
+                        onChange={(e) => setDocuments((prev) => ({ ...prev, gst_number: e.target.value.toUpperCase() }))}
+                      />
+                      <div className="cs-doc-field-hint">15-digit Goods & Services Tax Identification Number</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Owner ID Proof (Required) */}
+                <div className={`cs-doc-card ${documentErrors.owner_id_proof || documentErrors.owner_id_number ? "has-error" : documents.owner_id_proof ? "is-uploaded" : ""}`}>
+                  <div className="cs-doc-header">
+                    <h3 className="cs-doc-title">
+                      <span>🪪 Owner ID Proof (Aadhaar/PAN)</span>
+                    </h3>
+                    <span className="cs-doc-badge-required">Required</span>
+                  </div>
+                  <p className="cs-doc-desc">Verify salon owner identity (Government issued Aadhaar card or PAN card)</p>
+
+                  <input
+                    ref={ownerIdInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleDocumentFileChange("owner_id_proof", file);
+                    }}
+                  />
+
+                  {documents.owner_id_proof ? (
+                    <div className="cs-doc-preview-box">
+                      <div className="cs-doc-thumb-wrap">
+                        {documentMeta.owner_id_proof?.type === "PDF" ||
+                        (typeof documents.owner_id_proof === "string" && (
+                          documents.owner_id_proof.startsWith("data:application/pdf") ||
+                          documents.owner_id_proof.toLowerCase().includes(".pdf")
+                        )) ? (
+                          <span className="cs-doc-pdf-icon">📕</span>
+                        ) : (
+                          <img
+                            src={resolveImageUrl(documents.owner_id_proof)}
+                            alt="Owner ID Proof Preview"
+                            className="cs-doc-thumb-img"
+                          />
+                        )}
+                      </div>
+                      <div className="cs-doc-meta">
+                        <div className="cs-doc-filesize">
+                          <span className="cs-doc-format-tag">{documentMeta.owner_id_proof?.ext || "DOC"}</span>
+                          <span>{documentMeta.owner_id_proof?.size || "Uploaded"}</span>
+                        </div>
+                      </div>
+                      <div className="cs-doc-actions">
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => {
+                            const url = documents.owner_id_proof.startsWith("data:") || documents.owner_id_proof.startsWith("http")
+                              ? documents.owner_id_proof
+                              : resolveImageUrl(documents.owner_id_proof);
+                            window.open(url, "_blank");
+                          }}
+                          title="View document"
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => ownerIdInputRef.current?.click()}
+                          title="Change document"
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn danger"
+                          onClick={() => handleRemoveDocument("owner_id_proof")}
+                          title="Remove document"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cs-doc-upload-box"
+                      onClick={() => ownerIdInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleDocumentFileChange("owner_id_proof", file);
+                      }}
+                    >
+                      <div className="cs-doc-upload-icon">🆔</div>
+                      <div className="cs-doc-upload-text">Upload Owner ID Proof</div>
+                      <div className="cs-doc-upload-hint">PDF, JPG, JPEG or PNG (Max 10MB)</div>
+                    </div>
+                  )}
+
+                  {documentErrors.owner_id_proof && (
+                    <div className="cs-doc-error">
+                      <span>⚠️</span> {documentErrors.owner_id_proof}
+                    </div>
+                  )}
+
+                  {/* ID Details */}
+                  <div className="cs-doc-inputs">
+                    <div className="cs-doc-input-row">
+                      <div className="cs-doc-field">
+                        <label className="cs-doc-field-label">
+                          <span>ID Type<span className="required-star">*</span></span>
+                        </label>
+                        <select
+                          className="cs-doc-select"
+                          value={documents.owner_id_type || "Aadhaar Card"}
+                          onChange={(e) => setDocuments((prev) => ({ ...prev, owner_id_type: e.target.value }))}
+                        >
+                          <option value="Aadhaar Card">Aadhaar Card</option>
+                          <option value="PAN Card">PAN Card</option>
+                          <option value="Passport">Passport</option>
+                          <option value="Voter ID">Voter ID</option>
+                          <option value="Driving License">Driving License</option>
+                        </select>
+                      </div>
+
+                      <div className="cs-doc-field">
+                        <label className="cs-doc-field-label">
+                          <span>ID Document Number<span className="required-star">*</span></span>
+                        </label>
+                        <input
+                          type="text"
+                          className={`cs-doc-input ${documentErrors.owner_id_number ? "has-error" : ""}`}
+                          placeholder="e.g. 1234 5678 9012 or ABCDE1234F"
+                          value={documents.owner_id_number || ""}
+                          onChange={(e) => {
+                            setDocuments((prev) => ({ ...prev, owner_id_number: e.target.value }));
+                            setDocumentErrors((prev) => ({ ...prev, owner_id_number: "" }));
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {documentErrors.owner_id_number && (
+                      <div className="cs-doc-error">
+                        <span>⚠️</span> {documentErrors.owner_id_number}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Owner Profile Photo (Required) */}
+                <div className={`cs-doc-card ${documentErrors.owner_profile_photo ? "has-error" : documents.owner_profile_photo ? "is-uploaded" : ""}`}>
+                  <div className="cs-doc-header">
+                    <h3 className="cs-doc-title">
+                      <span>👤 Owner Profile Photo</span>
+                    </h3>
+                    <span className="cs-doc-badge-required">Required</span>
+                  </div>
+                  <p className="cs-doc-desc">Owner identification (Clear frontal portrait photo of salon proprietor)</p>
+
+                  <input
+                    ref={ownerPhotoInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleDocumentFileChange("owner_profile_photo", file);
+                    }}
+                  />
+
+                  {documents.owner_profile_photo ? (
+                    <div className="cs-doc-preview-box">
+                      <div className="cs-doc-thumb-wrap">
+                        {documentMeta.owner_profile_photo?.type === "PDF" ||
+                        (typeof documents.owner_profile_photo === "string" && (
+                          documents.owner_profile_photo.startsWith("data:application/pdf") ||
+                          documents.owner_profile_photo.toLowerCase().includes(".pdf")
+                        )) ? (
+                          <span className="cs-doc-pdf-icon">📕</span>
+                        ) : (
+                          <img
+                            src={resolveImageUrl(documents.owner_profile_photo)}
+                            alt="Owner Profile Photo Preview"
+                            className="cs-doc-thumb-img"
+                          />
+                        )}
+                      </div>
+                      <div className="cs-doc-meta">
+                        
+                        <div className="cs-doc-filesize">
+                          <span className="cs-doc-format-tag">{documentMeta.owner_profile_photo?.ext || "IMG"}</span>
+                          <span>{documentMeta.owner_profile_photo?.size || "Uploaded"}</span>
+                        </div>
+                      </div>
+                      <div className="cs-doc-actions">
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => {
+                            const url = documents.owner_profile_photo.startsWith("data:") || documents.owner_profile_photo.startsWith("http")
+                              ? documents.owner_profile_photo
+                              : resolveImageUrl(documents.owner_profile_photo);
+                            window.open(url, "_blank");
+                          }}
+                          title="View photo"
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn"
+                          onClick={() => ownerPhotoInputRef.current?.click()}
+                          title="Change photo"
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className="cs-doc-action-btn danger"
+                          onClick={() => handleRemoveDocument("owner_profile_photo")}
+                          title="Remove photo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="cs-doc-upload-box"
+                      onClick={() => ownerPhotoInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleDocumentFileChange("owner_profile_photo", file);
+                      }}
+                    >
+                      <div className="cs-doc-upload-icon">📷</div>
+                      <div className="cs-doc-upload-text">Upload Owner Photo</div>
+                      <div className="cs-doc-upload-hint">JPG, JPEG, PNG or PDF (Max 10MB)</div>
+                    </div>
+                  )}
+
+                  {documentErrors.owner_profile_photo && (
+                    <div className="cs-doc-error">
+                      <span>⚠️</span> {documentErrors.owner_profile_photo}
+                    </div>
+                  )}
+                </div>
+              </div>
             </section>
 
             {/* Bottom Actions Bar */}
@@ -2227,6 +3126,13 @@ export default function CreateSalon() {
                     {checklist.photos ? "✓" : ""}
                   </div>
                   <span>At least 1 Salon Photo</span>
+                </div>
+
+                <div className={`cs-checklist-item ${checklist.documents ? "done" : ""}`}>
+                  <div className={`cs-check-icon ${checklist.documents ? "done" : "pending"}`}>
+                    {checklist.documents ? "✓" : ""}
+                  </div>
+                  <span>Required Registration & ID Documents</span>
                 </div>
               </div>
             </div>

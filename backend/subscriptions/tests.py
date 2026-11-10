@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.utils import timezone
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 from rest_framework import status
 
@@ -341,3 +342,176 @@ class SubscriptionsFeatureTests(TestCase):
         # Should now be accessible on detail view
         res_detail_active = self.client.get(f"/api/v1/salons/{self.salon.id}/")
         self.assertEqual(res_detail_active.status_code, status.HTTP_200_OK)
+
+    def test_admin_create_dynamic_subscription_plan(self):
+        """Super Admin should be able to create new plans like 2-Year Premium (24 months)."""
+        self.client.force_authenticate(user=self.admin)
+        create_payload = {
+            "name": "2-Year Premium",
+            "duration_months": 24,
+            "price": "7999.00",
+            "original_price": "11999.00",
+            "badge_text": "Best Value",
+            "description": "Save more with our 2-year long-term plan with 0% platform booking commission.",
+            "features": [
+                "0% platform booking commission",
+                "Unlimited specialist workers",
+                "24 months guaranteed rate",
+                "Verified Salon Badge",
+            ],
+            "is_active": True,
+        }
+        res = self.client.post("/api/v1/subscriptions/admin/plans/", create_payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data["name"], "2-Year Premium")
+        self.assertEqual(res.data["duration_months"], 24)
+        self.assertEqual(res.data["duration_key"], "2_YEAR_PREMIUM")
+
+        # Newly created plan should immediately be available to salons
+        self.client.force_authenticate(user=self.owner)
+        res_owner_plans = self.client.get("/api/v1/subscriptions/owner/plans/")
+        self.assertEqual(res_owner_plans.status_code, status.HTTP_200_OK)
+        plan_names = [p["name"] for p in res_owner_plans.data]
+        self.assertIn("2-Year Premium", plan_names)
+
+    def test_admin_edit_subscription_plan(self):
+        """Editing a plan affects future purchases without affecting existing subscriptions."""
+        # 1. Salon subscribes to monthly plan
+        now = timezone.now()
+        sub = SalonSubscription.objects.create(
+            salon=self.salon,
+            plan=self.monthly_plan,
+            subscription_type=SalonSubscription.SubscriptionType.PAID,
+            status=SalonSubscription.Status.ACTIVE,
+            start_date=now,
+            end_date=now + timedelta(days=30),
+            has_used_free_trial=True,
+        )
+
+        # 2. Super Admin edits monthly plan price from 499 to 599
+        self.client.force_authenticate(user=self.admin)
+        edit_payload = {
+            "price": "599.00",
+            "description": "Updated monthly rate for upcoming subscribers.",
+        }
+        res = self.client.put(
+            f"/api/v1/subscriptions/admin/plans/{self.monthly_plan.id}/",
+            edit_payload,
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["price"], "599.00")
+
+        # 3. Existing subscription is unaffected
+        sub.refresh_from_db()
+        self.assertEqual(sub.status, SalonSubscription.Status.ACTIVE)
+        self.assertEqual(sub.plan.id, self.monthly_plan.id)
+        self.assertTrue(sub.is_currently_active)
+
+    def test_admin_activate_deactivate_plan(self):
+        """Deactivating a plan prevents new purchases but preserves existing subscriptions."""
+        # 1. Existing subscription on half-yearly plan
+        now = timezone.now()
+        sub = SalonSubscription.objects.create(
+            salon=self.salon,
+            plan=self.half_yearly_plan,
+            subscription_type=SalonSubscription.SubscriptionType.PAID,
+            status=SalonSubscription.Status.ACTIVE,
+            start_date=now,
+            end_date=now + timedelta(days=180),
+            has_used_free_trial=True,
+        )
+
+        # 2. Super Admin deactivates half-yearly plan
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.patch(
+            f"/api/v1/subscriptions/admin/plans/{self.half_yearly_plan.id}/",
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertFalse(res.data["is_active"])
+
+        # 3. Owner should no longer see the deactivated plan
+        self.client.force_authenticate(user=self.owner)
+        res_owner = self.client.get("/api/v1/subscriptions/owner/plans/")
+        active_plan_ids = [p["id"] for p in res_owner.data]
+        self.assertNotIn(self.half_yearly_plan.id, active_plan_ids)
+
+        # 4. Attempting to create payment order for deactivated plan fails
+        with self.assertRaises(ValidationError):
+            create_subscription_razorpay_order(self.salon, self.half_yearly_plan.id, self.owner)
+
+        # 5. Existing subscription remains active and valid
+        sub.refresh_from_db()
+        self.assertTrue(sub.is_currently_active)
+        self.assertEqual(sub.status, SalonSubscription.Status.ACTIVE)
+
+    def test_admin_view_salons_subscribed_to_plan(self):
+        """Super Admin can view salons subscribed to a specific plan."""
+        now = timezone.now()
+        SalonSubscription.objects.create(
+            salon=self.salon,
+            plan=self.monthly_plan,
+            subscription_type=SalonSubscription.SubscriptionType.PAID,
+            status=SalonSubscription.Status.ACTIVE,
+            start_date=now,
+            end_date=now + timedelta(days=30),
+            has_used_free_trial=True,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get(f"/api/v1/subscriptions/admin/plans/{self.monthly_plan.id}/salons/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["plan"]["id"], self.monthly_plan.id)
+        self.assertEqual(res.data["active_salons_count"], 1)
+        self.assertEqual(res.data["total_salons_count"], 1)
+        self.assertEqual(len(res.data["salons"]), 1)
+        self.assertEqual(res.data["salons"][0]["salon_name"], self.salon.name)
+
+    def test_admin_salons_subscriptions_pagination(self):
+        """Super Admin salons list supports backend pagination."""
+        now = timezone.now()
+        SalonSubscription.objects.create(
+            salon=self.salon,
+            plan=self.monthly_plan,
+            subscription_type=SalonSubscription.SubscriptionType.PAID,
+            status=SalonSubscription.Status.ACTIVE,
+            start_date=now,
+            end_date=now + timedelta(days=30),
+            has_used_free_trial=True,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get("/api/v1/subscriptions/admin/salons/?page=1&page_size=5")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("count", res.data)
+        self.assertIn("total_pages", res.data)
+        self.assertIn("current_page", res.data)
+        self.assertIn("page_size", res.data)
+        self.assertIn("salons", res.data)
+        self.assertEqual(res.data["current_page"], 1)
+        self.assertEqual(res.data["page_size"], 5)
+        self.assertGreaterEqual(res.data["count"], 1)
+        self.assertGreaterEqual(len(res.data["salons"]), 1)
+
+    def test_admin_payments_and_wallet_pagination(self):
+        """Super Admin payments and wallet endpoints support backend pagination."""
+        self.client.force_authenticate(user=self.admin)
+
+        # 1. Wallet pagination
+        res_wallet = self.client.get("/api/v1/subscriptions/admin/wallet/?page=1&page_size=10")
+        self.assertEqual(res_wallet.status_code, status.HTTP_200_OK)
+        self.assertIn("transactions", res_wallet.data)
+        self.assertIn("current_page", res_wallet.data)
+        self.assertIn("total_pages", res_wallet.data)
+        self.assertEqual(res_wallet.data["current_page"], 1)
+
+        # 2. Payments pagination
+        res_payments = self.client.get("/api/v1/subscriptions/admin/payments/?page=1&page_size=10")
+        self.assertEqual(res_payments.status_code, status.HTTP_200_OK)
+        self.assertIn("payments", res_payments.data)
+        self.assertIn("count", res_payments.data)
+        self.assertIn("current_page", res_payments.data)
+        self.assertEqual(res_payments.data["current_page"], 1)
+

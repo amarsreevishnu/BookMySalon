@@ -251,6 +251,106 @@ BookMySalon Super Admin Operations
         return False
 
 
+def send_salon_blocked_email(salon, reason="", cancelled_count=0, total_refunded=0):
+    """
+    Sends an official notification email to the salon owner informing them that
+    their salon has been blocked / suspended by the Super Admin, including details
+    on cancelled bookings, initiated customer refunds, and reason.
+    """
+    subject = f"Notice: Your Salon '{salon.name}' has been Suspended on BookMySalon"
+    recipients = []
+    if getattr(salon, "email", None):
+        recipients.append(salon.email)
+    owner = getattr(salon, "owner", None)
+    if owner and getattr(owner, "email", None) and owner.email not in recipients:
+        recipients.append(owner.email)
+
+    if not recipients:
+        return False
+
+    reason_text = f"\nSuper Admin Suspension Reason / Feedback:\n{reason}\n" if reason else ""
+
+    plain_message = f"""
+Dear Salon Partner,
+
+This is an official notice that your salon venue '{salon.name}' has been SUSPENDED / BLOCKED on BookMySalon by the platform Super Admin.
+{reason_text}
+Automated Actions Executed:
+- Your venue has been hidden from public customer discovery and explore.
+- New appointment bookings have been immediately disabled.
+- {cancelled_count} upcoming confirmed/pending booking(s) have been automatically cancelled.
+- Full refunds totaling ₹{total_refunded} have been initiated to affected customers from your salon account.
+
+If you believe this action was taken in error or wish to appeal this decision, please contact our compliance and operations desk:
+Email: admin@bookmysalon.com
+
+Best regards,
+BookMySalon Super Admin Operations
+"""
+
+    html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fef2f2; margin: 0; padding: 24px; color: #1f2937; }}
+    .card {{ max-width: 540px; margin: 0 auto; background: #ffffff; border: 1px solid #fecaca; border-radius: 12px; padding: 36px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.08); }}
+    .badge {{ display: inline-block; background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; }}
+    .title {{ font-size: 20px; font-weight: 700; color: #991b1b; margin-top: 0; margin-bottom: 12px; }}
+    .text {{ font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 16px; }}
+    .alert-box {{ background: #fff1f2; border-left: 4px solid #e11d48; border-radius: 6px; padding: 14px 18px; margin: 20px 0; font-size: 13px; color: #9f1239; }}
+    .details-box {{ background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0; }}
+    .detail-row {{ display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }}
+    .detail-label {{ color: #6b7280; font-weight: 600; }}
+    .detail-val {{ font-weight: 700; color: #111827; }}
+    .footer {{ margin-top: 28px; border-top: 1px solid #e5e7eb; padding-top: 16px; font-size: 11px; color: #9ca3af; text-align: center; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">Suspension Notice</span>
+    <h1 class="title">Salon Venue Suspended</h1>
+    <p class="text">
+      This is an official communication informing you that your salon <strong>{salon.name}</strong> has been suspended and placed under block by the BookMySalon Super Admin team.
+    </p>
+    {"<div class='alert-box'><strong>Reason for Suspension:</strong><br>" + str(reason) + "</div>" if reason else ""}
+    <div class="details-box">
+      <div style="font-size: 12px; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 12px;">Automated Actions Executed</div>
+      <div class="detail-row"><span class="detail-label">Platform Status:</span> <span class="detail-val" style="color: #dc2626;">Blocked / Suspended</span></div>
+      <div class="detail-row"><span class="detail-label">Cancelled Upcoming Bookings:</span> <span class="detail-val">{cancelled_count}</span></div>
+      <div class="detail-row" style="margin-bottom: 0;"><span class="detail-label">Customer Refunds Initiated:</span> <span class="detail-val">₹{total_refunded}</span></div>
+    </div>
+    <p class="text">
+      Your venue is currently hidden from customer explore and cannot accept new appointments. If you believe this suspension was made in error or wish to request an account review, please contact our administrative desk:
+    </p>
+    <p class="text" style="text-align: center; font-weight: 600; color: #1f2937;">
+      admin@bookmysalon.com
+    </p>
+    <div class="footer">
+      BookMySalon Platform Operations &bull; Legal &amp; Compliance Team
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipients,
+            html_message=html_message,
+            fail_silently=False,
+        )
+        logger.info(f"Blocked email sent to {recipients} for salon {salon.id}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send blocked email to {recipients}: {e}")
+        return False
+
+
 def send_worker_credentials_email(worker, temp_password, salon=None, login_url=None):
     """
     Sends the worker their login ID (email) and password via email upon creation

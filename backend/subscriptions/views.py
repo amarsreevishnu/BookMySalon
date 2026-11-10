@@ -1,5 +1,6 @@
 import logging
 from decimal import Decimal
+from django.core.paginator import Paginator, EmptyPage
 from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
@@ -60,7 +61,6 @@ class IsOwnerUserRole(BasePermission):
 
 
 def _get_owner_salon(user):
-    """Safely retrieves the primary approved salon owned by the user."""
     salon = Salon.objects.filter(owner=user).order_by("-id").first()
     if not salon:
         salon = Salon.objects.filter(email__iexact=user.email).order_by("-id").first()
@@ -128,19 +128,43 @@ class AdminSubscriptionStatsView(APIView):
 
 
 class AdminSuperAdminWalletView(APIView):
-    """
-    Returns platform wallet balance and audited transaction history.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
     def get(self, request):
         wallet = SuperAdminWallet.get_wallet()
-        transactions = wallet.transactions.select_related("salon", "payment").all()[:100]
+        qs = wallet.transactions.select_related("salon", "payment").all().order_by("-created_at")
 
+        try:
+            page_num = max(1, int(request.query_params.get("page", 1)))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        paginator = Paginator(qs, page_size)
+        total_count = paginator.count
+        total_pages = paginator.num_pages
+
+        try:
+            page_obj = paginator.page(page_num)
+        except EmptyPage:
+            page_obj = []
+
+        serializer = SuperAdminWalletTransactionSerializer(page_obj, many=True)
         return Response({
             "wallet": SuperAdminWalletSerializer(wallet).data,
-            "transactions": SuperAdminWalletTransactionSerializer(transactions, many=True).data,
+            "transactions": serializer.data,
+            "results": serializer.data,
+            "count": total_count,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page_num,
+            "page_size": page_size,
         })
 
 
@@ -162,6 +186,13 @@ class AdminSalonsSubscriptionsListView(APIView):
             sub.sync_status_with_time()
 
         qs = SalonSubscription.objects.select_related("salon", "salon__owner", "plan").filter(salon__approval_status="APPROVED")
+
+        plan_id = request.query_params.get("plan_id")
+        if plan_id:
+            try:
+                qs = qs.filter(plan_id=int(plan_id))
+            except (ValueError, TypeError):
+                pass
 
         if search:
             qs = qs.filter(
@@ -186,14 +217,40 @@ class AdminSalonsSubscriptionsListView(APIView):
             )
 
         qs = qs.order_by("end_date")
-        serializer = SalonSubscriptionSerializer(qs, many=True)
-        return Response(serializer.data)
+
+        try:
+            page_num = max(1, int(request.query_params.get("page", 1)))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        paginator = Paginator(qs, page_size)
+        total_count = paginator.count
+        total_pages = paginator.num_pages
+
+        try:
+            page_obj = paginator.page(page_num)
+        except EmptyPage:
+            page_obj = []
+
+        serializer = SalonSubscriptionSerializer(page_obj, many=True)
+        return Response({
+            "salons": serializer.data,
+            "results": serializer.data,
+            "count": total_count,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page_num,
+            "page_size": page_size,
+        })
 
 
 class AdminSubscriptionPlansView(APIView):
-    """
-    Manage subscription plan pricing and details.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -210,9 +267,7 @@ class AdminSubscriptionPlansView(APIView):
 
 
 class AdminSubscriptionPlanDetailView(APIView):
-    """
-    Update price, features, or details of a specific plan.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -228,11 +283,42 @@ class AdminSubscriptionPlanDetailView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def patch(self, request, pk):
+        return self.put(request, pk)
+
+
+class AdminPlanSubscribedSalonsView(APIView):
+    """
+    Super Admin endpoint to view all salons subscribed to a specific plan.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request, pk):
+        try:
+            plan = SubscriptionPlan.objects.get(pk=pk)
+        except SubscriptionPlan.DoesNotExist:
+            return Response({"error": "Plan not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        now = timezone.now()
+        history_salons_ids = SubscriptionHistory.objects.filter(plan=plan).values_list("salon_id", flat=True)
+        all_salons_qs = (
+            SalonSubscription.objects.filter(Q(plan=plan) | Q(salon_id__in=history_salons_ids))
+            .select_related("salon", "salon__owner", "plan")
+            .distinct()
+            .order_by("-end_date")
+        )
+
+        return Response({
+            "plan": SubscriptionPlanSerializer(plan).data,
+            "salons": SalonSubscriptionSerializer(all_salons_qs, many=True).data,
+            "active_salons_count": all_salons_qs.filter(status=SalonSubscription.Status.ACTIVE, end_date__gte=now).count(),
+            "total_salons_count": all_salons_qs.count(),
+        })
+
 
 class AdminSubscriptionSettingsView(APIView):
-    """
-    Configure global trial duration (default 30 days) and reminder intervals.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -250,9 +336,7 @@ class AdminSubscriptionSettingsView(APIView):
 
 
 class AdminExtendSubscriptionView(APIView):
-    """
-    Super Admin manually extends a salon's subscription by X days.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
@@ -286,24 +370,58 @@ class AdminExtendSubscriptionView(APIView):
 
 
 class AdminSubscriptionPaymentsListView(APIView):
-    """
-    Audit log of all subscription payments.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUserRole]
 
     def get(self, request):
-        payments = SubscriptionPayment.objects.select_related("salon", "owner", "plan").all()[:150]
-        return Response(SubscriptionPaymentSerializer(payments, many=True).data)
+        qs = SubscriptionPayment.objects.select_related("salon", "owner", "plan").all().order_by("-created_at")
+
+        search = request.query_params.get("search", "").strip()
+        if search:
+            qs = qs.filter(
+                Q(receipt_number__icontains=search)
+                | Q(razorpay_payment_id__icontains=search)
+                | Q(salon__name__icontains=search)
+                | Q(owner__email__icontains=search)
+            )
+
+        try:
+            page_num = max(1, int(request.query_params.get("page", 1)))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        try:
+            page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
+        except (ValueError, TypeError):
+            page_size = 10
+
+        paginator = Paginator(qs, page_size)
+        total_count = paginator.count
+        total_pages = paginator.num_pages
+
+        try:
+            page_obj = paginator.page(page_num)
+        except EmptyPage:
+            page_obj = []
+
+        serializer = SubscriptionPaymentSerializer(page_obj, many=True)
+        return Response({
+            "payments": serializer.data,
+            "results": serializer.data,
+            "count": total_count,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page_num,
+            "page_size": page_size,
+        })
 
 
 
 # Salon Owner APIs
 
 class OwnerCurrentSubscriptionView(APIView):
-    """
-    Returns the current subscription / trial status for the authenticated salon owner.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerUserRole]
 
@@ -331,9 +449,7 @@ class OwnerCurrentSubscriptionView(APIView):
 
 
 class OwnerAvailablePlansView(APIView):
-    """
-    Returns active plans (1 month, 6 months, 12 months) available for purchase.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerUserRole]
 
@@ -343,9 +459,7 @@ class OwnerAvailablePlansView(APIView):
 
 
 class OwnerCreateSubscriptionOrderView(APIView):
-    """
-    Generates a dedicated Razorpay order to purchase or renew a subscription plan.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerUserRole]
 
@@ -366,9 +480,7 @@ class OwnerCreateSubscriptionOrderView(APIView):
 
 
 class OwnerVerifySubscriptionPaymentView(APIView):
-    """
-    Verifies Razorpay payment signature, credits Super Admin Wallet, and activates/renews plan.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerUserRole]
 
@@ -399,9 +511,7 @@ class OwnerVerifySubscriptionPaymentView(APIView):
 
 
 class OwnerSubscriptionHistoryView(APIView):
-    """
-    Returns owner's subscription renewals and invoice payment receipts.
-    """
+    
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerUserRole]
 

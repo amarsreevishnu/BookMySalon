@@ -36,10 +36,7 @@ def get_razorpay_credentials():
 
 
 def activate_trial_for_salon(salon, trial_days=None):
-    """
-    Activates a 30-day (or configured) free trial for a newly approved salon.
-    Enforces rule: Free trial is only available once per salon.
-    """
+    
     if not salon:
         return None
 
@@ -89,7 +86,7 @@ def activate_trial_for_salon(salon, trial_days=None):
             notes=f"30-day Free Trial activated upon salon verification & approval. Valid until {end_date.strftime('%b %d, %Y')}.",
         )
 
-    # In-app notification for owner
+    
     if salon.owner:
         create_notification(
             recipient=salon.owner,
@@ -104,17 +101,14 @@ def activate_trial_for_salon(salon, trial_days=None):
             },
         )
 
-    # Email notification to owner
+    
     send_trial_activated_email(salon, sub, duration_days)
 
     return sub
 
 
 def create_subscription_razorpay_order(salon, plan_id, owner_user):
-    """
-    Creates a dedicated Razorpay order for purchasing a salon subscription plan.
-    Decoupled from booking payments.
-    """
+    
     try:
         plan = SubscriptionPlan.objects.get(pk=plan_id, is_active=True)
     except SubscriptionPlan.DoesNotExist:
@@ -200,10 +194,7 @@ def create_subscription_razorpay_order(salon, plan_id, owner_user):
 
 
 def verify_and_activate_subscription(salon, razorpay_order_id, razorpay_payment_id, razorpay_signature):
-    """
-    Verifies Razorpay payment signature, updates payment status, credits Super Admin Wallet,
-    and activates or renews the salon's subscription according to early renewal logic.
-    """
+  
     payment = SubscriptionPayment.objects.filter(
         razorpay_order_id=razorpay_order_id,
         salon=salon,
@@ -265,8 +256,7 @@ def verify_and_activate_subscription(salon, razorpay_order_id, razorpay_payment_
             reason=f"100% Subscription revenue for {plan.name} from {salon.name} (Receipt: {payment.receipt_number})",
         )
 
-        # 2. Early Renewal Logic:
-        # If currently active, new plan duration is appended to current end_date!
+        
         current_sub = getattr(salon, "subscription", None)
         is_early_renewal = (
             current_sub is not None
@@ -317,7 +307,7 @@ def verify_and_activate_subscription(salon, razorpay_order_id, razorpay_payment_
             notes=note,
         )
 
-    # In-app notification for owner
+    
     if salon.owner:
         create_notification(
             recipient=salon.owner,
@@ -334,16 +324,14 @@ def verify_and_activate_subscription(salon, razorpay_order_id, razorpay_payment_
             },
         )
 
-    # Email confirmation
+    
     send_subscription_activated_email(salon, sub, payment)
 
     return sub, payment
 
 
 def admin_manually_extend_subscription(salon, extra_days, reason="", admin_user=None):
-    """
-    Allows Super Admin to grant complimentary duration to a salon's subscription.
-    """
+    
     if extra_days <= 0:
         raise ValidationError("Extension duration must be a positive number of days.")
 
@@ -387,7 +375,7 @@ def admin_manually_extend_subscription(salon, extra_days, reason="", admin_user=
             notes=f"Manually extended by {admin_email} for +{extra_days} days. Reason: {reason or 'Admin courtesy'}.",
         )
 
-    # Notify owner
+    
     if salon.owner:
         create_notification(
             recipient=salon.owner,
@@ -407,15 +395,11 @@ def admin_manually_extend_subscription(salon, extra_days, reason="", admin_user=
 
 
 def check_and_send_subscription_reminders():
-    """
-    Daily audit task to:
-    1. Mark expired subscriptions as EXPIRED.
-    2. Dispatch notifications and emails 7 days, 3 days, and 1 day before expiry.
-    """
+    
     now = timezone.now()
     today = timezone.localdate()
 
-    # 1. Update expired subscriptions
+    
     expired_subs = SalonSubscription.objects.filter(
         status__in=[SalonSubscription.Status.TRIAL, SalonSubscription.Status.ACTIVE],
         end_date__lt=now,
@@ -445,7 +429,7 @@ def check_and_send_subscription_reminders():
             )
             send_subscription_expired_email(sub.salon, sub)
 
-    # 2. Send reminders for upcoming expirations (7, 3, 1 days)
+    
     settings_obj = SubscriptionSetting.get_settings()
     reminder_days_list = settings_obj.trial_reminder_days or [7, 3, 1]
 
@@ -483,9 +467,6 @@ def check_and_send_subscription_reminders():
                     sub.save(update_fields=["reminder_sent_intervals", "last_reminder_date", "updated_at"])
 
 
-# ---------------------------------------------------------------------------
-# Beautiful HTML Email Templates
-# ---------------------------------------------------------------------------
 
 def send_trial_activated_email(salon, subscription, days=30):
     recipient = salon.owner.email if salon.owner else salon.email

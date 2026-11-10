@@ -8,9 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def log_ticket_activity(ticket, user, activity_type, details="", old_value="", new_value=""):
-    """
-    Creates an immutable audit log entry for ticket events.
-    """
+    
     try:
         return TicketActivity.objects.create(
             ticket=ticket,
@@ -26,9 +24,7 @@ def log_ticket_activity(ticket, user, activity_type, details="", old_value="", n
 
 
 def create_in_app_notification(recipient, title, message, data=None):
-    """
-    Creates an in-app Notification record if the notifications app is available.
-    """
+    
     try:
         from notifications.models import Notification
         Notification.objects.create(
@@ -43,12 +39,9 @@ def create_in_app_notification(recipient, title, message, data=None):
 
 
 def send_ticket_created_emails(ticket):
-    """
-    Creates an in-app notification immediately and dispatches
-    ticket creation emails asynchronously via Celery.
-    """
+    
     try:
-        # In-app notification for owner
+        
         create_in_app_notification(
             recipient=ticket.created_by,
             title=f"Ticket #{ticket.ticket_number} Raised",
@@ -71,10 +64,7 @@ def send_ticket_created_emails(ticket):
 
 
 def send_admin_reply_email(ticket, message_obj):
-    """
-    Creates an in-app notification immediately and dispatches
-    the admin reply email to the salon owner asynchronously via Celery.
-    """
+    
     try:
         create_in_app_notification(
             recipient=ticket.created_by,
@@ -98,9 +88,7 @@ def send_admin_reply_email(ticket, message_obj):
 
 
 def send_owner_reply_email(ticket, message_obj):
-    """
-    Dispatches owner reply notification to the super admin asynchronously via Celery.
-    """
+    
     try:
         from .tasks import send_owner_reply_email_task
         send_owner_reply_email_task.delay(ticket.id, message_obj.id)
@@ -114,10 +102,7 @@ def send_owner_reply_email(ticket, message_obj):
 
 
 def send_status_update_email(ticket, old_status, new_status):
-    """
-    Creates an in-app status notification immediately and dispatches
-    status update email to the salon owner asynchronously via Celery.
-    """
+    
     try:
         create_in_app_notification(
             recipient=ticket.created_by,

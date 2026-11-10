@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import UserViewModal from "../../components/admin/UserViewModal";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/adminSalonsList.css";
 import "../../styles/adminUserList.css";
 
@@ -20,6 +21,9 @@ export default function AdminUserList() {
   const [sortBy, setSortBy] = useState("newest"); 
   const [inspectingUser, setInspectingUser] = useState(null);
   const [blockConfirmUser, setBlockConfirmUser] = useState(null);
+  const [blockSummary, setBlockSummary] = useState(null);
+  const [loadingBlockSummary, setLoadingBlockSummary] = useState(false);
+  const [blockAdminNotes, setBlockAdminNotes] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
@@ -81,10 +85,25 @@ export default function AdminUserList() {
     fetchUsers();
   }, []);
 
-  const handleInitiateBlock = (user) => {
+  const handleInitiateBlock = async (user) => {
     if (!user) return;
     if (user.is_active) {
       setBlockConfirmUser(user);
+      setBlockAdminNotes("");
+      setBlockSummary(null);
+      setLoadingBlockSummary(true);
+      try {
+        const token = localStorage.getItem("access_token");
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        const res = await api.get(`/accounts/admin/users/${user.id}/toggle-block/`, config);
+        if (res.data?.summary) {
+          setBlockSummary(res.data.summary);
+        }
+      } catch (err) {
+        console.warn("Could not load pre-block summary:", err);
+      } finally {
+        setLoadingBlockSummary(false);
+      }
     } else {
       executeToggleBlock(user);
     }
@@ -92,8 +111,7 @@ export default function AdminUserList() {
 
   const handleToggleBlock = handleInitiateBlock;
 
-  
-  const executeToggleBlock = async (user) => {
+  const executeToggleBlock = async (user, notes = "") => {
     if (!user) return;
     setIsProcessing(true);
     try {
@@ -101,7 +119,7 @@ export default function AdminUserList() {
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
       const res = await api.post(
         `/accounts/admin/users/${user.id}/toggle-block/`,
-        {},
+        { admin_notes: notes || blockAdminNotes },
         config
       );
 
@@ -114,12 +132,23 @@ export default function AdminUserList() {
         setInspectingUser(updatedUser);
       }
 
-      showToast(
-        updatedUser.is_active
-          ? `✅ Customer ${updatedUser.email} has been unblocked.`
-          : `🚫 Customer ${updatedUser.email} has been blocked.`
-      );
+      if (updatedUser.is_active) {
+        showToast(`✅ Customer ${updatedUser.email} has been unblocked.`);
+      } else {
+        const cancelled = res.data?.cancelled_bookings_count || 0;
+        const refunded = res.data?.total_refunded_amount || "0.00";
+        if (cancelled > 0) {
+          showToast(
+            `🚫 Customer ${updatedUser.email} blocked. ${cancelled} upcoming booking(s) cancelled, ₹${refunded} refunded to wallet.`,
+            5000
+          );
+        } else {
+          showToast(`🚫 Customer ${updatedUser.email} has been blocked.`);
+        }
+      }
       setBlockConfirmUser(null);
+      setBlockSummary(null);
+      setBlockAdminNotes("");
     } catch (err) {
       console.error("Failed to toggle user block status:", err);
       const errMsg = err.response?.data?.error || "Failed to update user block status.";
@@ -427,7 +456,6 @@ export default function AdminUserList() {
           
           <div className="asl-results-bar">
             <span>
-              Showing <strong>{filteredUsers.length}</strong> of {totalCount} customers
               {activeTab !== "ALL" && ` (${activeTab.toLowerCase()})`}
               {searchQuery && ` matching "${searchQuery}"`}
             </span>
@@ -449,7 +477,7 @@ export default function AdminUserList() {
           {loading && (
             <div className="asl-loading-wrap">
               <div className="asl-spinner" />
-              <p>Loading customers directory...</p>
+              <SalonLoader size={84} label="Loading customers directory...." />
             </div>
           )}
 
@@ -737,7 +765,7 @@ export default function AdminUserList() {
         isProcessing={isProcessing}
       />
 
-      {/*BLOCK CONFIRMATION MODAL (Yes or Cancel) */}
+      {/* BLOCK CONFIRMATION MODAL (With Pre-Block Summary & Cancellation Breakdown) */}
       {blockConfirmUser && (
         <div
           className="asl-modal-backdrop user-modal-backdrop"
@@ -749,28 +777,156 @@ export default function AdminUserList() {
         >
           <div
             className="asl-dialog-panel user-confirm-panel"
+            style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="user-confirm-content">
-              <div className="user-confirm-icon-wrap">
-                <span>⚠️</span>
+            {/* Modal Header */}
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5ede7", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fcfdfc" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: "22px" }}>🚫</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#152a1c" }}>
+                    Confirm Customer Block
+                  </h3>
+                  <span style={{ fontSize: "11px", color: "#617769" }}>
+                    Platform Governance & Booking Cancellation Audit
+                  </span>
+                </div>
               </div>
-              <div className="user-confirm-text">
-                <h3>Block Customer Account?</h3>
-                <p>
-                  Are you sure you want to block{" "}
-                  <strong style={{ color: "#172a1d" }}>
+              <button
+                type="button"
+                onClick={() => !isProcessing && setBlockConfirmUser(null)}
+                style={{ background: "none", border: "none", color: "#64776b", fontSize: "18px", cursor: "pointer", padding: "4px 8px" }}
+                disabled={isProcessing}
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Customer Banner */}
+              <div style={{ background: "#f8faf8", border: "1px solid #e1ece4", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: "#152a1c", fontSize: "14px" }}>
                     {blockConfirmUser.full_name || blockConfirmUser.email}
-                  </strong>{" "}
-                  (<code>#CUST-{blockConfirmUser.id}</code>)?
-                  <br />
-                  <br />
-                  This customer will be restricted from accessing the platform and cannot log in or make appointments.
-                </p>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#546e5e" }}>
+                    {blockConfirmUser.email} &bull; <code>#CUST-{blockConfirmUser.id}</code>
+                  </div>
+                </div>
+                <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "11px", fontWeight: 700, padding: "3px 9px", borderRadius: 12 }}>
+                  Pending Block
+                </span>
+              </div>
+
+              {/* Warning Notice */}
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", fontSize: "12.5px", color: "#92400e", lineHeight: 1.5 }}>
+                <strong>Account Restriction:</strong> The customer will be immediately blocked from logging in, making appointments, and accessing customer features.
+              </div>
+
+              {/* Pre-Block Live Summary */}
+              {loadingBlockSummary ? (
+                <div style={{ padding: "24px 0", textAlign: "center", color: "#546e5e", fontSize: "13px" }}>
+                  ⏳ Checking active appointments, wallet calculations, and slot schedules...
+                </div>
+              ) : blockSummary ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#44594c" }}>
+                    Active Booking Management & Refunds
+                  </div>
+
+                  {/* Summary Metric Badges */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                    <div style={{ background: blockSummary.upcoming_count > 0 ? "#fef2f2" : "#f1f7f3", border: `1px solid ${blockSummary.upcoming_count > 0 ? "#fecaca" : "#d1e7d8"}`, borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: 700, color: "#546e5e", textTransform: "uppercase" }}>Upcoming to Cancel</div>
+                      <div style={{ fontSize: "18px", fontWeight: 800, color: blockSummary.upcoming_count > 0 ? "#b91c1c" : "#166534", marginTop: 2 }}>
+                        {blockSummary.upcoming_count}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "#6b7280" }}>Slots will be released</div>
+                    </div>
+
+                    <div style={{ background: "#f0f7f3", border: "1px solid #d1e7d8", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: 700, color: "#546e5e", textTransform: "uppercase" }}>Wallet Refund</div>
+                      <div style={{ fontSize: "18px", fontWeight: 800, color: "#166534", marginTop: 2 }}>
+                        ₹{blockSummary.estimated_refund_amount}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "#6b7280" }}>100% full customer refund</div>
+                    </div>
+
+                    <div style={{ background: "#f8faf9", border: "1px solid #e5ede7", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: 700, color: "#546e5e", textTransform: "uppercase" }}>Ongoing Services</div>
+                      <div style={{ fontSize: "18px", fontWeight: 800, color: "#2d543c", marginTop: 2 }}>
+                        {blockSummary.in_progress_count}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "#6b7280" }}>Not interrupted</div>
+                    </div>
+                  </div>
+
+                  {/* Upcoming Bookings Itemized List */}
+                  {blockSummary.upcoming_count > 0 && (
+                    <div style={{ border: "1px solid #e5ede7", borderRadius: 8, overflow: "hidden" }}>
+                      <div style={{ background: "#f7faf8", padding: "8px 12px", borderBottom: "1px solid #e5ede7", fontSize: "11px", fontWeight: 700, color: "#44594c" }}>
+                        Appointments Scheduled for Auto-Cancellation ({blockSummary.upcoming_count}):
+                      </div>
+                      <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                        {blockSummary.upcoming_bookings.map((b) => (
+                          <div key={b.id} style={{ padding: "8px 12px", borderBottom: "1px solid #f0f4f1", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
+                            <div>
+                              <strong style={{ color: "#182c1f" }}>#{b.id} &bull; {b.service_name}</strong>
+                              <span style={{ color: "#5a7062", marginLeft: 6 }}>at {b.salon_name}</span>
+                              <div style={{ fontSize: "11px", color: "#74887b" }}>
+                                📅 {b.booking_date} {b.booking_time && `at ${b.booking_time}`} &bull; Method: {b.payment_method}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: Number(b.paid_amount) > 0 ? "#166534" : "#6b7280" }}>
+                                {Number(b.paid_amount) > 0 ? `₹${b.paid_amount} Refundable` : "Pay at Salon (No refund)"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {blockSummary.in_progress_count > 0 && (
+                    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "8px 12px", fontSize: "11.5px", color: "#1e40af" }}>
+                      ℹ️ <strong>Ongoing service in progress:</strong> {blockSummary.in_progress_count} active appointment will not be auto-cancelled to allow completion or safe conclusion.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Optional Administrative Note */}
+              <div>
+                <label htmlFor="admin-block-notes" style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#3e5246", marginBottom: 4 }}>
+                  Administrative Reason / Audit Note (Optional):
+                </label>
+                <input
+                  id="admin-block-notes"
+                  type="text"
+                  placeholder="e.g. Terms violation, multiple no-shows, chargeback inquiry..."
+                  value={blockAdminNotes}
+                  onChange={(e) => setBlockAdminNotes(e.target.value)}
+                  style={{
+                    width: "100%",
+                    height: 38,
+                    borderRadius: 7,
+                    border: "1px solid #d3ded6",
+                    padding: "0 12px",
+                    fontSize: "12.5px",
+                    color: "#182c1f",
+                    boxSizing: "border-box",
+                  }}
+                  disabled={isProcessing}
+                />
               </div>
             </div>
 
-            <div className="user-confirm-actions">
+            {/* Modal Footer */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #e5ede7", background: "#fcfdfc", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
               <button
                 type="button"
                 className="asl-btn-outline"
@@ -783,7 +939,7 @@ export default function AdminUserList() {
                 type="button"
                 className="asl-btn-danger"
                 disabled={isProcessing}
-                onClick={() => executeToggleBlock(blockConfirmUser)}
+                onClick={() => executeToggleBlock(blockConfirmUser, blockAdminNotes)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -795,11 +951,11 @@ export default function AdminUserList() {
                   border: "none",
                   fontWeight: 600,
                   fontSize: "13px",
-                  cursor: "pointer",
+                  cursor: isProcessing ? "wait" : "pointer",
                 }}
               >
                 <span>🚫</span>
-                <span>{isProcessing ? "Blocking..." : "Yes, Block User"}</span>
+                <span>{isProcessing ? "Blocking & Cancelling..." : "Yes, Block Customer"}</span>
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
+import SalonLoader from "../../components/common/Loader";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/salonDetail.css";
@@ -967,28 +968,10 @@ export default function SalonDetail() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: "16px",
-            textAlign: "center",
-            padding: "40px 20px",
+            padding: "60px 20px",
           }}
         >
-          <div
-            className="salon-detail-spinner"
-            style={{
-              width: "48px",
-              height: "48px",
-              border: "4px solid rgba(16, 185, 129, 0.15)",
-              borderTopColor: "#10b981",
-              borderRadius: "50%",
-              animation: "spin 0.9s linear infinite",
-            }}
-          />
-          <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-            Loading Salon Details…
-          </h3>
-          <p style={{ color: "#64748b", fontSize: "0.95rem", margin: 0 }}>
-            Fetching verified treatments, specialists, and available appointment slots.
-          </p>
+          <SalonLoader size={84} label="Loading Salon Experience..." />
         </div>
         <CustomerFooter />
       </div>
@@ -1322,16 +1305,7 @@ export default function SalonDetail() {
                 </a>
               </div>
 
-              <button
-                type="button"
-                className="meta-pill-book-shortcut"
-                onClick={() => scrollToBooking()}
-                title="Jump directly to appointment slot booking"
-              >
-                <span className="live-sparkle">⚡</span>
-                <span>Book Appointment</span>
-                <span className="shortcut-arrow">→</span>
-              </button>
+              
             </div>
           </div>
         </div>
@@ -2680,8 +2654,8 @@ export default function SalonDetail() {
                           )}
                         </div>
                       ) : slotsLoading ? (
-                        <div className="sidebar-loading-text">
-                          Loading available slots…
+                        <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
+                          <SalonLoader size={48} label="Checking Slots..." />
                         </div>
                       ) : dynamicSlots.length === 0 ? (
                         <div className="booking-alert-banner booking-alert-banner--warning">

@@ -555,7 +555,7 @@ export default function AdminDashboard() {
           {/* Title Row */}
           <div className="admin-title-row">
             <div>
-              <h1>Super Admin Command Center</h1>
+              <h1>Super Admin Dashboard</h1>
               <p>
                 Real-time salon operations, booking oversight, platform wallet, compliance audit, and credentials dispatch.
               </p>
@@ -577,20 +577,7 @@ export default function AdminDashboard() {
           {/* Interactive KPI Metrics Grid (8 Modules) */}
           <div className="admin-metrics-grid">
             {/* Bookings Card */}
-            <Link to="/admin/bookings" className="admin-metric-card" title="Click to open Bookings Management">
-              <div className="admin-metric-header">
-                <span className="admin-metric-label">Total Bookings</span>
-                <span className="admin-metric-icon">📅</span>
-              </div>
-              <div className="admin-metric-value">{bookingStats.total_bookings}</div>
-              <div className="admin-metric-sub">
-                <span>
-                  <strong>+{bookingStats.today_bookings}</strong> today · ₹
-                  {Number(bookingStats.total_revenue || 0).toLocaleString("en-IN")} vol
-                </span>
-                <span className="admin-metric-arrow">→</span>
-              </div>
-            </Link>
+            
 
             {/* Salons Card */}
             <Link to="/admin/salons" className="admin-metric-card" title="Click to view Salons Directory">
@@ -629,7 +616,7 @@ export default function AdminDashboard() {
               title="Click to view Platform Wallet & Subscriptions"
             >
               <div className="admin-metric-header">
-                <span className="admin-metric-label">Platform Wallet</span>
+                <span className="admin-metric-label">Subscriptions Wallet</span>
                 <span className="admin-metric-icon">💳</span>
               </div>
               <div className="admin-metric-value">
@@ -643,18 +630,7 @@ export default function AdminDashboard() {
               </div>
             </Link>
 
-            {/* Catalog Services Card */}
-            <Link to="/admin/services" className="admin-metric-card" title="Click to manage Catalog Services">
-              <div className="admin-metric-header">
-                <span className="admin-metric-label">Catalog Services</span>
-                <span className="admin-metric-icon">✂️</span>
-              </div>
-              <div className="admin-metric-value">{serviceStats.totalServices}</div>
-              <div className="admin-metric-sub">
-                <span>Across {serviceStats.totalCategories} Categories</span>
-                <span className="admin-metric-arrow">→</span>
-              </div>
-            </Link>
+        
 
             {/* Customer Reviews Card */}
             <Link to="/admin/reviews" className="admin-metric-card" title="Click to inspect Customer Reviews">
@@ -671,19 +647,7 @@ export default function AdminDashboard() {
               </div>
             </Link>
 
-            {/* Offers & Deals Card */}
-            <Link to="/admin/offers" className="admin-metric-card" title="Click to manage Platform Offers">
-              <div className="admin-metric-header">
-                <span className="admin-metric-label">Platform Offers</span>
-                <span className="admin-metric-icon">🏷️</span>
-              </div>
-              <div className="admin-metric-value">{offerStats.total_offers}</div>
-              <div className="admin-metric-sub">
-                <span>{offerStats.active_offers} Active Deals Listed</span>
-                <span className="admin-metric-arrow">→</span>
-              </div>
-            </Link>
-
+            
             {/* Support Helpdesk Card */}
             <Link to="/admin/support" className="admin-metric-card" title="Click to open Support Helpdesk">
               <div className="admin-metric-header">
@@ -1356,6 +1320,128 @@ export default function AdminDashboard() {
               {/* TAB 4: COMPLIANCE & DECISION */}
               {modalTab === "compliance" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Salon Registration & Verification Documents */}
+                  <div style={{ border: "1px solid #dbe6de", borderRadius: "8px", padding: "14px", background: "#fbfdfc" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#1e392a", marginBottom: "10px" }}>
+                      📋 Submitted Registration & Verification Documents
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+                      {/* Registration Certificate */}
+                      <div style={{ border: "1px solid #e2ece5", borderRadius: "6px", padding: "10px", background: "#ffffff" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", marginBottom: "2px" }}>
+                          📄 Registration Certificate
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#61786b", marginBottom: "4px" }}>Proof of business</div>
+                        {selectedSalon.registration_number && (
+                          <div style={{ fontSize: "10.5px", color: "#1e392a", fontWeight: "600", marginBottom: "2px" }}>
+                            Reg No: <span style={{ fontFamily: "monospace" }}>{selectedSalon.registration_number}</span>
+                          </div>
+                        )}
+                        {selectedSalon.registration_valid_to && (
+                          <div style={{ fontSize: "10px", marginBottom: "4px" }}>
+                            Validity: {selectedSalon.registration_valid_from ? `${selectedSalon.registration_valid_from} to ` : ""}{selectedSalon.registration_valid_to}
+                            {selectedSalon.is_registration_expired ? (
+                              <span style={{ display: "block", color: "#b91c1c", fontWeight: "700" }}>🔴 Expired</span>
+                            ) : selectedSalon.is_registration_expiring_soon ? (
+                              <span style={{ display: "block", color: "#b45309", fontWeight: "700" }}>⚠️ Expiring Soon</span>
+                            ) : (
+                              <span style={{ display: "block", color: "#15803d", fontWeight: "700" }}>🟢 Active</span>
+                            )}
+                          </div>
+                        )}
+                        {selectedSalon.registration_certificate ? (
+                          <a
+                            href={resolveImageUrl(selectedSalon.registration_certificate)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                          >
+                            👁 View Certificate →
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#b91c1c" }}>⚠️ Missing</span>
+                        )}
+                      </div>
+
+                      {/* GST Certificate */}
+                      <div style={{ border: "1px solid #e2ece5", borderRadius: "6px", padding: "10px", background: "#ffffff" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", marginBottom: "2px" }}>
+                          📑 GST Certificate
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#61786b", marginBottom: "4px" }}>Tax verification (Optional)</div>
+                        {selectedSalon.gst_number && (
+                          <div style={{ fontSize: "10.5px", color: "#1e392a", fontWeight: "600", marginBottom: "4px" }}>
+                            GSTIN: <span style={{ fontFamily: "monospace" }}>{selectedSalon.gst_number}</span>
+                          </div>
+                        )}
+                        {selectedSalon.gst_certificate ? (
+                          <a
+                            href={resolveImageUrl(selectedSalon.gst_certificate)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                          >
+                            👁 View GST Document →
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#6b7280" }}>Not Provided</span>
+                        )}
+                      </div>
+
+                      {/* Owner ID Proof */}
+                      <div style={{ border: "1px solid #e2ece5", borderRadius: "6px", padding: "10px", background: "#ffffff" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", marginBottom: "2px" }}>
+                          🪪 Owner ID Proof
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#61786b", marginBottom: "4px" }}>Aadhaar/PAN Identity</div>
+                        {selectedSalon.owner_id_number && (
+                          <div style={{ fontSize: "10.5px", color: "#1e392a", fontWeight: "600", marginBottom: "4px" }}>
+                            {selectedSalon.owner_id_type || "ID"}: <span style={{ fontFamily: "monospace" }}>{selectedSalon.owner_id_number}</span>
+                          </div>
+                        )}
+                        {selectedSalon.owner_id_proof ? (
+                          <a
+                            href={resolveImageUrl(selectedSalon.owner_id_proof)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                          >
+                            👁 View Owner ID →
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#b91c1c" }}>⚠️ Missing</span>
+                        )}
+                      </div>
+
+                      {/* Owner Profile Photo */}
+                      <div style={{ border: "1px solid #e2ece5", borderRadius: "6px", padding: "10px", background: "#ffffff" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "700", color: "#172a1e", marginBottom: "2px" }}>
+                          👤 Owner Profile Photo
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#61786b", marginBottom: "6px" }}>Owner identification</div>
+                        {selectedSalon.owner_profile_photo ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <img
+                              src={resolveImageUrl(selectedSalon.owner_profile_photo)}
+                              alt="Owner"
+                              style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }}
+                            />
+                            <a
+                              href={resolveImageUrl(selectedSalon.owner_profile_photo)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: "11px", fontWeight: "600", color: "#1e392a", textDecoration: "underline" }}
+                            >
+                              👁 View Photo →
+                            </a>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#b91c1c" }}>⚠️ Missing</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Previous Admin Notes if present */}
                   {selectedSalon.admin_notes && (
                     <div className="admin-modal-notes-box">

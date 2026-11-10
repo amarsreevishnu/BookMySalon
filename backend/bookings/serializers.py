@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Booking, SalonReview, WorkerReview, ServiceReceipt
+from .models import Booking, SalonReview, WorkerReview, ServiceReceipt, BookingHistory
 from .pricing import calculate_pricing, COUPON_RULES
 from salons.models import WorkerProfile, SalonOffDay, WorkerLeave
 from services.models import SalonService
@@ -140,6 +140,50 @@ class BookingCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class BookingHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.SerializerMethodField()
+    previous_worker_display = serializers.SerializerMethodField()
+    new_worker_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookingHistory
+        fields = [
+            'id',
+            'booking',
+            'action',
+            'previous_status',
+            'new_status',
+            'previous_worker',
+            'new_worker',
+            'previous_worker_name',
+            'new_worker_name',
+            'previous_worker_display',
+            'new_worker_display',
+            'changed_by',
+            'changed_by_name',
+            'reason',
+            'notes',
+            'metadata',
+            'created_at',
+        ]
+
+    def get_changed_by_name(self, obj):
+        if obj.changed_by:
+            name = f"{obj.changed_by.first_name} {obj.changed_by.last_name}".strip()
+            return name or obj.changed_by.email
+        return "System"
+
+    def get_previous_worker_display(self, obj):
+        if obj.previous_worker and obj.previous_worker.user:
+            return obj.previous_worker.user.get_full_name() or obj.previous_worker.user.email
+        return obj.previous_worker_name or "Unassigned"
+
+    def get_new_worker_display(self, obj):
+        if obj.new_worker and obj.new_worker.user:
+            return obj.new_worker.user.get_full_name() or obj.new_worker.user.email
+        return obj.new_worker_name or "Specialist"
+
+
 class BookingReadSerializer(serializers.ModelSerializer):
     worker_name = serializers.SerializerMethodField()
     worker_photo = serializers.SerializerMethodField()
@@ -156,6 +200,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
     can_review = serializers.SerializerMethodField()
     receipt_available = serializers.SerializerMethodField()
     receipt_number = serializers.SerializerMethodField()
+    history = BookingHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = Booking
@@ -178,6 +223,7 @@ class BookingReadSerializer(serializers.ModelSerializer):
             'has_worker_review', 'worker_review',
             'can_review',
             'receipt_available', 'receipt_number',
+            'history',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields

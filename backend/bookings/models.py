@@ -540,6 +540,72 @@ class ServiceReceipt(models.Model):
         return receipt, True
 
 
+class BookingHistory(models.Model):
+    class Action(models.TextChoices):
+        CREATED = "CREATED", "Created"
+        STATUS_CHANGED = "STATUS_CHANGED", "Status Changed"
+        WORKER_REASSIGNED = "WORKER_REASSIGNED", "Worker Reassigned"
+        RESCHEDULED = "RESCHEDULED", "Rescheduled"
+        PAYMENT_UPDATED = "PAYMENT_UPDATED", "Payment Updated"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    booking = models.ForeignKey(
+        Booking,
+        on_delete=models.CASCADE,
+        related_name="history",
+        db_index=True,
+    )
+    action = models.CharField(
+        max_length=40,
+        choices=Action.choices,
+        default=Action.WORKER_REASSIGNED,
+        db_index=True,
+    )
+    previous_status = models.CharField(max_length=30, blank=True, default="")
+    new_status = models.CharField(max_length=30, blank=True, default="")
+
+    previous_worker = models.ForeignKey(
+        "salons.WorkerProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reassigned_from_history",
+    )
+    new_worker = models.ForeignKey(
+        "salons.WorkerProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reassigned_to_history",
+    )
+    previous_worker_name = models.CharField(max_length=150, blank=True, default="")
+    new_worker_name = models.CharField(max_length=150, blank=True, default="")
+
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="booking_history_actions",
+    )
+    reason = models.TextField(blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Booking History"
+        verbose_name_plural = "Booking Histories"
+        indexes = [
+            models.Index(fields=["booking", "-created_at"]),
+            models.Index(fields=["action", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Booking #{self.booking_id} - {self.action} on {self.created_at}"
+
+
 
 # Re-export for backward compatibility
 from reviews.models import SalonReview, WorkerReview

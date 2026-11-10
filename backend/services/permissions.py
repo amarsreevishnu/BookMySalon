@@ -2,9 +2,7 @@ from rest_framework import permissions
 
 
 class IsSuperAdmin(permissions.BasePermission):
-    """
-    Allows access only to Super Admins (is_superuser, is_staff, or role == 'ADMIN').
-    """
+    
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
@@ -14,9 +12,7 @@ class IsSuperAdmin(permissions.BasePermission):
 
 
 class IsSuperAdminOrReadOnly(permissions.BasePermission):
-    """
-    Allows read permissions to any request, but write permissions only to Super Admins.
-    """
+    
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -28,9 +24,7 @@ class IsSuperAdminOrReadOnly(permissions.BasePermission):
 
 
 class IsSalonOwner(permissions.BasePermission):
-    """
-    Allows access only to authenticated users with role SALON_OWNER or ADMIN.
-    """
+    
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
@@ -40,9 +34,7 @@ class IsSalonOwner(permissions.BasePermission):
 
 
 class IsSalonOwnerOfOffering(permissions.BasePermission):
-    """
-    Allows object-level access only to the owner of the salon offering or superadmin.
-    """
+    
     def has_object_permission(self, request, view, obj):
         user = request.user
         if not user or not user.is_authenticated:
@@ -50,4 +42,5 @@ class IsSalonOwnerOfOffering(permissions.BasePermission):
         if user.is_superuser or getattr(user, "role", "") == "ADMIN":
             return True
         return hasattr(obj, "salon") and obj.salon.owner == user
+
 

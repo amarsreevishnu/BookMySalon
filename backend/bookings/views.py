@@ -1592,14 +1592,16 @@ class BookingStatusUpdateView(APIView):
             try:
                 candidate_worker = WorkerProfile.objects.get(pk=int(new_worker_id), salon=booking.salon, is_active=True)
                 if booking.worker != candidate_worker:
-                    reassigned_worker = candidate_worker
-                    booking.worker = candidate_worker
-                    if candidate_worker.station:
-                        booking.station = candidate_worker.station
-                        update_fields.append("station")
-                    update_fields.append("worker")
-            except Exception:
-                pass
+                    from .services import reassign_booking_worker
+                    booking, _ = reassign_booking_worker(
+                        booking=booking,
+                        new_worker=candidate_worker,
+                        changed_by_user=request.user,
+                        reason=request.data.get("reason", ""),
+                    )
+            except Exception as e:
+                err_msg = getattr(e, "message", str(e))
+                return Response({"error": err_msg}, status=status.HTTP_400_BAD_REQUEST)
         elif is_worker and worker_profile and booking.worker is None and booking.salon == worker_profile.salon:
             booking.worker = worker_profile
             if worker_profile.station:
@@ -2104,4 +2106,145 @@ class AdminBookingDetailView(APIView):
 
         serializer = AdminBookingSerializer(booking, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class OwnerBookingEligibleWorkersView(APIView):
+    """
+    Returns candidate active salon workers annotated with availability and conflict analysis
+    for a specific booking.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            booking = Booking.objects.select_related("salon", "salon__owner", "worker", "worker__user").get(pk=pk)
+        except Booking.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        from salons.views import get_owner_salon
+        is_owner = getattr(user, "role", None) == "OWNER" and (
+            booking.salon.owner == user or get_owner_salon(user) == booking.salon
+        )
+        is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
+
+        if not (is_owner or is_admin):
+            return Response(
+                {"error": "Access denied. Only the salon owner or administrator can view worker eligibility for this booking."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .services import get_eligible_workers_for_booking
+        workers_data = get_eligible_workers_for_booking(booking, request=request)
+        can_reassign = booking.status in [Booking.Status.PENDING, Booking.Status.CONFIRMED]
+
+        return Response({
+            "booking_id": booking.id,
+            "salon_id": booking.salon_id,
+            "booking_date": str(booking.booking_date),
+            "booking_time": booking.booking_time,
+            "service_name": booking.service_name,
+            "status": booking.status,
+            "current_worker_id": booking.worker_id,
+            "current_worker_name": (
+                booking.worker.user.get_full_name() or booking.worker.user.email
+                if booking.worker and booking.worker.user
+                else "Unassigned"
+            ),
+            "can_reassign": can_reassign,
+            "workers": workers_data,
+        }, status=status.HTTP_200_OK)
+
+
+class OwnerBookingReassignWorkerView(APIView):
+    """
+    Atomically changes the assigned worker for an existing appointment after validating:
+    - Same salon
+    - Active worker
+    - No appointment slot conflicts
+    - Not on approved leave
+    - Service qualification eligibility
+    - Booking status is PENDING or CONFIRMED
+    Dispatches notifications to customer, previous worker, and new worker.
+    Records reassignment in BookingHistory for dispute monitoring.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.select_related("salon", "salon__owner", "worker", "worker__user").get(pk=pk)
+        except Booking.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        from salons.views import get_owner_salon
+        is_owner = getattr(user, "role", None) == "OWNER" and (
+            booking.salon.owner == user or get_owner_salon(user) == booking.salon
+        )
+        is_admin = getattr(user, "role", None) == "ADMIN" or user.is_superuser or user.is_staff
+
+        if not (is_owner or is_admin):
+            return Response(
+                {"error": "Access denied. Only the salon owner or administrator can reassign workers for this booking."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        worker_id = request.data.get("worker_id")
+        if not worker_id:
+            return Response(
+                {"error": "worker_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            candidate_worker = WorkerProfile.objects.select_related("user").get(
+                pk=int(worker_id),
+                salon=booking.salon,
+            )
+        except (WorkerProfile.DoesNotExist, ValueError):
+            return Response(
+                {"error": "Selected specialist profile was not found in this salon."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        reason = request.data.get("reason", "")
+
+        from .services import reassign_booking_worker
+        from django.core.exceptions import ValidationError
+        try:
+            updated_booking, history_entry = reassign_booking_worker(
+                booking=booking,
+                new_worker=candidate_worker,
+                changed_by_user=request.user,
+                reason=reason,
+            )
+        except ValidationError as val_err:
+            msg = val_err.message if hasattr(val_err, "message") else str(val_err)
+            if hasattr(val_err, "messages") and val_err.messages:
+                msg = val_err.messages[0]
+            return Response(
+                {"error": msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error("Failed to reassign worker for booking %s: %s", pk, e, exc_info=True)
+            return Response(
+                {"error": f"Failed to reassign specialist: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        new_worker_name = (
+            candidate_worker.user.get_full_name() or candidate_worker.user.email
+            if candidate_worker and candidate_worker.user
+            else "Specialist"
+        )
+
+        from .serializers import BookingReadSerializer, BookingHistorySerializer
+        return Response({
+            "message": f"Assigned specialist successfully switched to {new_worker_name}.",
+            "booking": BookingReadSerializer(updated_booking, context={"request": request}).data,
+            "history": BookingHistorySerializer(history_entry).data,
+        }, status=status.HTTP_200_OK)
 
