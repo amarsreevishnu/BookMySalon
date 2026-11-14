@@ -305,6 +305,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
+  width: 100%;
 }
 
 /* Top Quick Stats Grid (4 columns) */
@@ -806,6 +808,29 @@ select.profile-input-field {
   font-size: 11.5px;
   color: var(--profile-text-muted);
   margin: 0;
+}
+
+.preference-empty-text {
+  font-size: 12.5px;
+  color: var(--profile-text-muted);
+  font-style: italic;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.stylist-mini-avatar-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--profile-primary-light);
+  color: var(--profile-primary);
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(45, 106, 79, 0.2);
 }
 
 /* 4. Notification Channels */

@@ -71,15 +71,15 @@ export default function AdminDashboard() {
   const [loadingSalons, setLoadingSalons] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
-  const [activeTab, setActiveTab] = useState("PENDING"); // ALL, PENDING, APPROVED, REJECTED
+  const [activeTab, setActiveTab] = useState("PENDING"); 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
-  const [sortBy, setSortBy] = useState("newest"); // newest, oldest, name_asc, city_asc
+  const [sortBy, setSortBy] = useState("newest"); 
 
   // Modal / Action State
   const [selectedSalon, setSelectedSalon] = useState(null);
-  const [modalTab, setModalTab] = useState("overview"); // overview, schedule, services, compliance
+  const [modalTab, setModalTab] = useState("overview");
   const [isProcessing, setIsProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -128,6 +128,7 @@ export default function AdminDashboard() {
       if (statsRes.status === "fulfilled" && statsRes.value?.data) {
         setStats((prev) => ({ ...prev, ...statsRes.value.data }));
       }
+
 
       if (salonsRes.status === "fulfilled" && salonsRes.value?.data) {
         setSalons(salonsRes.value.data);
@@ -555,7 +556,7 @@ export default function AdminDashboard() {
           {/* Title Row */}
           <div className="admin-title-row">
             <div>
-              <h1>Super Admin Dashboard</h1>
+              <h1>Super Admin Dashboard </h1>
               <p>
                 Real-time salon operations, booking oversight, platform wallet, compliance audit, and credentials dispatch.
               </p>

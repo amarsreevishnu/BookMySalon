@@ -1231,7 +1231,7 @@ export default function AdminSubscriptionsManagement() {
                     </button>
                   ))}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
                   <input
                     type="number"
                     min="1"

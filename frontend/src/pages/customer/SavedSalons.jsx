@@ -6,6 +6,8 @@ import SalonLoader from "../../components/common/Loader";
 import useFavorites from "../../hooks/useFavorites";
 import api from "../../api/axios";
 import { resolveImageUrl } from "../../utils/imageUtils";
+import CustomerProfileSidebar from "../../components/customer/CustomerProfileSidebar";
+import "../../styles/customerProfile.css";
 import "../../styles/savedSalons.css";
 
 export default function SavedSalons() {
@@ -83,12 +85,16 @@ export default function SavedSalons() {
   }, [salons, searchQuery, categoryFilter]);
 
   return (
-    <div className="saved-salons-container">
+    <div className="customer-profile-page saved-salons-container">
       <CustomerHeader />
 
-      <main className="saved-salons-main">
-        {/* Header Row */}
-        <div className="saved-header-row">
+      <main className="profile-main-container">
+        <div className="profile-layout-grid">
+          <CustomerProfileSidebar activeNav="favorites" />
+
+          <div className="profile-content-area saved-salons-main" style={{ maxWidth: "100%", padding: 0 }}>
+            {/* Header Row */}
+            <div className="saved-header-row">
           <div className="saved-title-group">
             <h1>
               <span className="saved-title-heart">♥</span> Saved Salons
@@ -283,6 +289,8 @@ export default function SavedSalons() {
             })}
           </div>
         )}
+          </div>
+        </div>
       </main>
 
       {/* Toast Notification */}

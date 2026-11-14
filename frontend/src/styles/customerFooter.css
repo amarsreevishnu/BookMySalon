@@ -1,0 +1,147 @@
+/* ==========================================================================
+   CUSTOMER FOOTER STYLES
+   Used across all customer pages (Home, Profile, Bookings, Wallet, Salons, etc.)
+   ========================================================================== */
+
+:root {
+  --customer-font: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --customer-white: #ffffff;
+  --customer-dark: #1b4332;
+  --customer-primary: #2d6a4f;
+  --customer-muted: #5d6d62;
+  --customer-text-muted: #64748b;
+  --customer-border: #e2e8e4;
+}
+
+.customer-footer {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 36px;
+  padding: 48px 4% 24px;
+  border-top: 1px solid var(--customer-border, #e2e8e4);
+  background: var(--customer-white, #ffffff);
+  margin-top: 40px;
+  font-family: var(--customer-font, inherit);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.customer-footer-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-footer .explore-brand-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.customer-footer .explore-brand-icon {
+  width: 38px;
+  height: 38px;
+  background-color: #cdebe0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.customer-footer .explore-brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.customer-footer .explore-brand-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.customer-footer .explore-brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--customer-dark, #1b4332);
+}
+
+.customer-footer .explore-brand-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--customer-muted, #5d6d62);
+  margin-top: 2px;
+}
+
+.customer-footer-brand p {
+  max-width: 280px;
+  color: var(--customer-text-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+
+.footer-links-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.footer-links-column h4 {
+  margin: 0 0 4px;
+  color: var(--customer-dark, #1b4332);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.footer-links-column a {
+  color: var(--customer-text-muted, #64748b);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.footer-links-column a:hover {
+  color: var(--customer-primary, #2d6a4f);
+}
+
+.customer-footer-bottom {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding-top: 24px;
+  border-top: 1px solid var(--customer-border, #e2e8e4);
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE DESIGN FOR FOOTER
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 800px) {
+  .customer-footer {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+    padding: 36px 4% 20px;
+  }
+}
+
+@media (max-width: 550px) {
+  .customer-footer {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 28px 16px 16px;
+  }
+
+  .customer-footer-bottom {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

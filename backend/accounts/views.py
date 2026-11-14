@@ -494,16 +494,23 @@ class CustomerProfileView(APIView):
                 "status": upcoming_booking.status,
             }
 
+        from reviews.models import SalonReview
+        from wallet.models import CustomerWallet
+
         saved_count = profile.favorite_salons.count()
         completed_count = Booking.objects.filter(
             customer=user, status=Booking.Status.COMPLETED
         ).count()
         total_bookings = Booking.objects.filter(customer=user).count()
+        reviews_count = SalonReview.objects.filter(customer=user).count()
+
+        wallet = CustomerWallet.get_or_create_for_user(user)
+        wallet_balance = float(wallet.balance) if wallet else 0.0
 
         member_since_str = (
             user.date_joined.strftime("%B %Y")
             if user.date_joined
-            else "October 2025"
+            else ""
         )
 
         avatar_url = profile.avatar
@@ -522,25 +529,26 @@ class CustomerProfileView(APIView):
             "email": user.email,
             "is_email_verified": True,
             "avatar": avatar_url,
-            "phone_number": profile.phone_number or "+91 98765 43210",
+            "phone_number": profile.phone_number or getattr(user, "phone_number", "") or "",
             "is_phone_verified": profile.is_phone_verified,
             "date_of_birth": (
                 profile.date_of_birth.strftime("%Y-%m-%d")
                 if profile.date_of_birth
                 else ""
             ),
-            "gender": profile.gender or "Male (He/Him)",
-            "primary_location": profile.primary_location or "Indiranagar, Bengaluru",
-            "upi_id": profile.upi_id or f"{user.email.split('@')[0]}@okicici",
-            "membership_tier": profile.membership_tier or "Emerald Member",
+            "gender": profile.gender or "",
+            "primary_location": profile.primary_location or "",
+            "upi_id": profile.upi_id or "",
+            "membership_tier": profile.membership_tier or "Standard Member",
             "member_since": member_since_str,
             "stats": {
                 "next_ritual": next_ritual,
                 "saved_places_count": saved_count,
                 "completed_count": completed_count,
                 "total_bookings_count": total_bookings,
-                "reviews_count": completed_count or 5,
-                "default_pay": profile.upi_id or f"{user.email.split('@')[0]}@okicici",
+                "reviews_count": reviews_count,
+                "wallet_balance": wallet_balance,
+                "default_pay": profile.upi_id or "",
             },
             "wellness_preferences": profile.get_wellness_preferences(),
             "notification_channels": profile.get_notification_channels(),
@@ -939,55 +947,89 @@ class CustomerFavoritesListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Avg, Count
+        from django.db.models import Avg, Count,OuterRef,Subquery,Value,IntegerField,FloatField
+        from django.db.models.functions import Coalesce, Cast
         from reviews.models import SalonReview
 
         user = request.user
         profile, _ = CustomerProfile.objects.get_or_create(user=user)
-        salons = profile.favorite_salons.all().order_by("-created_at")
-
+        review_stats = (
+            SalonReview.objects
+            .filter(
+                salon_id=OuterRef("pk"),
+                is_hidden=False
+            )
+            .order_by()
+            .values("salon_id")
+            .annotate(
+                avg=Avg("rating"),
+                count=Count("id")
+            )
+        )
+        salons = list(
+            profile.favorite_salons
+            .annotate(
+                avg_rating=Coalesce(
+                    Cast(
+                        Subquery(review_stats.values("avg")[:1]),
+                        FloatField()
+                    ),
+                    Value(4.9),
+                    output_field=FloatField()
+                ),
+                reviews_count=Coalesce(
+                    Subquery(
+                        review_stats.values("count")[:1],
+                        output_field=IntegerField()
+                    ),
+                    Value(0),
+                    output_field=IntegerField()
+                )
+            )
+            .order_by("-created_at")
+        )
         results = []
+
         for s in salons:
-            is_approved = (s.approval_status == Salon.ApprovalStatus.APPROVED)
-            rev_agg = SalonReview.objects.filter(salon=s, is_hidden=False).aggregate(avg=Avg("rating"), count=Count("id"))
-            rating_val = round(float(rev_agg["avg"]), 1) if rev_agg["avg"] is not None else 4.9
-            reviews_cnt = rev_agg["count"] or 0
+            is_approved = (
+                s.approval_status == Salon.ApprovalStatus.APPROVED
+            )
 
             cover_img = s.cover_image
-            if not cover_img and s.images and isinstance(s.images, list) and len(s.images) > 0:
+
+            if not cover_img and isinstance(s.images, list) and s.images:
                 cover_img = s.images[0]
 
-            results.append(
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "tagline": s.tagline or "",
-                    "city": s.city,
-                    "state": s.state or "Kerala",
-                    "category": s.category,
-                    "cover_image": cover_img or "",
-                    "address": s.address,
-                    "phone": s.phone,
-                    "rating": rating_val,
-                    "reviews_count": reviews_cnt,
-                    "approval_status": s.approval_status,
-                    "is_available": is_approved,
-                    "availability_message": "Available for booking" if is_approved else "Currently unavailable for new bookings",
-                    "amenities": s.amenities or [],
-                    "price": "₹299+",
-                }
-            )
+            results.append({
+                "id": s.id,
+                "name": s.name,
+                "tagline": s.tagline or "",
+                "city": s.city,
+                "state": s.state or "Kerala",
+                "category": s.category,
+                "cover_image": cover_img or "",
+                "address": s.address,
+                "phone": s.phone,
+                "rating": round(float(s.avg_rating), 1),
+                "reviews_count": s.reviews_count,
+                "approval_status": s.approval_status,
+                "is_available": is_approved,
+                "availability_message": (
+                    "Available for booking"
+                    if is_approved
+                    else "Currently unavailable for new bookings"
+                ),
+                "amenities": s.amenities or [],
+                "price": "₹299+",
+            })
 
         favorite_ids = [s.id for s in salons]
 
-        return Response(
-            {
-                "favorites": results,
-                "total_count": len(results),
-                "favorite_ids": favorite_ids,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({
+            "favorites": results,
+            "total_count": len(results),
+            "favorite_ids": favorite_ids,
+        }, status=status.HTTP_200_OK)
 
 
 

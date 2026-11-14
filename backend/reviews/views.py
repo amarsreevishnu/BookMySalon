@@ -564,3 +564,37 @@ class AdminReviewModerationView(APIView):
             'message': f'Review #{review.id} has been successfully {action_text}.',
             'review': updated_serializer.data,
         }, status=status.HTTP_200_OK)
+
+
+class CustomerMyReviewsListView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        reviews = (
+            SalonReview.objects.filter(customer=request.user)
+            .select_related("salon", "booking")
+            .order_by("-created_at")
+        )
+        data = []
+        for r in reviews:
+            cover_url = getattr(r.salon, "cover_image", "")
+            if cover_url and hasattr(cover_url, "url"):
+                cover_url = request.build_absolute_uri(cover_url.url)
+            elif cover_url and str(cover_url).startswith("/media/"):
+                cover_url = request.build_absolute_uri(str(cover_url))
+
+            data.append({
+                "id": r.id,
+                "salon_id": r.salon.id,
+                "salon_name": r.salon.name,
+                "salon_city": getattr(r.salon, "city", ""),
+                "salon_image": str(cover_url or ""),
+                "rating": r.rating,
+                "comment": r.comment,
+                "booking_id": r.booking_id,
+                "service_name": r.booking.service_name if r.booking else "",
+                "created_at": r.created_at.isoformat(),
+            })
+        return Response({"reviews": data, "count": len(data)}, status=status.HTTP_200_OK)
+

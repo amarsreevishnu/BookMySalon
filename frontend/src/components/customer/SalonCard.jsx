@@ -13,7 +13,7 @@ function SalonCard({ salon }) {
   return (
     <article className="customer-salon-card">
       <div className="salon-card-image-wrapper">
-        <img src={salon.image} alt={salon.name} />
+        <img src={salon.image} alt={salon.name} loading="lazy" decoding="async" />
 
         <button
           type="button"

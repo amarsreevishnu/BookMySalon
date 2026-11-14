@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import api from "../../api/axios";
@@ -7,10 +7,9 @@ import { selectUserAvatar } from "../../features/auth/authSlice";
 import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
 import SalonLoader from "../../components/common/Loader";
-import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
+import CustomerProfileSidebar from "../../components/customer/CustomerProfileSidebar";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import "../../styles/customerProfile.css";
-import "../../styles/receipt.css";
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
@@ -21,6 +20,23 @@ export default function CustomerProfile() {
   const fileInputRef = useRef(null);
 
   const activeTab = searchParams.get("tab") || "profile";
+
+  // Redirect if someone visits /customer/profile?tab=bookings or ?tab=favorites to canonical pages
+  useEffect(() => {
+    if (activeTab === "bookings") {
+      navigate("/customer/my-bookings", { replace: true });
+    } else if (activeTab === "favorites") {
+      navigate("/customer/favorites", { replace: true });
+    } else if (activeTab === "wallet") {
+      navigate("/customer/wallet", { replace: true });
+    }
+  }, [activeTab, navigate]);
+
+  // Keep latest user in a ref to prevent dependency loop with updateUser
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Profile data state
   const [loading, setLoading] = useState(true);
@@ -33,14 +49,13 @@ export default function CustomerProfile() {
   const [lastName, setLastName] = useState("");
   const [dob, setDob] = useState("");
   const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState("Male (He/Him)");
-  const [location, setLocation] = useState("Indiranagar, Bengaluru");
+  const [gender, setGender] = useState("");
+  const [location, setLocation] = useState("");
   const [upiId, setUpiId] = useState("");
 
   // Modals state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -53,23 +68,18 @@ export default function CustomerProfile() {
   const [editHairTags, setEditHairTags] = useState([]);
   const [editSensitivities, setEditSensitivities] = useState([]);
   const [editRituals, setEditRituals] = useState([]);
-  const [newTagInput, setNewTagInput] = useState("");
+  const [editPreferredStylist, setEditPreferredStylist] = useState({
+    name: "",
+    role: "",
+    salon: "",
+  });
+  const [newHairInput, setNewHairInput] = useState("");
+  const [newRitualInput, setNewRitualInput] = useState("");
+  const [newSensitivityInput, setNewSensitivityInput] = useState("");
 
-  // Bookings & Favorites tab data
-  const [bookingsList, setBookingsList] = useState([]);
-  const [favoritesList, setFavoritesList] = useState([]);
-  const [tabLoading, setTabLoading] = useState(false);
-
-  // Receipt Modal State
-  const [activeReceiptBookingId, setActiveReceiptBookingId] = useState(null);
-
-  function openReceiptModal(b) {
-    setActiveReceiptBookingId(b.id);
-  }
-
-  function closeReceiptModal() {
-    setActiveReceiptBookingId(null);
-  }
+  // Customer Reviews state
+  const [myReviews, setMyReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -78,93 +88,92 @@ export default function CustomerProfile() {
     }, 3200);
   };
 
-  // 1. Fetch Profile Data
-  const fetchProfile = async () => {
+  // 1. Fetch Profile Data from Backend API
+  const fetchProfile = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       const res = await api.get("/accounts/customer/profile/");
       const data = res.data;
       setProfileData(data);
 
-      setFirstName(data.first_name || "");
-      setLastName(data.last_name || "");
+      const currentUser = userRef.current;
+      setFirstName(data.first_name || currentUser?.first_name || "");
+      setLastName(data.last_name || currentUser?.last_name || "");
       setDob(data.date_of_birth || "");
-      setPhone(data.phone_number || "");
-      setGender(data.gender || "Male (He/Him)");
-      setLocation(data.primary_location || "Indiranagar, Bengaluru");
+      setPhone(data.phone_number || currentUser?.phone_number || "");
+      setGender(data.gender || "");
+      setLocation(data.primary_location || "");
       setUpiId(data.upi_id || "");
 
       if (data.wellness_preferences) {
-        setEditHairTags(data.wellness_preferences.hair_type || []);
-        setEditSensitivities(data.wellness_preferences.sensitivities || []);
-        setEditRituals(data.wellness_preferences.rituals || []);
+        setEditHairTags(Array.isArray(data.wellness_preferences.hair_type) ? data.wellness_preferences.hair_type : []);
+        setEditSensitivities(Array.isArray(data.wellness_preferences.sensitivities) ? data.wellness_preferences.sensitivities : []);
+        setEditRituals(Array.isArray(data.wellness_preferences.rituals) ? data.wellness_preferences.rituals : []);
+        if (data.wellness_preferences.preferred_stylist) {
+          setEditPreferredStylist({
+            name: data.wellness_preferences.preferred_stylist.name || "",
+            role: data.wellness_preferences.preferred_stylist.role || "",
+            salon: data.wellness_preferences.preferred_stylist.salon || "",
+          });
+        }
       }
 
-      // Synchronize latest profile data with global Redux auth state
-      updateUser({
-        ...user,
-        id: data.id || user?.id,
-        email: data.email || user?.email,
-        first_name: data.first_name ?? user?.first_name ?? "",
-        last_name: data.last_name ?? user?.last_name ?? "",
-        full_name: data.full_name || `${data.first_name || ""} ${data.last_name || ""}`.trim() || user?.full_name,
-        avatar: data.avatar || "",
-        phone_number: data.phone_number || "",
-        role: user?.role || "CUSTOMER",
-      });
+      // Synchronize latest profile data with global Redux auth state ONLY if actual data changed
+      const current = userRef.current;
+      if (current) {
+        const newFullName =
+          data.full_name ||
+          `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
+          current.full_name;
+
+        const hasChanged =
+          current.first_name !== (data.first_name || "") ||
+          current.last_name !== (data.last_name || "") ||
+          current.full_name !== newFullName ||
+          (Boolean(data.avatar) && current.avatar !== data.avatar) ||
+          (Boolean(data.phone_number) && current.phone_number !== data.phone_number);
+
+        if (hasChanged) {
+          updateUser({
+            ...current,
+            id: data.id || current.id,
+            email: data.email || current.email,
+            first_name: data.first_name ?? current.first_name ?? "",
+            last_name: data.last_name ?? current.last_name ?? "",
+            full_name: newFullName,
+            avatar: data.avatar || current.avatar || "",
+            phone_number: data.phone_number || current.phone_number || "",
+            role: current.role || "CUSTOMER",
+          });
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch customer profile:", err);
       showToast("Unable to load latest profile data. Using stored credentials.");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
-  };
+  }, [updateUser]);
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    fetchProfile(true);
+  }, [fetchProfile]);
 
-  // 2. Fetch Tab Specific Data
+  // 2. Fetch Customer Reviews when on Reviews tab
   useEffect(() => {
-    if (activeTab === "bookings") {
-      setTabLoading(true);
+    if (activeTab === "reviews") {
+      setReviewsLoading(true);
       api
-        .get("/bookings/my/")
+        .get("/reviews/my/")
         .then((res) => {
-          setBookingsList(res.data.bookings || []);
+          setMyReviews(res.data?.reviews || []);
         })
-        .catch((err) => console.error("Bookings fetch error:", err))
-        .finally(() => setTabLoading(false));
-    } else if (activeTab === "favorites") {
-      setTabLoading(true);
-      api
-        .get("/accounts/customer/favorites/")
-        .then((res) => {
-          setFavoritesList(res.data.favorites || []);
+        .catch((err) => {
+          console.error("Failed to load customer reviews:", err);
         })
-        .catch((err) => console.error("Favorites fetch error:", err))
-        .finally(() => setTabLoading(false));
+        .finally(() => setReviewsLoading(false));
     }
   }, [activeTab]);
-
-  const handleRemoveProfileFavorite = async (salonId) => {
-    try {
-      await api.post("/accounts/customer/toggle-favorite/", { salon_id: salonId });
-      setFavoritesList((prev) => prev.filter((s) => s.id !== salonId));
-      window.dispatchEvent(
-        new CustomEvent("bm-favorites-updated", {
-          detail: { salonId, isFavorite: false },
-        })
-      );
-    } catch (err) {
-      console.error("Failed to remove favorite:", err);
-    }
-  };
-
-  // Handle Tab Switch
-  const handleTabChange = (tabKey) => {
-    setSearchParams({ tab: tabKey });
-  };
 
   // 3. Save Personal Information
   const handleSaveProfile = async (e) => {
@@ -172,13 +181,13 @@ export default function CustomerProfile() {
     try {
       setSaving(true);
       const payload = {
-        first_name: firstName,
-        last_name: lastName,
-        phone_number: phone,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        phone_number: phone.trim(),
         date_of_birth: dob || null,
         gender: gender,
-        primary_location: location,
-        upi_id: upiId,
+        primary_location: location.trim(),
+        upi_id: upiId.trim(),
       };
 
       const res = await api.put("/accounts/customer/profile/", payload);
@@ -195,6 +204,9 @@ export default function CustomerProfile() {
         role: user?.role || "CUSTOMER",
       };
       updateUser(updatedUser);
+
+      // Dispatch global profile updated event to sync sidebar across views
+      window.dispatchEvent(new CustomEvent("bm-profile-updated", { detail: res.data }));
 
       showToast("Personal information updated successfully!");
     } catch (err) {
@@ -237,6 +249,12 @@ export default function CustomerProfile() {
       };
       updateUser(updatedUser);
 
+      window.dispatchEvent(
+        new CustomEvent("bm-profile-updated", {
+          detail: { ...profileData, avatar: newAvatarUrl },
+        })
+      );
+
       showToast("Profile avatar updated successfully!");
     } catch (err) {
       console.error("Avatar upload error:", err);
@@ -246,7 +264,7 @@ export default function CustomerProfile() {
 
   const handleAvatarRemove = async () => {
     try {
-      const res = await api.delete("/accounts/customer/avatar/");
+      await api.delete("/accounts/customer/avatar/");
       setProfileData((prev) => ({
         ...prev,
         avatar: "",
@@ -254,10 +272,16 @@ export default function CustomerProfile() {
 
       const updatedUser = {
         ...user,
-        ...(res.data.user || {}),
+        ...(user || {}),
         avatar: "",
       };
       updateUser(updatedUser);
+
+      window.dispatchEvent(
+        new CustomEvent("bm-profile-updated", {
+          detail: { ...profileData, avatar: "" },
+        })
+      );
 
       showToast("Avatar removed successfully.");
     } catch (err) {
@@ -266,44 +290,20 @@ export default function CustomerProfile() {
     }
   };
 
-  // 5. Toggle Notification Channel
-  const handleToggleChannel = async (channelKey) => {
-    if (!profileData?.notification_channels) return;
-    const currentVal = profileData.notification_channels[channelKey];
-    const updatedChannels = {
-      ...profileData.notification_channels,
-      [channelKey]: !currentVal,
-    };
-
-    try {
-      const res = await api.put("/accounts/customer/preferences/", {
-        notification_channels: updatedChannels,
-      });
-
-      setProfileData((prev) => ({
-        ...prev,
-        notification_channels: res.data.notification_channels,
-      }));
-
-      showToast(
-        `Channel updated: ${channelKey === "whatsapp_sms" ? "WhatsApp & SMS" : "Seasonal Rituals"} is now ${
-          !currentVal ? "Enabled" : "Disabled"
-        }`
-      );
-    } catch (err) {
-      console.error("Channel update error:", err);
-      showToast("Failed to update notification setting.");
-    }
-  };
-
-  // 6. Save Wellness Preferences
+  // 5. Save Wellness Preferences Dynamically to Database
   const handleSavePreferences = async () => {
     try {
       const updatedPrefs = {
         hair_type: editHairTags,
         sensitivities: editSensitivities,
         rituals: editRituals,
-        preferred_stylist: profileData?.wellness_preferences?.preferred_stylist,
+        preferred_stylist: editPreferredStylist.name.trim()
+          ? {
+              name: editPreferredStylist.name.trim(),
+              role: editPreferredStylist.role.trim() || "Specialist",
+              salon: editPreferredStylist.salon.trim(),
+            }
+          : null,
       };
 
       const res = await api.put("/accounts/customer/preferences/", {
@@ -323,7 +323,7 @@ export default function CustomerProfile() {
     }
   };
 
-  // 7. Password Change
+  // 6. Password Change
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordError("");
@@ -352,7 +352,10 @@ export default function CustomerProfile() {
       showToast("Password updated successfully!");
     } catch (err) {
       console.error("Password change error:", err);
-      setPasswordError(err.response?.data?.error || "Failed to change password. Please check your current password.");
+      setPasswordError(
+        err.response?.data?.error ||
+          "Failed to change password. Please check your current password."
+      );
     } finally {
       setPasswordSaving(false);
     }
@@ -367,7 +370,7 @@ export default function CustomerProfile() {
   const userInitial = currentFullName.charAt(0).toUpperCase();
 
   const userAvatarUrl = profileData?.avatar || reduxAvatar || user?.avatar || "";
-  
+
   if (loading) {
     return (
       <div className="customer-profile-page">
@@ -393,181 +396,31 @@ export default function CustomerProfile() {
     <div className="customer-profile-page">
       <CustomerHeader />
 
-      <main className="profile-main-container">   
-        
+      {toastMessage && <div className="bk-toast">{toastMessage}</div>}
+
+      <main className="profile-main-container">
+
+
         <div className="profile-layout-grid">
-          {/* LEFT SIDEBAR*/}
-          <aside className="profile-sidebar">
-            
-            <div className="sidebar-identity-card">
-              <div className="sidebar-avatar-wrap">
-                {userAvatarUrl ? ( 
-                  <img
-                    src={resolveImageUrl(userAvatarUrl)}
-                    alt={currentFullName}
-                    className="sidebar-avatar-img" 
-                  /> 
-                ) : (
-                  <div className="sidebar-avatar-placeholder">{userInitial}</div>
-                )}
-                <span className="sidebar-verified-dot" title="Verified Member" />
-              </div>
+          {/* REUSABLE SHARED CUSTOMER SIDEBAR */}
+          <CustomerProfileSidebar
+            activeNav={activeTab}
+            profile={profileData}
+            onNavChange={(key, path) => {
+              if (key === "profile" || key === "reviews" || key === "settings") {
+                setSearchParams({ tab: key });
+              } else {
+                navigate(path);
+              }
+            }}
+          />
 
-              <h2 className="sidebar-user-name">{currentFullName}</h2>
-              <p className="sidebar-user-email">{profileData?.email || user?.email}</p>
-
-              <div className="sidebar-verified-badge">
-                <span className="dot">●</span>
-                <span>Verified Customer</span>
-              </div>
-            </div>
-
-            {/* Navigation Menu */}
-            <div className="sidebar-nav-card">
-              <nav className="sidebar-nav-list">
-                <button
-                  type="button"
-                  className={`sidebar-nav-btn ${activeTab === "profile" ? "active" : ""}`}
-                  onClick={() => handleTabChange("profile")}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">👤</span>
-                    <span>My Profile</span>
-                  </div>
-                  {activeTab === "profile" && <span>›</span>}
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-nav-btn ${activeTab === "bookings" ? "active" : ""}`}
-                  onClick={() => handleTabChange("bookings")}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">📅</span>
-                    <span>My Bookings</span>
-                  </div>
-                  <span className="sidebar-nav-badge">
-                    {profileData?.stats?.total_bookings_count || 0}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-nav-btn ${activeTab === "favorites" ? "active" : ""}`}
-                  onClick={() => handleTabChange("favorites")}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">🤍</span>
-                    <span>Favorites</span>
-                  </div>
-                  <span className="sidebar-nav-badge">
-                    {profileData?.stats?.saved_places_count || 0}
-                  </span>
-                </button>
-
-                <Link
-                  to="/customer/wallet"
-                  className="sidebar-nav-btn"
-                  style={{ textDecoration: "none" }}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">👛</span>
-                    <span>My Wallet</span>
-                  </div>
-                  <span className="sidebar-nav-badge" style={{ background: "#ecfdf5", color: "#0f766e" }}>
-                    INR
-                  </span>
-                </Link>
-
-                <button
-                  type="button"
-                  className={`sidebar-nav-btn ${activeTab === "reviews" ? "active" : ""}`}
-                  onClick={() => handleTabChange("reviews")}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">⭐</span>
-                    <span>Reviews</span>
-                  </div>
-                  <span className="sidebar-nav-badge">
-                    {profileData?.stats?.completed_count || 0}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-nav-btn ${activeTab === "notifications" ? "active" : ""}`}
-                  onClick={() => {
-                    handleTabChange("profile");
-                    showToast("Notification channels are accessible in your holistic profile below.");
-                  }}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">🔔</span>
-                    <span>Notifications</span>
-                  </div>
-                  <span style={{ fontSize: "10px", color: "#10b981" }}>●</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar-nav-btn"
-                  onClick={() => {
-                    showToast("UPI ID is configured: " + (profileData?.upi_id || "vishnu@okicici"));
-                  }}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">💳</span>
-                    <span>Payment Methods</span>
-                  </div>
-                  <span className="sidebar-nav-status-text">Saved</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar-nav-btn"
-                  onClick={() => setShowPasswordModal(true)}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">⚙️</span>
-                    <span>Settings</span>
-                  </div>
-                </button>
-
-                <div className="sidebar-nav-divider" />
-
-                <button
-                  type="button"
-                  className="sidebar-nav-btn sidebar-nav-logout"
-                  onClick={() => setShowLogoutModal(true)}
-                >
-                  <div className="sidebar-nav-btn-left">
-                    <span className="sidebar-nav-icon">🚪</span>
-                    <span>Sign Out</span>
-                  </div>
-                </button>
-              </nav>
-            </div>
-
-            {/* 100% Organic Salons Assurance Box */}
-            <div className="sidebar-assurance-card">
-              <div className="assurance-header">
-                <span>🌿</span>
-                <span>100% Organic Salons Only</span>
-              </div>
-              <p className="assurance-desc">
-                Your treatments are guaranteed non-toxic, vegan-certified, and tailored to sensitive skin.
-              </p>
-            </div>
-          </aside>
-
-          {/* MAIN CONTENT: TAB ROUTE */}
+          {/* MAIN CONTENT AREA */}
           <section className="profile-content-area">
+            {/*  TAB: PROFILE (PERSONAL INFORMATION & WELLNESS PREFERENCES)*/}
             {activeTab === "profile" && (
               <>
-                {/* 1. Top Quick Stats Row (4 Uniform Cards) */}
-                
-
-                {/* 2. Avatar & Photo Display Card */}
+                {/* 1. Avatar & Photo Display Card */}
                 <div className="profile-card">
                   <div className="avatar-display-row">
                     <div className="avatar-display-left">
@@ -619,23 +472,18 @@ export default function CustomerProfile() {
                     <div className="avatar-display-right">
                       <div className="member-tier-badge">
                         <span>🏆</span>
-                        <span>{profileData?.membership_tier || "Wellness Member"}</span>
+                        <span>{profileData?.membership_tier || "Verified Member"}</span>
                       </div>
-                      <p className="member-since-text">
-                        Member since {profileData?.member_since || "October 2025"}
-                      </p>
-                      <button
-                        type="button"
-                        className="member-benefits-link"
-                        onClick={() => showToast("Emerald Tier grants priority slot holds and 10% complimentary spa add-ons.")}
-                      >
-                        View Botanical Tier Benefits →
-                      </button>
+                      {profileData?.member_since && (
+                        <p className="member-since-text">
+                          Member since {profileData.member_since}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* 3. Personal Information Form */}
+                {/* 2. Personal Information Form */}
                 <div className="profile-card">
                   <div className="profile-card-header">
                     <div className="profile-card-title-group">
@@ -649,21 +497,32 @@ export default function CustomerProfile() {
 
                   <form onSubmit={handleSaveProfile}>
                     <div className="profile-form-grid">
-                      {/* Full Name */}
+                      {/* First Name */}
                       <div className="profile-input-group">
-                        <label className="profile-input-label">Full Name *</label>
+                        <label className="profile-input-label">First Name *</label>
                         <div className="profile-input-wrapper">
                           <input
                             type="text"
                             className="profile-input-field"
-                            value={firstName ? `${firstName} ${lastName}`.trim() : currentFullName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const parts = val.split(" ");
-                              setFirstName(parts[0] || "");
-                              setLastName(parts.slice(1).join(" ") || "");
-                            }}
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            placeholder="Enter first name"
                             required
+                          />
+                          <span className="input-suffix-icon">👤</span>
+                        </div>
+                      </div>
+
+                      {/* Last Name */}
+                      <div className="profile-input-group">
+                        <label className="profile-input-label">Last Name</label>
+                        <div className="profile-input-wrapper">
+                          <input
+                            type="text"
+                            className="profile-input-field"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            placeholder="Enter last name"
                           />
                           <span className="input-suffix-icon">👤</span>
                         </div>
@@ -695,6 +554,7 @@ export default function CustomerProfile() {
                             className="profile-input-field"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
+                            placeholder="+91..."
                             required
                           />
                           <span className="input-suffix-icon">📞</span>
@@ -728,6 +588,7 @@ export default function CustomerProfile() {
                             value={gender}
                             onChange={(e) => setGender(e.target.value)}
                           >
+                            <option value="">Select Gender</option>
                             <option value="Male (He/Him)">Male (He/Him)</option>
                             <option value="Female (She/Her)">Female (She/Her)</option>
                             <option value="Non-binary (They/Them)">Non-binary (They/Them)</option>
@@ -739,7 +600,7 @@ export default function CustomerProfile() {
 
                       {/* Primary Location / Neighborhood */}
                       <div className="profile-input-group">
-                        <label className="profile-input-label">Primary Location / Neighborhood</label>
+                        <label className="profile-input-label">Primary Location / City</label>
                         <div className="profile-input-wrapper">
                           <input
                             type="text"
@@ -751,6 +612,21 @@ export default function CustomerProfile() {
                           <span className="input-suffix-icon">📍</span>
                         </div>
                       </div>
+
+                      {/* UPI ID */}
+                      <div className="profile-input-group">
+                        <label className="profile-input-label">UPI ID for Quick Checkout</label>
+                        <div className="profile-input-wrapper">
+                          <input
+                            type="text"
+                            className="profile-input-field"
+                            value={upiId}
+                            onChange={(e) => setUpiId(e.target.value)}
+                            placeholder="e.g. username@okhdfcbank"
+                          />
+                          <span className="input-suffix-icon">💳</span>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="profile-form-footer">
@@ -760,7 +636,7 @@ export default function CustomerProfile() {
                         onClick={fetchProfile}
                         disabled={saving}
                       >
-                        Cancel
+                        Reset
                       </button>
                       <button
                         type="submit"
@@ -780,7 +656,7 @@ export default function CustomerProfile() {
                   </form>
                 </div>
 
-                {/* 4. Holistic Profile: Wellness & Hair Preferences */}
+                {/* 3. Holistic Profile: Wellness & Hair Preferences (100% Dynamic) */}
                 <div className="profile-card">
                   <div className="profile-card-header">
                     <div className="profile-card-title-group">
@@ -788,8 +664,11 @@ export default function CustomerProfile() {
                         <span>🌿</span>
                         <span>HOLISTIC PROFILE</span>
                       </div>
-                      <h3>Wellness & Hair Preferences</h3>
-                      <p>Helps our therapists prepare certified organic botanical formulations prior to your visit.</p>
+                      <h3>Wellness &amp; Hair Preferences</h3>
+                      <p>
+                        Helps our therapists prepare certified organic botanical formulations
+                        tailored to your skin and hair texture.
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -805,43 +684,50 @@ export default function CustomerProfile() {
                     <div className="preference-box">
                       <div className="preference-box-title">
                         <span>✂️</span>
-                        <span>Hair Type & Texture</span>
+                        <span>Hair Type &amp; Texture</span>
                       </div>
-                      <div className="preference-pill-wrap">
-                        {(profileData?.wellness_preferences?.hair_type || [
-                          "Wavy (2B)",
-                          "Medium Density",
-                          "Dry Ends",
-                        ]).map((tag, i) => (
-                          <span key={i} className="preference-pill">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      {editHairTags && editHairTags.length > 0 ? (
+                        <div className="preference-pill-wrap">
+                          {editHairTags.map((tag, i) => (
+                            <span key={i} className="preference-pill">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="preference-empty-text">
+                          No hair type tags added yet. Click &ldquo;Edit Preferences&rdquo; to customize.
+                        </p>
+                      )}
                     </div>
 
                     {/* Scalp & Skin Sensitivities */}
                     <div className="preference-box">
                       <div className="preference-box-title">
                         <span>💆</span>
-                        <span>Scalp & Skin Sensitivities</span>
+                        <span>Scalp &amp; Skin Sensitivities</span>
                       </div>
-                      <div className="preference-pill-wrap">
-                        {(profileData?.wellness_preferences?.sensitivities || [
-                          "Sensitive Scalp",
-                          "Organic-Only Formulations",
-                          "Fragrance-Free Oil",
-                        ]).map((tag, i) => (
-                          <span
-                            key={i}
-                            className={`preference-pill ${
-                              tag.toLowerCase().includes("sensitive") ? "highlight" : ""
-                            }`}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      {editSensitivities && editSensitivities.length > 0 ? (
+                        <div className="preference-pill-wrap">
+                          {editSensitivities.map((tag, i) => (
+                            <span
+                              key={i}
+                              className={`preference-pill ${
+                                tag.toLowerCase().includes("sensitive") ||
+                                tag.toLowerCase().includes("allergy")
+                                  ? "highlight"
+                                  : ""
+                              }`}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="preference-empty-text">
+                          No sensitivities specified. Formulations will use standard organic blends.
+                        </p>
+                      )}
                     </div>
 
                     {/* Favorite Rituals */}
@@ -850,266 +736,201 @@ export default function CustomerProfile() {
                         <span>✨</span>
                         <span>Favorite Rituals</span>
                       </div>
-                      <ul className="preference-checklist">
-                        {(profileData?.wellness_preferences?.rituals || [
-                          "Precision Botanical Haircut & Styling",
-                          "Ayurvedic Scalp Detox & Kansa Wand Massage",
-                          "Beard Conditioning with Cedarwood Essential Oil",
-                        ]).map((ritual, i) => (
-                          <li key={i}>
-                            <span className="check-icon">✓</span>
-                            <span>{ritual}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {editRituals && editRituals.length > 0 ? (
+                        <ul className="preference-checklist">
+                          {editRituals.map((ritual, i) => (
+                            <li key={i}>
+                              <span className="check-icon">✓</span>
+                              <span>{ritual}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="preference-empty-text">
+                          No favorite rituals selected yet.
+                        </p>
+                      )}
                     </div>
 
-                    {/* Preferred Stylist & Artisan */}
+                    {/* Preferred Stylist & Artisan Notes */}
                     <div className="preference-box">
                       <div className="preference-box-title">
                         <span>⭐</span>
-                        <span>Preferred Stylist & Artisan</span>
+                        <span>Preferred Specialist &amp; Notes</span>
                       </div>
-                      <div className="stylist-mini-card">
-                        <img
-                          src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
-                          alt="Preferred Stylist"
-                          className="stylist-mini-avatar"
-                        />
-                        <div className="stylist-mini-info">
-                          <h5>
-                            {profileData?.wellness_preferences?.preferred_stylist?.name ||
-                              "Rahul Kumar"}
-                          </h5>
-                          <p>
-                            {profileData?.wellness_preferences?.preferred_stylist?.role ||
-                              "Master Stylist"}{" "}
-                            —{" "}
-                            {profileData?.wellness_preferences?.preferred_stylist?.salon ||
-                              "ABC Salon & Spa, Indiranagar"}
-                          </p>
+                      {editPreferredStylist.name ? (
+                        <div className="stylist-mini-card">
+                          <div className="stylist-mini-avatar-fallback">
+                            {editPreferredStylist.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="stylist-mini-info">
+                            <h5>{editPreferredStylist.name}</h5>
+                            <p>
+                              {editPreferredStylist.role || "Specialist"}
+                              {editPreferredStylist.salon
+                                ? ` — ${editPreferredStylist.salon}`
+                                : ""}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 5. Notification Channels */}
-                <div className="profile-card">
-                  <div className="profile-card-header">
-                    <div className="profile-card-title-group">
-                      <h3>Notification Channels</h3>
-                      <p>Keep track of mindful booking updates with zero unsolicited noise.</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-outline-action"
-                      onClick={() => showToast("All notification channels are configured cleanly.")}
-                    >
-                      Manage all
-                    </button>
-                  </div>
-
-                  <div className="notification-channels-list">
-                    {/* Channel 1 */}
-                    <div className="notification-channel-row">
-                      <div className="channel-info-group">
-                        <div className="channel-icon-circle">💬</div>
-                        <div className="channel-text-details">
-                          <h5>WhatsApp & SMS Reminders</h5>
-                          <p>Receive 24-hour and 2-hour appointment alerts with directions.</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className={`btn-toggle-channel ${
-                          profileData?.notification_channels?.whatsapp_sms !== false
-                            ? ""
-                            : "disabled"
-                        }`}
-                        onClick={() => handleToggleChannel("whatsapp_sms")}
-                      >
-                        {profileData?.notification_channels?.whatsapp_sms !== false
-                          ? "Enabled"
-                          : "Disabled"}
-                      </button>
-                    </div>
-
-                    {/* Channel 2 */}
-                    <div className="notification-channel-row">
-                      <div className="channel-info-group">
-                        <div className="channel-icon-circle">🌿</div>
-                        <div className="channel-text-details">
-                          <h5>Botanical Drops & Seasonal Rituals</h5>
-                          <p>Exclusive seasonal releases, priority slots, and double point gifts.</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className={`btn-toggle-channel ${
-                          profileData?.notification_channels?.seasonal_rituals !== false
-                            ? ""
-                            : "disabled"
-                        }`}
-                        onClick={() => handleToggleChannel("seasonal_rituals")}
-                      >
-                        {profileData?.notification_channels?.seasonal_rituals !== false
-                          ? "Enabled"
-                          : "Disabled"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 6. Security & Account Controls (Red Box) */}
-                <div className="profile-card security-box">
-                  <div className="security-box-header">
-                    <span>🛡️</span>
-                    <span>Security & Account Controls</span>
-                  </div>
-
-                  <div className="security-action-row">
-                    <div className="security-action-left">
-                      <h5>Password</h5>
-                      <p>Last updated 3 months ago</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-outline-action"
-                      onClick={() => setShowPasswordModal(true)}
-                    >
-                      Change
-                    </button>
-                  </div>
-
-                  <div className="security-action-row">
-                    <div className="security-action-left">
-                      <h5>Need to step away?</h5>
-                      <p>Sign out session this device or review active browser sessions.</p>
-                    </div>
-                    <div className="security-btn-group">
-                      <button
-                        type="button"
-                        className="btn-deactivate"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Are you sure you want to request account deactivation? Your customer sanctuary history will be archived."
-                            )
-                          ) {
-                            showToast("Deactivation request submitted to platform administration.");
-                          }
-                        }}
-                      >
-                        Deactivate Account
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-signout-red"
-                        onClick={() => setShowLogoutModal(true)}
-                      >
-                        <span>🚪</span>
-                        <span>Log Out</span>
-                      </button>
+                      ) : (
+                        <p className="preference-empty-text">
+                          No preferred specialist noted. Click &ldquo;Edit Preferences&rdquo; to add your favorite artisan.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
               </>
             )}
 
-            {/*TAB: MY BOOKINGS */}
-            {activeTab === "bookings" && (
+            {/* ================================================================
+                TAB: REVIEWS (100% REAL DYNAMIC REVIEWS FROM BACKEND)
+                ================================================================ */}
+            {activeTab === "reviews" && (
               <div className="profile-card">
                 <div className="profile-card-header">
                   <div className="profile-card-title-group">
-                    <h3>My Appointments & Rituals</h3>
-                    <p>Track your scheduled sessions and past botanical salon visits.</p>
+                    <h3>Treatment Feedback &amp; Reviews</h3>
+                    <p>Ratings and mindful notes from your past completed salon visits.</p>
                   </div>
-                  <Link to="/customer/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
-                    + Book New Ritual
-                  </Link>
+                  <span className="sidebar-nav-badge" style={{ fontSize: "12px", padding: "4px 10px" }}>
+                    {myReviews.length} Verified Review{myReviews.length === 1 ? "" : "s"}
+                  </span>
                 </div>
 
-                {tabLoading ? (
-                  <p style={{ color: "var(--profile-text-muted)", fontSize: "14px" }}>
-                    Loading appointment records...
-                  </p>
-                ) : bookingsList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                    <span style={{ fontSize: "36px", display: "block", marginBottom: "10px" }}>🌿</span>
+                {reviewsLoading ? (
+                  <div style={{ padding: "40px 20px", display: "flex", justifyContent: "center" }}>
+                    <SalonLoader size={48} label="Loading your reviews..." />
+                  </div>
+                ) : myReviews.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "48px 24px",
+                      textAlign: "center",
+                      background: "#fafcfb",
+                      borderRadius: "16px",
+                      border: "1px dashed var(--profile-border)",
+                    }}
+                  >
+                    <div style={{ fontSize: "2.4rem", marginBottom: "8px" }}>⭐</div>
                     <h4 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 6px" }}>
-                      No Appointments Scheduled Yet
+                      No Reviews Yet
                     </h4>
-                    <p style={{ fontSize: "13px", color: "var(--profile-text-muted)", margin: "0 0 20px" }}>
-                      Explore certified salons and reserve your initial conscious ritual.
+                    <p style={{ fontSize: "13px", color: "#6b7280", maxWidth: "420px", margin: "0 auto 18px", lineHeight: "1.5" }}>
+                      You haven&apos;t written any reviews yet. After completing appointments, you can share feedback and rating scores with your salon specialists.
                     </p>
                     <Link
-                      to="/customer/salons"
-                      className="btn-upload-avatar"
-                      style={{ textDecoration: "none", display: "inline-block" }}
+                      to="/customer/my-bookings"
+                      className="btn-form-save"
+                      style={{ textDecoration: "none", display: "inline-block", padding: "8px 18px" }}
                     >
-                      Explore Salons
+                      View Past Appointments →
                     </Link>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                    {bookingsList.map((b) => (
+                    {myReviews.map((rev) => (
                       <div
-                        key={b.id}
+                        key={rev.id}
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "16px",
-                          borderRadius: "12px",
-                          border: "1px solid #e5e7eb",
-                          background: "#fbfbfb",
+                          background: "#ffffff",
+                          border: "1px solid var(--profile-border)",
+                          borderRadius: "14px",
+                          padding: "16px 18px",
+                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.02)",
                         }}
                       >
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                            <strong style={{ fontSize: "15px", color: "#111827" }}>{b.salon_name}</strong>
-                            <span
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: "8px",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                          }}
+                        >
+                          <div>
+                            <Link
+                              to={`/customer/salons/${rev.salon_id}`}
                               style={{
-                                fontSize: "11px",
-                                fontWeight: "600",
-                                padding: "2px 8px",
-                                borderRadius: "9999px",
-                                background:
-                                  b.status === "CONFIRMED"
-                                    ? "#dcfce7"
-                                    : b.status === "COMPLETED"
-                                    ? "#e0e7ff"
-                                    : "#fef3c7",
-                                color:
-                                  b.status === "CONFIRMED"
-                                    ? "#15803d"
-                                    : b.status === "COMPLETED"
-                                    ? "#4338ca"
-                                    : "#b45309",
+                                fontSize: "15px",
+                                fontWeight: "700",
+                                color: "var(--profile-primary)",
+                                textDecoration: "none",
                               }}
                             >
-                              {b.status}
+                              {rev.salon_name}
+                            </Link>
+                            {rev.salon_city && (
+                              <span style={{ fontSize: "12px", color: "#6b7280", marginLeft: "6px" }}>
+                                • {rev.salon_city}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span style={{ color: "#f59e0b", fontSize: "15px" }}>
+                              {"★".repeat(rev.rating)}
+                              {"☆".repeat(5 - rev.rating)}
+                            </span>
+                            <span style={{ fontSize: "13px", fontWeight: "700", color: "#374151" }}>
+                              ({rev.rating}/5)
                             </span>
                           </div>
-                          <p style={{ margin: "0 0 4px", fontSize: "13px", color: "#4b5563" }}>
-                            {b.service_name} • ₹{b.service_price}
-                          </p>
-                          <small style={{ color: "#6b7280" }}>
-                            📅 {b.booking_date} at {b.booking_time} ({b.duration})
-                          </small>
                         </div>
-                        {b.receipt_available ? (
-                          <button
-                            type="button"
-                            className="bk-btn-receipt"
-                            onClick={() => openReceiptModal(b)}
-                            title="View and download your official tax invoice and receipt"
+
+                        {rev.service_name && (
+                          <div
+                            style={{
+                              display: "inline-block",
+                              background: "#f0fdf4",
+                              color: "#166534",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              padding: "2px 8px",
+                              borderRadius: "999px",
+                              marginBottom: "8px",
+                            }}
                           >
-                            <span>📄</span> View Receipt
-                          </button>
-                        ) : null}
-                        
+                            ✂️ {rev.service_name}
+                          </div>
+                        )}
+
+                        <p
+                          style={{
+                            fontSize: "13px",
+                            color: "#374151",
+                            margin: "0 0 8px",
+                            lineHeight: "1.5",
+                          }}
+                        >
+                          &ldquo;{rev.comment}&rdquo;
+                        </p>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            fontSize: "11.5px",
+                            color: "#9ca3af",
+                            borderTop: "1px solid #f3f4f6",
+                            paddingTop: "6px",
+                          }}
+                        >
+                          <span>
+                            Reviewed on{" "}
+                            {new Date(rev.created_at).toLocaleDateString("en-IN", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <span style={{ color: "#059669", fontWeight: "600" }}>
+                            ✓ Verified Visit
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1117,178 +938,144 @@ export default function CustomerProfile() {
               </div>
             )}
 
-            {/*  TAB: FAVORITES*/}
-            {activeTab === "favorites" && (
-              <div className="profile-card">
-                <div className="profile-card-header">
-                  <div className="profile-card-title-group">
-                    <h3>Saved Favorite Salons</h3>
-                    <p>Your curated selection of organic, vegan-certified partner spaces.</p>
-                  </div>
-                  <Link to="/customer/salons" className="btn-outline-action" style={{ textDecoration: "none" }}>
-                    Explore More
-                  </Link>
-                </div>
-
-                {tabLoading ? (
-                  <p style={{ color: "var(--profile-text-muted)", fontSize: "14px" }}>
-                    Loading your saved sanctuaries...
-                  </p>
-                ) : favoritesList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                    <span style={{ fontSize: "36px", display: "block", marginBottom: "10px" }}>🤍</span>
-                    <h4 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 6px" }}>
-                      No Saved Salons Yet
-                    </h4>
-                    <p style={{ fontSize: "13px", color: "var(--profile-text-muted)", margin: "0 0 20px" }}>
-                      Discover vetted salons and save your preferred spaces for quick bookings.
-                    </p>
-                    <Link
-                      to="/customer/salons"
-                      className="btn-upload-avatar"
-                      style={{ textDecoration: "none", display: "inline-block" }}
-                    >
-                      Browse Salons
-                    </Link>
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
-                    {favoritesList.map((f) => {
-                      const isAvail = f.is_available !== false && f.approval_status === "APPROVED";
-                      return (
-                        <div
-                          key={f.id}
-                          style={{
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "12px",
-                            overflow: "hidden",
-                            background: "#ffffff",
-                            position: "relative",
-                          }}
-                        >
-                          <div style={{ position: "relative" }}>
-                            <img
-                              src={resolveImageUrl(f.cover_image)}
-                              alt={f.name}
-                              style={{ width: "100%", height: "130px", objectFit: "cover" }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveProfileFavorite(f.id)}
-                              title="Remove from favorites"
-                              style={{
-                                position: "absolute",
-                                top: "8px",
-                                right: "8px",
-                                background: "#ffffff",
-                                border: "none",
-                                borderRadius: "50%",
-                                width: "28px",
-                                height: "28px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#e11d48",
-                                cursor: "pointer",
-                                fontSize: "14px",
-                                boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-                              }}
-                            >
-                              ♥
-                            </button>
-                            {!isAvail && (
-                              <span
-                                style={{
-                                  position: "absolute",
-                                  top: "8px",
-                                  left: "8px",
-                                  background: "rgba(254, 242, 242, 0.95)",
-                                  color: "#991b1b",
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  padding: "2px 6px",
-                                  borderRadius: "4px",
-                                }}
-                              >
-                                Unavailable
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ padding: "12px" }}>
-                            <h4 style={{ fontSize: "14px", fontWeight: "700", margin: "0 0 4px" }}>{f.name}</h4>
-                            <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px" }}>
-                              📍 {f.city} • {f.category}
-                            </p>
-                            {isAvail ? (
-                              <Link
-                                to={`/customer/salons/${f.id}`}
-                                className="btn-form-save"
-                                style={{
-                                  textDecoration: "none",
-                                  display: "block",
-                                  textAlign: "center",
-                                  padding: "6px 12px",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                Book Slot
-                              </Link>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                style={{
-                                  width: "100%",
-                                  padding: "6px 12px",
-                                  fontSize: "12px",
-                                  background: "#f3f4f6",
-                                  color: "#9ca3af",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "8px",
-                                  cursor: "not-allowed",
-                                }}
-                              >
-                                Booking Paused
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ================================================================
-                TAB: REVIEWS
+                TAB: SETTINGS (ACCOUNT SECURITY & PASSWORD CHANGE)
                 ================================================================ */}
-            {activeTab === "reviews" && (
+            {activeTab === "settings" && (
               <div className="profile-card">
                 <div className="profile-card-header">
                   <div className="profile-card-title-group">
-                    <h3>Treatment Feedback & Reviews</h3>
-                    <p>Ratings and mindful notes from your past completed rituals.</p>
+                    <h3>Account Security &amp; Settings</h3>
+                    <p>Manage your account credentials, security preferences, and active authentication.</p>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                  {/* Verified Credentials Summary */}
                   <div
                     style={{
-                      background: "#fbfbfb",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "12px",
-                      padding: "16px",
+                      background: "#fbfdfc",
+                      border: "1px solid var(--profile-border)",
+                      borderRadius: "14px",
+                      padding: "18px",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: "14px",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                      <strong style={{ fontSize: "14px" }}>Aura Luxe Salon & Spa</strong>
-                      <span style={{ color: "#f59e0b", fontSize: "14px" }}>★★★★★</span>
+                    <div>
+                      <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "#6b7280" }}>
+                        Primary Email
+                      </span>
+                      <p style={{ margin: "4px 0 2px", fontWeight: "600", fontSize: "13.5px", color: "#111827" }}>
+                        {profileData?.email || user?.email}
+                      </p>
+                      <span style={{ color: "#059669", fontSize: "11px", fontWeight: "600" }}>✓ Verified</span>
                     </div>
-                    <p style={{ fontSize: "13px", color: "#374151", margin: "0 0 6px", lineHeight: "1.5" }}>
-                      "Exceptional scalp detox ritual. The organic cedarwood infusion was deeply calming, and the stylist accommodated my sensitive skin preferences wonderfully."
+
+                    <div>
+                      <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "#6b7280" }}>
+                        Verified Phone
+                      </span>
+                      <p style={{ margin: "4px 0 2px", fontWeight: "600", fontSize: "13.5px", color: "#111827" }}>
+                        {phone || "Not configured"}
+                      </p>
+                      <span style={{ color: phone ? "#059669" : "#d97706", fontSize: "11px", fontWeight: "600" }}>
+                        {phone ? "✓ SMS & WhatsApp Enabled" : "Add phone in Personal Information"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "#6b7280" }}>
+                        Account Status
+                      </span>
+                      <p style={{ margin: "4px 0 2px", fontWeight: "600", fontSize: "13.5px", color: "#111827" }}>
+                        Active Customer
+                      </p>
+                      <span style={{ color: "#059669", fontSize: "11px", fontWeight: "600" }}>✓ Good Standing</span>
+                    </div>
+                  </div>
+
+                  {/* Change Password Form In-Page */}
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      border: "1px solid var(--profile-border)",
+                      borderRadius: "14px",
+                      padding: "20px",
+                    }}
+                  >
+                    <h4 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: "700", color: "#111827" }}>
+                      Change Password
+                    </h4>
+                    <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#6b7280" }}>
+                      Ensure your account uses a secure password of at least 8 characters.
                     </p>
-                    <small style={{ color: "#9ca3af" }}>Verified Review • 2 weeks ago</small>
+
+                    {passwordError && (
+                      <div
+                        style={{
+                          background: "#fee2e2",
+                          color: "#dc2626",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          fontSize: "12.5px",
+                          marginBottom: "14px",
+                        }}
+                      >
+                        {passwordError}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePassword}>
+                      <div className="profile-form-grid">
+                        <div className="profile-input-group">
+                          <label className="profile-input-label">Current Password *</label>
+                          <input
+                            type="password"
+                            className="profile-input-field"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                          />
+                        </div>
+
+                        <div className="profile-input-group">
+                          <label className="profile-input-label">New Password (min 8 chars) *</label>
+                          <input
+                            type="password"
+                            className="profile-input-field"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="At least 8 characters"
+                            required
+                          />
+                        </div>
+
+                        <div className="profile-input-group">
+                          <label className="profile-input-label">Confirm New Password *</label>
+                          <input
+                            type="password"
+                            className="profile-input-field"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Re-enter new password"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="submit"
+                          className="btn-form-save"
+                          disabled={passwordSaving}
+                        >
+                          {passwordSaving ? "Updating Password..." : "Update Password"}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -1298,13 +1085,13 @@ export default function CustomerProfile() {
       </main>
 
       {/* ====================================================================
-          MODAL: EDIT WELLNESS PREFERENCES
+          MODAL: EDIT WELLNESS PREFERENCES (100% DYNAMIC)
           ==================================================================== */}
       {showPreferencesModal && (
         <div className="profile-modal-overlay" onClick={() => setShowPreferencesModal(false)}>
           <div className="profile-modal-window" onClick={(e) => e.stopPropagation()}>
             <div className="profile-modal-header">
-              <h3>Edit Wellness & Hair Preferences</h3>
+              <h3>Edit Wellness &amp; Hair Preferences</h3>
               <button
                 type="button"
                 className="profile-modal-close-btn"
@@ -1315,9 +1102,9 @@ export default function CustomerProfile() {
             </div>
 
             <div className="profile-modal-body">
-              {/* Hair Types */}
+              {/* 1. Hair Types & Texture */}
               <div>
-                <label className="profile-input-label">Hair Type & Texture Tags</label>
+                <label className="profile-input-label">Hair Type &amp; Texture Tags</label>
                 <div className="preference-pill-wrap" style={{ margin: "8px 0" }}>
                   {editHairTags.map((tag, idx) => (
                     <span
@@ -1335,14 +1122,16 @@ export default function CustomerProfile() {
                   <input
                     type="text"
                     className="profile-input-field"
-                    placeholder="Add hair tag (e.g. Fine Curls)..."
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
+                    placeholder="Add hair tag (e.g. Wavy 2B, Fine, Dry Ends)..."
+                    value={newHairInput}
+                    onChange={(e) => setNewHairInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && newTagInput.trim()) {
+                      if (e.key === "Enter" && newHairInput.trim()) {
                         e.preventDefault();
-                        setEditHairTags([...editHairTags, newTagInput.trim()]);
-                        setNewTagInput("");
+                        if (!editHairTags.includes(newHairInput.trim())) {
+                          setEditHairTags([...editHairTags, newHairInput.trim()]);
+                        }
+                        setNewHairInput("");
                       }
                     }}
                   />
@@ -1350,20 +1139,47 @@ export default function CustomerProfile() {
                     type="button"
                     className="btn-outline-action"
                     onClick={() => {
-                      if (newTagInput.trim()) {
-                        setEditHairTags([...editHairTags, newTagInput.trim()]);
-                        setNewTagInput("");
+                      if (newHairInput.trim() && !editHairTags.includes(newHairInput.trim())) {
+                        setEditHairTags([...editHairTags, newHairInput.trim()]);
+                        setNewHairInput("");
                       }
                     }}
                   >
                     Add
                   </button>
                 </div>
+                {/* Popular suggestions */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+                  {["Straight (1A)", "Wavy (2B)", "Curly (3A)", "Coily (4A)", "Medium Density", "Thick", "Fine", "Color-Treated"].map(
+                    (sugg) => (
+                      <button
+                        key={sugg}
+                        type="button"
+                        style={{
+                          fontSize: "11px",
+                          background: editHairTags.includes(sugg) ? "#dcfce7" : "#f3f4f6",
+                          color: editHairTags.includes(sugg) ? "#166534" : "#4b5563",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "9999px",
+                          padding: "2px 8px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          if (!editHairTags.includes(sugg)) {
+                            setEditHairTags([...editHairTags, sugg]);
+                          }
+                        }}
+                      >
+                        + {sugg}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
 
-              {/* Sensitivities */}
-              <div style={{ marginTop: "10px" }}>
-                <label className="profile-input-label">Scalp & Skin Sensitivities</label>
+              {/* 2. Sensitivities */}
+              <div style={{ marginTop: "14px" }}>
+                <label className="profile-input-label">Scalp &amp; Skin Sensitivities</label>
                 <div className="preference-pill-wrap" style={{ margin: "8px 0" }}>
                   {editSensitivities.map((tag, idx) => (
                     <span
@@ -1379,18 +1195,49 @@ export default function CustomerProfile() {
                     </span>
                   ))}
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {["Sensitive Scalp", "Fragrance-Free Oil", "Organic-Only Formulations", "Nut Allergy", "Eczema Prone"].map(
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    className="profile-input-field"
+                    placeholder="Add sensitivity (e.g. Nut Allergy, Fragrance-Free)..."
+                    value={newSensitivityInput}
+                    onChange={(e) => setNewSensitivityInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newSensitivityInput.trim()) {
+                        e.preventDefault();
+                        if (!editSensitivities.includes(newSensitivityInput.trim())) {
+                          setEditSensitivities([...editSensitivities, newSensitivityInput.trim()]);
+                        }
+                        setNewSensitivityInput("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-outline-action"
+                    onClick={() => {
+                      if (newSensitivityInput.trim() && !editSensitivities.includes(newSensitivityInput.trim())) {
+                        setEditSensitivities([...editSensitivities, newSensitivityInput.trim()]);
+                        setNewSensitivityInput("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+                  {["Sensitive Scalp", "Fragrance-Free Oil", "Organic-Only Formulations", "Nut Allergy", "Eczema Prone", "Sulfate-Free"].map(
                     (sugg) => (
                       <button
                         key={sugg}
                         type="button"
                         style={{
                           fontSize: "11px",
-                          background: "#f3f4f6",
+                          background: editSensitivities.includes(sugg) ? "#fef3c7" : "#f3f4f6",
+                          color: editSensitivities.includes(sugg) ? "#92400e" : "#4b5563",
                           border: "1px solid #d1d5db",
                           borderRadius: "9999px",
-                          padding: "3px 8px",
+                          padding: "2px 8px",
                           cursor: "pointer",
                         }}
                         onClick={() => {
@@ -1404,6 +1251,98 @@ export default function CustomerProfile() {
                     )
                   )}
                 </div>
+              </div>
+
+              {/* 3. Favorite Rituals */}
+              <div style={{ marginTop: "14px" }}>
+                <label className="profile-input-label">Favorite Rituals &amp; Treatments</label>
+                <div className="preference-pill-wrap" style={{ margin: "8px 0" }}>
+                  {editRituals.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="preference-pill"
+                      style={{ cursor: "pointer" }}
+                      title="Click to remove"
+                      onClick={() => setEditRituals(editRituals.filter((_, i) => i !== idx))}
+                    >
+                      {tag} ✕
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    className="profile-input-field"
+                    placeholder="Add favorite treatment (e.g. Scalp Detox Massage)..."
+                    value={newRitualInput}
+                    onChange={(e) => setNewRitualInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newRitualInput.trim()) {
+                        e.preventDefault();
+                        if (!editRituals.includes(newRitualInput.trim())) {
+                          setEditRituals([...editRituals, newRitualInput.trim()]);
+                        }
+                        setNewRitualInput("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-outline-action"
+                    onClick={() => {
+                      if (newRitualInput.trim() && !editRituals.includes(newRitualInput.trim())) {
+                        setEditRituals([...editRituals, newRitualInput.trim()]);
+                        setNewRitualInput("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Preferred Stylist & Artisan Notes */}
+              <div style={{ marginTop: "14px" }}>
+                <label className="profile-input-label">Preferred Specialist &amp; Treatment Notes</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "6px" }}>
+                  <input
+                    type="text"
+                    className="profile-input-field"
+                    placeholder="Specialist name (optional)..."
+                    value={editPreferredStylist.name}
+                    onChange={(e) =>
+                      setEditPreferredStylist({
+                        ...editPreferredStylist,
+                        name: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="text"
+                    className="profile-input-field"
+                    placeholder="Role / Title (e.g. Master Stylist)..."
+                    value={editPreferredStylist.role}
+                    onChange={(e) =>
+                      setEditPreferredStylist({
+                        ...editPreferredStylist,
+                        role: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <input
+                  type="text"
+                  className="profile-input-field"
+                  style={{ marginTop: "8px" }}
+                  placeholder="Salon name or personalized styling notes for check-in..."
+                  value={editPreferredStylist.salon}
+                  onChange={(e) =>
+                    setEditPreferredStylist({
+                      ...editPreferredStylist,
+                      salon: e.target.value,
+                    })
+                  }
+                />
               </div>
             </div>
 
@@ -1423,9 +1362,9 @@ export default function CustomerProfile() {
           </div>
         </div>
       )}
-      
+
       {/* ====================================================================
-          MODAL: CHANGE PASSWORD
+          MODAL: CHANGE PASSWORD (STANDALONE TRIGGER)
           ==================================================================== */}
       {showPasswordModal && (
         <div className="profile-modal-overlay" onClick={() => setShowPasswordModal(false)}>
@@ -1451,6 +1390,7 @@ export default function CustomerProfile() {
                       padding: "8px 12px",
                       borderRadius: "8px",
                       fontSize: "12px",
+                      marginBottom: "10px",
                     }}
                   >
                     {passwordError}
@@ -1510,74 +1450,6 @@ export default function CustomerProfile() {
               </div>
             </form>
           </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL: CONFIRM LOGOUT
-          ==================================================================== */}
-      {showLogoutModal && (
-        <div className="profile-modal-overlay" onClick={() => setShowLogoutModal(false)}>
-          <div className="profile-modal-window" style={{ maxWidth: "420px" }} onClick={(e) => e.stopPropagation()}>
-            <div className="profile-modal-header">
-              <h3>Confirm Sign Out</h3>
-              <button
-                type="button"
-                className="profile-modal-close-btn"
-                onClick={() => setShowLogoutModal(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="profile-modal-body">
-              <p style={{ fontSize: "14px", color: "var(--profile-text-muted)", margin: 0, lineHeight: "1.5" }}>
-                Are you sure you want to end your current customer session on this device?
-              </p>
-            </div>
-
-            <div className="profile-modal-footer">
-              <button
-                type="button"
-                className="btn-form-cancel"
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-signout-red"
-                onClick={async () => {
-                  setShowLogoutModal(false);
-                  if (logout) {
-                    await logout();
-                  } else {
-                    localStorage.removeItem("access_token");
-                    localStorage.removeItem("refresh_token");
-                    localStorage.removeItem("user");
-                  }
-                  navigate("/login");
-                }}
-              >
-                <span>🚪</span>
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Service Receipt Modal */}
-      <ServiceReceiptModal
-        isOpen={Boolean(activeReceiptBookingId)}
-        bookingId={activeReceiptBookingId}
-        onClose={closeReceiptModal}
-      />
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="profile-toast" role="alert">
-          <span>🌿</span>
-          <span>{toastMessage}</span>
         </div>
       )}
 

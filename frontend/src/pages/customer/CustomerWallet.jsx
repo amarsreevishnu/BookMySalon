@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import CustomerHeader from "../../components/customer/CustomerHeader";
+import CustomerFooter from "../../components/customer/CustomerFooter";
 import SalonLoader from "../../components/common/Loader";
+import CustomerProfileSidebar from "../../components/customer/CustomerProfileSidebar";
 import api from "../../api/axios";
+import "../../styles/customerProfile.css";
 import "../../styles/customerWallet.css";
 
 const MAX_TOPUP_AMOUNT = 10000;
@@ -263,12 +266,16 @@ export default function CustomerWallet() {
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   return (
-    <div className="c-wallet-page">
+    <div className="customer-profile-page c-wallet-page">
       <CustomerHeader />
 
-      <main className="c-wallet-container">
-        {/* Header Title & Badges */}
-        <div className="c-wallet-header">
+      <main className="profile-main-container">
+        <div className="profile-layout-grid">
+          <CustomerProfileSidebar activeNav="wallet" />
+
+          <div className="profile-content-area c-wallet-container" style={{ maxWidth: "100%", padding: 0 }}>
+            {/* Header Title & Badges */}
+            <div className="c-wallet-header">
           <div className="c-wallet-header-info">
             <h1>
               Wallet
@@ -561,7 +568,11 @@ export default function CustomerWallet() {
           )}
         </section>
 
-        {/* Top-Up Modal */}
+          </div>
+        </div>
+      </main>
+
+      {/* Top-Up Modal */}
         {showTopUpModal && (
           <div className="c-wallet-modal-backdrop" onClick={() => setShowTopUpModal(false)}>
             <div className="c-wallet-modal" onClick={(e) => e.stopPropagation()}>
@@ -721,7 +732,8 @@ export default function CustomerWallet() {
             </div>
           </div>
         )}
-      </main>
+
+      <CustomerFooter />
     </div>
   );
 }

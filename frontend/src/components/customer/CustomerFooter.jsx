@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import logo from "../../assets/logo.png"
+import logo from "../../assets/logo.png";
+import "../../styles/customerFooter.css";
+
 function CustomerFooter() {
   return (
     <footer className="customer-footer">

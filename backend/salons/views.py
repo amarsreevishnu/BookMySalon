@@ -55,7 +55,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
             return super().authenticate(request)
         except Exception:
             return None
-
+ 
 class IsOwner(IsAuthenticated):
     def has_permission(self, request, view):
         authenticated = super().has_permission(request, view)
@@ -590,9 +590,6 @@ class AdminDashboardStatsView(APIView):
                 "rejected_salons": rejected_salons,
                 "blocked_salons": blocked_salons,
                 "total_salons": total_salons,
-                "month_bookings": 1280,
-                "completed_sessions": 32500,
-                "platform_gmv": "₹45,20,000",
             }
         )
 
@@ -1097,7 +1094,7 @@ class OwnerDashboardView(APIView):
             # Dynamic Reviews & Ratings for Salon Owner
             reviews_data = []
             worker_reviews_data = []
-            salon_rating = 5.0
+            salon_rating = 0.0
             salon_reviews_count = 0
             rating_breakdown = {5: {"count": 0, "percentage": 0}, 4: {"count": 0, "percentage": 0}, 3: {"count": 0, "percentage": 0}, 2: {"count": 0, "percentage": 0}, 1: {"count": 0, "percentage": 0}}
 
@@ -1159,9 +1156,7 @@ class OwnerDashboardView(APIView):
                         "created_at": wr.created_at.isoformat(),
                     })
 
-        # ----------------------------------------------------------------------
         # Real Revenue Progression Calculation for Salon Owner
-        # ----------------------------------------------------------------------
         def _get_booking_hour(b):
             if b.start_time:
                 return b.start_time.hour

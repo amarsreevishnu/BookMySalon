@@ -1,4 +1,5 @@
 from django.urls import path
+from .views_analytics import AdminAnalyticsDashboardView,Admin_testPage
 
 from .views import (
     AdminDashboardStatsView,
@@ -206,6 +207,14 @@ urlpatterns = [
         SalonResubmitView.as_view(),
         name="salon-resubmit",
     ),
+    path(
+        "admin/analytics/",
+        AdminAnalyticsDashboardView.as_view(),
+        name="admin-analytics",
+    ),
+    path("admin/test_page/",
+            Admin_testPage.as_view(),
+            name="admin-analytics-test",),
     path(
         "admin/stats/",
         AdminDashboardStatsView.as_view(),

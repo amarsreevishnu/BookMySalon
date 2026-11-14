@@ -111,7 +111,7 @@ class CustomerProfile(models.Model):
     is_phone_verified = models.BooleanField(default=True)
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=50, blank=True, default="Male (He/Him)")
-    primary_location = models.CharField(max_length=150, blank=True, default="Indiranagar, Bengaluru")
+    primary_location = models.CharField(max_length=150, blank=True, default="")
     upi_id = models.CharField(max_length=100, blank=True, default="")
     membership_tier = models.CharField(max_length=50, default="Emerald Member")
     favorite_salons = models.ManyToManyField(
@@ -132,18 +132,10 @@ class CustomerProfile(models.Model):
 
     def get_wellness_preferences(self):
         defaults = {
-            "hair_type": ["Wavy (2B)", "Medium Density", "Dry Ends"],
-            "sensitivities": ["Sensitive Scalp", "Organic-Only Formulations", "Fragrance-Free Oil"],
-            "rituals": [
-                "Precision Botanical Haircut & Styling",
-                "Ayurvedic Scalp Detox & Kansa Wand Massage",
-                "Beard Conditioning with Cedarwood Essential Oil",
-            ],
-            "preferred_stylist": {
-                "name": "Rahul Kumar",
-                "role": "Master Stylist",
-                "salon": "ABC Salon & Spa, Indiranagar",
-            },
+            "hair_type": [],
+            "sensitivities": [],
+            "rituals": [],
+            "preferred_stylist": None,
         }
         if not self.wellness_preferences:
             return defaults

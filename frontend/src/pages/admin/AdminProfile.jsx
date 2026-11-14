@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import AdminSidebar from "../../components/admin/AdminSidebar";
@@ -10,11 +10,21 @@ import "../../styles/adminProfile.css";
 
 export default function AdminProfile() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
   const { user, updateUser, logout } = useAuth();
   const fileInputRef = useRef(null);
 
   // Active tab state: "general", "security", "permissions"
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState(
+    tabParam === "security" ? "security" : tabParam === "permissions" ? "permissions" : "general"
+  );
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   // Loading & Saving states
   const [loading, setLoading] = useState(true);
@@ -321,6 +331,7 @@ export default function AdminProfile() {
         pendingCount={platformCounts.pendingCount}
         salonsCount={platformCounts.salonsCount}
         usersCount={platformCounts.usersCount}
+        activeTab={activeTab}
         onLogout={handleLogout}
       />
 
@@ -456,7 +467,10 @@ export default function AdminProfile() {
             <button
               type="button"
               className={`admin-profile-tab-btn ${activeTab === "general" ? "active" : ""}`}
-              onClick={() => setActiveTab("general")}
+              onClick={() => {
+                setActiveTab("general");
+                setSearchParams({});
+              }}
             >
               <span>👤</span>
               <span>Personal & Account Details</span>
@@ -465,7 +479,10 @@ export default function AdminProfile() {
             <button
               type="button"
               className={`admin-profile-tab-btn ${activeTab === "security" ? "active" : ""}`}
-              onClick={() => setActiveTab("security")}
+              onClick={() => {
+                setActiveTab("security");
+                setSearchParams({ tab: "security" });
+              }}
             >
               <span>🔒</span>
               <span>Security & Password Management</span>
@@ -474,7 +491,10 @@ export default function AdminProfile() {
             <button
               type="button"
               className={`admin-profile-tab-btn ${activeTab === "permissions" ? "active" : ""}`}
-              onClick={() => setActiveTab("permissions")}
+              onClick={() => {
+                setActiveTab("permissions");
+                setSearchParams({ tab: "permissions" });
+              }}
             >
               <span>🛡️</span>
               <span>Master Platform Privileges</span>

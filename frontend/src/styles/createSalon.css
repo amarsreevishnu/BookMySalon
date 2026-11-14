@@ -36,8 +36,9 @@
 }
 
 .cs-brand-logo {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -45,6 +46,15 @@
   color: #244933;
   font-size: 17px;
   font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cs-brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .cs-brand-name {

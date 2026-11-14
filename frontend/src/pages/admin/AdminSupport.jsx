@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import api from "../../api/axios";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/adminSupport.css";
 
 const CATEGORIES = [
@@ -414,7 +415,8 @@ export default function AdminSupport() {
                 {loading ? (
                   <tr>
                     <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-                      Loading tickets...
+                      
+                      <SalonLoader size={84} label="Loading tickets..." />
                     </td>
                   </tr>
                 ) : tickets.length === 0 ? (

@@ -5,6 +5,8 @@ import CustomerHeader from "../../components/customer/CustomerHeader";
 import CustomerFooter from "../../components/customer/CustomerFooter";
 import SalonLoader from "../../components/common/Loader";
 import ServiceReceiptModal from "../../components/common/ServiceReceiptModal";
+import CustomerProfileSidebar from "../../components/customer/CustomerProfileSidebar";
+import "../../styles/customerProfile.css";
 import "../../styles/booking.css";
 
 const STATUS_CONFIG = {
@@ -276,14 +278,18 @@ export default function MyBookings() {
   }, [bookings, activeTab, searchQuery, sortOrder]);
 
   return (
-    <div className="bk-page">
+    <div className="customer-profile-page bk-page">
       <CustomerHeader />
 
       {toast && <div className="bk-toast">{toast}</div>}
 
-      <div className="bk-container" style={{ maxWidth: "980px" }}>
-        {/* Header Bar */}
-        <div className="bk-mybookings-header">
+      <main className="profile-main-container">
+        <div className="profile-layout-grid">
+          <CustomerProfileSidebar activeNav="bookings" />
+
+          <div className="profile-content-area bk-container" style={{ maxWidth: "100%", padding: 0 }}>
+            {/* Header Bar */}
+            <div className="bk-mybookings-header">
           <div className="bk-mybookings-title-group">
             <h1>My Appointments</h1>
             <p>View, manage, track, and review your salon reservations.</p>
@@ -719,7 +725,9 @@ export default function MyBookings() {
             })}
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      </main>
 
       {/* Review Modal */}
       {activeReviewBooking && (

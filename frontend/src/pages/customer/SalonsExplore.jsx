@@ -783,6 +783,8 @@ export default function SalonsExplore() {
                         src={resolveImageUrl(salon.image)}
                         alt={salon.name}
                         className="salon-card-img"
+                        loading="lazy"
+                        decoding="async"
                       />
                     </Link>
                     

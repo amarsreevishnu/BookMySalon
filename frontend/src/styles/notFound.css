@@ -74,6 +74,15 @@
   color: #ffffff;
   font-size: 18px;
   box-shadow: 0 2px 6px rgba(30, 57, 42, 0.2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nf-logo-crest img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .nf-brand-name {

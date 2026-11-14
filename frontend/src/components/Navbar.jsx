@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getRoleDashboardPath } from "../utils/roleUtils";
 import NotificationBell from "./common/NotificationBell";
 import logo from "../assets/logo.png"
+
 function Navbar() {
   const { token, user } = useAuth();
   const dashboardPath = getRoleDashboardPath(user);

@@ -87,7 +87,7 @@ class SalonSerializer(serializers.ModelSerializer):
                 return round(float(agg['avg']), 2)
         except Exception:
             pass
-        return 5.0
+        return 0.0
 
     def get_reviews_count(self, obj):
         try:

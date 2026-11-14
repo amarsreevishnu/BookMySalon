@@ -61,7 +61,7 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--landing-dark);
   text-decoration: none;
   font-weight: 800;
@@ -72,35 +72,59 @@
   transform: translateY(-1px);
 }
 
-.brand-icon {
+.brand-icon,
+.explore-brand-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   color: var(--landing-dark);
   background: var(--landing-accent-light);
   border: 1px solid var(--landing-accent-border);
   font-size: 16px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
+.brand-icon img,
+.explore-brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.explore-brand-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.explore-brand-name,
 .brand-text {
   font-size: 19px;
   font-weight: 800;
   color: var(--landing-dark);
   letter-spacing: -0.3px;
+  line-height: 1.1;
 }
 
+.explore-brand-sub,
 .brand-badge {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.8px;
   color: var(--landing-accent);
   background: var(--landing-accent-light);
-  padding: 3px 7px;
+  padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid var(--landing-accent-border);
+  text-transform: uppercase;
+  line-height: 1;
+  margin-top: 2px;
+  width: fit-content;
 }
 
 .nav-links {
@@ -1312,6 +1336,10 @@
 }
 
 @media (max-width: 768px) {
+  .navbar {
+    padding: 14px 18px;
+  }
+
   .nav-links {
     display: none;
     position: absolute;
@@ -1324,6 +1352,7 @@
     padding: 18px 24px;
     gap: 14px;
     box-shadow: var(--landing-shadow-md);
+    z-index: 1000;
   }
 
   .nav-links.mobile-open {

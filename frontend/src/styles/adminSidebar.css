@@ -14,14 +14,43 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 40;
   box-sizing: border-box;
 }
 
+/* Custom Scrollbar for Sidebar */
+.admin-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.admin-sidebar::-webkit-scrollbar-track {
+  background: #f8faf8;
+}
+
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background: #d4e2d8;
+  border-radius: 4px;
+}
+
+.admin-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #a9c5b2;
+}
+
 /* Brand Header */
+.admin-brand-header-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #edf2ee;
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
 .admin-brand-header {
   padding: 18px 20px;
-  border-bottom: 1px solid #edf2ee;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -29,10 +58,33 @@
   cursor: pointer;
   background: #ffffff;
   transition: background 0.15s ease;
+  flex: 1;
 }
 
 .admin-brand-header:hover {
   background: #f8faf8;
+}
+
+.admin-mobile-toggle-btn {
+  display: none;
+  background: #f4f8f5;
+  border: 1px solid #dbe7df;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-right: 14px;
+  font-size: 18px;
+  line-height: 1;
+  color: #172a1d;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.admin-mobile-toggle-btn:hover {
+  background: #e3efe7;
+  color: #163622;
 }
 
 .admin-brand-icon {
@@ -258,6 +310,28 @@
     width: 100%;
     height: auto;
     position: static;
+    border-right: none;
+    border-bottom: 1px solid #e3ebe5;
+  }
+
+  .admin-mobile-toggle-btn {
+    display: inline-flex;
+  }
+
+  .admin-nav-menu,
+  .admin-sidebar-footer {
+    display: none;
+  }
+
+  .admin-sidebar.mobile-open .admin-nav-menu,
+  .admin-sidebar.mobile-open .admin-sidebar-footer {
+    display: flex;
+  }
+
+  .admin-sidebar.mobile-open .admin-nav-menu {
+    padding: 12px 14px;
+    gap: 4px;
+    border-bottom: 1px solid #edf2ee;
   }
 }
 
