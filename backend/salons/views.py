@@ -187,6 +187,7 @@ def get_owner_salon(user):
 
 class SalonSendEmailOTPView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
 
     def post(self, request):
         serializer = SalonSendEmailOTPSerializer(data=request.data)
@@ -220,6 +221,7 @@ class SalonSendEmailOTPView(APIView):
 
 class SalonVerifyEmailOTPView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
 
     def post(self, request):
         serializer = SalonVerifyEmailOTPSerializer(data=request.data)
@@ -2076,16 +2078,7 @@ class WorkerBookingStatusUpdateView(APIView):
 
 
 class WorkerAppointmentsListView(APIView):
-    """
-    Dedicated table view of appointments assigned to the authenticated salon worker.
-    - Workers only see appointments assigned to them.
-    - Automatic No-Show rule: if customer scheduled start time has passed and customer did not arrive,
-      backend automatically marks booking as NO_SHOW.
-    - Supports search (by booking ID, customer name, customer phone, service name).
-    - Supports date filters (all, today, tomorrow, week, custom date, start_date/end_date).
-    - Supports status filters (all, confirmed, in_progress, completed, cancelled, no_show).
-    - Returns dynamic available actions per booking status according to specs.
-    """
+    
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
@@ -2225,9 +2218,7 @@ class WorkerAppointmentsListView(APIView):
 
 
 class WorkerAppointmentDetailView(APIView):
-    """
-    Returns detailed booking info for a specific appointment assigned to the worker.
-    """
+   
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
@@ -2375,7 +2366,7 @@ class CustomerSalonExploreView(APIView):
         page_param = request.query_params.get("page", "1")
         page_size_param = request.query_params.get("page_size", "8")
 
-       
+        
         now = timezone.now()
         from subscriptions.models import SalonSubscription
         db_salons = Salon.objects.filter(

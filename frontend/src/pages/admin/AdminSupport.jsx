@@ -453,13 +453,13 @@ export default function AdminSupport() {
                       </td>
 
                       <td>
-                        <span className={`os-priority-badge ${t.priority.toLowerCase()}`}>
+                        <span className={`os-priority-badge ${t.priority?.toLowerCase() || ""}`}>
                           {t.priority_display}
                         </span>
                       </td>
 
                       <td>
-                        <span className={`os-status-pill ${t.status.toLowerCase()}`}>
+                        <span className={`os-status-pill ${t.status?.toLowerCase() || ""}`}>
                           {t.status_display}
                         </span>
                       </td>
@@ -534,7 +534,7 @@ export default function AdminSupport() {
                 <span style={{ fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
                   {activeTicket.subject}
                 </span>
-                <span className={`os-status-pill ${activeTicket.status.toLowerCase()}`}>
+                <span className={`os-status-pill ${activeTicket.status?.toLowerCase() || ""}`}>
                   {activeTicket.status_display}
                 </span>
               </div>

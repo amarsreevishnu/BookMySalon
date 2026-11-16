@@ -254,9 +254,7 @@ export default function WorkerAppointmentsTab() {
 
   return (
     <div className="worker-appointments-container">
-      {/* ------------------------------------------------------------------ */}
-      {/* 1. Hero Header Banner                                              */}
-      {/* ------------------------------------------------------------------ */}
+    
       <section className="worker-appts-hero">
         <div className="worker-appts-hero-left">
           <div className="worker-appts-badge-tag">
@@ -281,9 +279,7 @@ export default function WorkerAppointmentsTab() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* 2. Live Counts Bar                                                 */}
-      {/* ------------------------------------------------------------------ */}
+      
       <div className="worker-status-quick-bar">
         <button
           type="button"
@@ -347,9 +343,7 @@ export default function WorkerAppointmentsTab() {
         </button>
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* 3. Filters Control Card                                            */}
-      {/* ------------------------------------------------------------------ */}
+      
       <section className="worker-appts-controls-card">
         <div className="worker-controls-row-top">
           <div className="worker-appts-search-wrap">
@@ -451,9 +445,7 @@ export default function WorkerAppointmentsTab() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* 4. Appointments Table                                              */}
-      {/* ------------------------------------------------------------------ */}
+      
       <section className="worker-appts-table-card">
         {loading ? (
           <div className="worker-appts-loading">
@@ -594,9 +586,7 @@ export default function WorkerAppointmentsTab() {
         )}
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* 5. View Details Modal                                              */}
-      {/* ------------------------------------------------------------------ */}
+      
       {selectedAppt && (
         <div className="worker-modal-overlay" onClick={() => setSelectedAppt(null)}>
           <div className="worker-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -770,9 +760,7 @@ export default function WorkerAppointmentsTab() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* 6. Toast Notification                                              */}
-      {/* ------------------------------------------------------------------ */}
+      
       {toastMessage && (
         <div className="worker-toast">
           <span>✨</span>

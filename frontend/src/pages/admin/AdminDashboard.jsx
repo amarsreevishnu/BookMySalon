@@ -5,6 +5,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import NotificationBell from "../../components/common/NotificationBell";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/adminDashboard.css";
 
 export default function AdminDashboard() {
@@ -81,6 +82,7 @@ export default function AdminDashboard() {
   const [selectedSalon, setSelectedSalon] = useState(null);
   const [modalTab, setModalTab] = useState("overview");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -345,6 +347,9 @@ export default function AdminDashboard() {
   // Handle Salon Decision (Approve or Reject)
   const handleDecision = async (salonId, status, notes = "") => {
     setIsProcessing(true);
+    if (status === "APPROVED") {
+      setIsApproving(true);
+    }
     try {
       const token = localStorage.getItem("access_token");
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
@@ -382,6 +387,7 @@ export default function AdminDashboard() {
       alert("Failed to update salon status: " + (err.response?.data?.error || err.message));
     } finally {
       setIsProcessing(false);
+      setIsApproving(false);
     }
   };
 
@@ -1532,12 +1538,25 @@ export default function AdminDashboard() {
                       onClick={() => handleDecision(selectedSalon.id, "APPROVED")}
                       disabled={isProcessing}
                     >
-                      {isProcessing ? "Processing..." : "✓ Confirm & Dispatch Credentials"}
+                      {isApproving ? "Approving..." : isProcessing ? "Processing..." : "✓ Confirm & Dispatch Credentials"}
                     </button>
                   </>
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transparent Approval Loader */}
+      {isApproving && (
+        <div
+          className="asl-approval-loader-overlay"
+          aria-live="assertive"
+          role="alert"
+        >
+          <div className="asl-approval-loader-card">
+            <SalonLoader size={72} label="Approving Salon & Dispatching Credentials..." />
           </div>
         </div>
       )}

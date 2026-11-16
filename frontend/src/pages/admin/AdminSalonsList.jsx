@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import { useAuth } from "../../hooks/useAuth";
 import { resolveImageUrl } from "../../utils/imageUtils";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import SalonLoader from "../../components/common/Loader";
 import "../../styles/adminSalonsList.css";
 
 const CATEGORIES = [
@@ -64,6 +65,7 @@ export default function AdminSalonsList() {
   const [selectedPresetReason, setSelectedPresetReason] = useState("");
   const [customRejectReason, setCustomRejectReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
   // Pagination State
@@ -290,6 +292,12 @@ export default function AdminSalonsList() {
   // Handle Salon Decision (Approve / Reject / Block / Pending)
   const handleDecision = async (salonId, targetStatus, adminNotes = "") => {
     setIsProcessing(true);
+    const isPendingApproval =
+      targetStatus === "APPROVED" &&
+      salons.find((s) => s.id === salonId)?.approval_status !== "BLOCKED";
+    if (isPendingApproval) {
+      setIsApproving(true);
+    }
     try {
       const token = localStorage.getItem("access_token");
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
@@ -341,6 +349,7 @@ export default function AdminSalonsList() {
       alert("Failed to update status: " + (err.response?.data?.error || err.message));
     } finally {
       setIsProcessing(false);
+      setIsApproving(false);
     }
   };
 
@@ -1489,7 +1498,14 @@ export default function AdminSalonsList() {
                       onClick={() => handleDecision(inspectingSalon.id, "APPROVED")}
                       disabled={isProcessing}
                     >
-                      ✓ Approve & Email Credentials
+                      {isApproving ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                          <span className="asl-btn-spinner" />
+                          Approving...
+                        </span>
+                      ) : (
+                        "✓ Approve & Email Credentials"
+                      )}
                     </button>
                     <button
                       type="button"
@@ -1904,6 +1920,19 @@ export default function AdminSalonsList() {
                 <span>{isProcessing ? "Unblocking..." : "Yes, Unblock Salon"}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transparent Approval Loader */}
+      {isApproving && (
+        <div
+          className="asl-approval-loader-overlay"
+          aria-live="assertive"
+          role="alert"
+        >
+          <div className="asl-approval-loader-card">
+            <SalonLoader size={72} label="Approving Salon & Dispatching Credentials..." />
           </div>
         </div>
       )}

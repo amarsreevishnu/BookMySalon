@@ -465,10 +465,17 @@ class WorkerAppointmentSerializer(BookingReadSerializer):
                 name = obj.customer.get_full_name() or obj.customer.email.split("@")[0].title()
             if not email:
                 email = obj.customer.email
-            if hasattr(obj.customer, "customer_profile") and obj.customer.customer_profile:
-                if not phone and obj.customer.customer_profile.phone_number:
-                    phone = obj.customer.customer_profile.phone_number
-                avatar = obj.customer.customer_profile.avatar or ""
+            profile = getattr(obj.customer, "customer_profile", None)
+
+            if profile:
+                if not phone and profile.phone_number:
+                    phone = profile.phone_number
+
+                if profile.avatar:
+                    try:
+                        avatar = profile.avatar.url
+                    except Exception:
+                        avatar = ""
 
             try:
                 total_visits = Booking.objects.filter(

@@ -1274,12 +1274,3 @@ class AdminAnalyticsDashboardView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
-
-class Admin_testPage(APIView):
-
-    def get(self,request):
-        count_test = Salon.objects.count()
-        print(count_test)
-        
-        return Response({"count1":count_test})

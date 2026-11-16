@@ -43,9 +43,10 @@ export default function WorkerAppointmentDetail() {
     setTimeout(() => setToastMessage(""), 4000);
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Fetch Appointment Detail from Backend                                    */
-  /* ------------------------------------------------------------------------ */
+  
+  /* Fetch Appointment Detal from Backend */
+
+  
   const fetchAppointmentDetail = useCallback(async () => {
     try {
       setLoading(true);
@@ -65,9 +66,9 @@ export default function WorkerAppointmentDetail() {
     }
   }, [id]);
 
-  /* ------------------------------------------------------------------------ */
-  /* Start Service Handler                                                    */
-  /* ------------------------------------------------------------------------ */
+  
+  /* Start Service Handler -  */
+  
   const handleStartService = async () => {
     try {
       setActionLoading(true);
@@ -85,9 +86,9 @@ export default function WorkerAppointmentDetail() {
     }
   };
 
-  /* ------------------------------------------------------------------------ */
+ 
   /* Complete Service Handler                                                 */
-  /* ------------------------------------------------------------------------ */
+ 
   const handleCompleteService = async () => {
     try {
       setActionLoading(true);
@@ -107,10 +108,7 @@ export default function WorkerAppointmentDetail() {
       setActionLoading(false);
     }
   };
-
-  /* ------------------------------------------------------------------------ */
   /* Reconcile Revenue Handler (Retry / Synchronize Missing Earnings)        */
-  /* ------------------------------------------------------------------------ */
   const handleReconcileRevenue = async () => {
     try {
       setActionLoading(true);
@@ -131,9 +129,8 @@ export default function WorkerAppointmentDetail() {
     }
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Save Worker Remarks                                                      */
-  /* ------------------------------------------------------------------------ */
+ 
+  /* Save Worker Remarks   */
   const handleSaveRemarks = async () => {
     try {
       setSavingRemarks(true);
@@ -199,7 +196,8 @@ export default function WorkerAppointmentDetail() {
     total_visits: 1,
     member_since: "Client",
   };
-
+  console.log(cust.avatar);
+  
   const isConfirmed = appointment?.status === "CONFIRMED";
   const isInProgress = appointment?.status === "IN_PROGRESS";
   const isCompleted = appointment?.status === "COMPLETED";
@@ -251,9 +249,8 @@ export default function WorkerAppointmentDetail() {
             </div>
           </div>
 
-          {/* -------------------------------------------------------------- */}
           {/* Live In-Progress Session Timer Banner                          */}
-          {/* -------------------------------------------------------------- */}
+          
           {isInProgress && (
             <section className="worker-live-session-banner">
               <div className="worker-live-banner-left">
@@ -281,9 +278,9 @@ export default function WorkerAppointmentDetail() {
             </section>
           )}
 
-          {/* -------------------------------------------------------------- */}
+          
           {/* Revenue Synchronization Warning / Retry Banner                */}
-          {/* -------------------------------------------------------------- */}
+          
           {((isCompleted && appointment?.is_revenue_synced === false) || syncError) && (
             <div
               className="worker-completed-banner"
@@ -327,9 +324,9 @@ export default function WorkerAppointmentDetail() {
             </div>
           )}
 
-          {/* -------------------------------------------------------------- */}
+          
           {/* Completed Banner if Finished                                   */}
-          {/* -------------------------------------------------------------- */}
+          
           {isCompleted && appointment?.is_revenue_synced !== false && !syncError && (
             <div className="worker-completed-banner">
               <div className="worker-completed-left">
@@ -368,9 +365,7 @@ export default function WorkerAppointmentDetail() {
             </div>
           )}
 
-          {/* -------------------------------------------------------------- */}
-          {/* Main 2-Column Split Details Grid                               */}
-          {/* -------------------------------------------------------------- */}
+          
           {!loading && appointment && (
             <div className="worker-detail-grid">
               {/* LEFT COLUMN: Customer & Service Specifications */}
@@ -641,9 +636,9 @@ export default function WorkerAppointmentDetail() {
         </div>
       </main>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Complete Service Confirmation Modal                                */}
-      {/* ------------------------------------------------------------------ */}
+      
+      {/* Complete Service Confirmation Modal */}
+      
       {showCompleteConfirm && (
         <div className="worker-confirm-modal-overlay" onClick={() => setShowCompleteConfirm(false)}>
           <div className="worker-confirm-modal-card" onClick={(e) => e.stopPropagation()}>

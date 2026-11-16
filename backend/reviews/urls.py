@@ -8,11 +8,13 @@ from .views import (
     AdminSalonsReviewsSummaryView,
     AdminReviewsListView,
     AdminReviewModerationView,
+    AdminReviewsCountView,
 )
 
 urlpatterns = [
     
     path('admin/stats/', AdminReviewsStatsView.as_view(), name='admin-reviews-stats'),
+    path('admin/stats/review-count', AdminReviewsCountView.as_view(),name='admin-reviews-count'),
     path('admin/salons/', AdminSalonsReviewsSummaryView.as_view(), name='admin-salons-reviews-summary'),
     path('admin/reviews/', AdminReviewsListView.as_view(), name='admin-reviews-list'),
     path('admin/reviews/<int:pk>/moderate/', AdminReviewModerationView.as_view(), name='admin-review-moderate'),

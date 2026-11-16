@@ -1268,4 +1268,52 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   Transparent Approval Loader Overlay
+   -------------------------------------------------------------------------- */
+.asl-approval-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(14, 26, 18, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: aslModalFadeIn 0.2s ease-out;
+}
+
+.asl-approval-loader-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 32px 40px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 280px;
+  max-width: 90vw;
+}
+
+.asl-btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: aslSpin 0.7s linear infinite;
+}
+
+@keyframes aslSpin {
+  to { transform: rotate(360deg); }
+}
+
+
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import OwnerNavbar from "../../components/owner/OwnerNavbar";
 import OwnerNavbarHeader from "../../components/owner/OwnerNavbarHeader";
@@ -23,6 +24,7 @@ const loadRazorpayScript = () => {
 };
 
 export default function OwnerSubscription() {
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [subscription, setSubscription] = useState(null);
@@ -122,8 +124,14 @@ export default function OwnerSubscription() {
               razorpay_signature: response.razorpay_signature,
             });
 
+            // Turn off loader immediately so success modal is presented cleanly
+            setCompletingSubscription(false);
+            setProcessingPlanId(null);
+
             // 5. Update state and show success modal
-            setSubscription(verifyRes.data?.subscription);
+            if (verifyRes.data?.subscription) {
+              setSubscription(verifyRes.data.subscription);
+            }
             setSuccessModalData({
               planName: plan.name,
               amount: plan.price,
@@ -131,12 +139,12 @@ export default function OwnerSubscription() {
               endDate: verifyRes.data?.subscription?.end_date,
             });
 
-            await Promise.all([fetchSubscription(), fetchHistory()]);
+            // Silently sync billing history in background
+            fetchHistory();
           } catch (verifyErr) {
-            showToast(verifyErr.response?.data?.error || "Payment signature verification failed.", "error");
-          } finally {
             setCompletingSubscription(false);
             setProcessingPlanId(null);
+            showToast(verifyErr.response?.data?.error || "Payment signature verification failed.", "error");
           }
         },
         prefill: {
@@ -178,7 +186,7 @@ export default function OwnerSubscription() {
 
   return (
     <div className="owner-subs-page" style={{ flexDirection: "column" }}>
-      <OwnerNavbarHeader salonInfo={{ name: subscription?.salon_name || "Salon" }} />
+      <OwnerNavbarHeader salonInfo={subscription?.salon_name ? { name: subscription.salon_name } : undefined} />
       <OwnerNavbar activeTab="Subscription" />
 
       {/* Completing Subscription Loader Overlay */}
@@ -192,7 +200,7 @@ export default function OwnerSubscription() {
       )}
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "55vh", width: "100%" }}>
+        <div className="owner-subs-loading-container">
           <SalonLoader size={84} label="Loading Subscription Details..." />
         </div>
       ) : (
@@ -407,10 +415,33 @@ export default function OwnerSubscription() {
 
       {/* Celebration Success Modal */}
       {successModalData && (
-        <div className="admin-modal-overlay">
-          <div className="owner-receipt-modal" style={{ textAlign: "center" }}>
+        <div
+          className="owner-modal-overlay"
+          onClick={() => setSuccessModalData(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subs-activated-title"
+        >
+          <div
+            className="owner-receipt-modal"
+            style={{ textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="owner-modal-close-btn"
+              onClick={() => setSuccessModalData(null)}
+              aria-label="Close modal"
+            >
+              ✕
+            </button>
             <div style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
-            <h2 style={{ fontSize: "22px", color: "#163622", margin: "0 0 8px 0" }}>Subscription Activated!</h2>
+            <h2
+              id="subs-activated-title"
+              style={{ fontSize: "22px", color: "#163622", margin: "0 0 8px 0", fontWeight: 800 }}
+            >
+              Subscription Activated!
+            </h2>
             <p style={{ color: "#557260", fontSize: "14px", margin: "0 0 20px 0" }}>
               Thank you! Your payment of <strong>₹{Number(successModalData.amount).toLocaleString("en-IN")}</strong> has been received and verified.
             </p>
@@ -428,9 +459,12 @@ export default function OwnerSubscription() {
 
             <button
               type="button"
-              className="admin-btn-primary"
-              style={{ width: "100%", padding: "12px" }}
-              onClick={() => setSuccessModalData(null)}
+              className="owner-btn-primary"
+              style={{ width: "100%", padding: "12px", fontSize: "14px" }}
+              onClick={() => {
+                setSuccessModalData(null);
+                navigate("/owner/dashboard");
+              }}
             >
               Continue to Salon Dashboard
             </button>
@@ -440,8 +474,21 @@ export default function OwnerSubscription() {
 
       {/* Invoice / Receipt Modal */}
       {activeReceipt && (
-        <div className="admin-modal-overlay">
-          <div className="owner-receipt-modal">
+        <div
+          className="owner-modal-overlay"
+          onClick={() => setActiveReceipt(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="owner-receipt-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="owner-modal-close-btn"
+              onClick={() => setActiveReceipt(null)}
+              aria-label="Close receipt"
+            >
+              ✕
+            </button>
             <div className="owner-receipt-brand">
               <h2>BookMySalon Partner Network</h2>
               <p>Official Subscription Payment Invoice</p>
@@ -490,7 +537,7 @@ export default function OwnerSubscription() {
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 type="button"
-                className="admin-btn-secondary"
+                className="owner-btn-secondary"
                 style={{ flex: 1 }}
                 onClick={() => setActiveReceipt(null)}
               >
@@ -498,7 +545,7 @@ export default function OwnerSubscription() {
               </button>
               <button
                 type="button"
-                className="admin-btn-primary"
+                className="owner-btn-primary"
                 style={{ flex: 1 }}
                 onClick={() => window.print()}
               >

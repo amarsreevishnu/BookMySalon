@@ -119,7 +119,7 @@ export default function WorkerDashboard() {
           setLatestReview(res.data.latest_review);
         }
       }
-      console.log(res);
+      
       
     } catch (err) {
       console.warn("Using baseline stylist suite design data:", err?.message);

@@ -344,7 +344,16 @@ class AdminReviewsStatsView(APIView):
             'salons_with_reviews': salons_with_reviews,
         })
 
-
+class AdminReviewsCountView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminUserRole]
+    
+    def get(self,request):
+        total_reviews=SalonReview.objects.count()
+        return Response({
+            "total_review_count":total_reviews
+        })
+    
 class AdminSalonsReviewsSummaryView(APIView):
     
     authentication_classes = [JWTAuthentication]

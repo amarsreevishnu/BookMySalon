@@ -1,5 +1,5 @@
 from django.urls import path
-from .views_analytics import AdminAnalyticsDashboardView,Admin_testPage
+from .views_analytics import AdminAnalyticsDashboardView
 
 from .views import (
     AdminDashboardStatsView,
@@ -212,9 +212,6 @@ urlpatterns = [
         AdminAnalyticsDashboardView.as_view(),
         name="admin-analytics",
     ),
-    path("admin/test_page/",
-            Admin_testPage.as_view(),
-            name="admin-analytics-test",),
     path(
         "admin/stats/",
         AdminDashboardStatsView.as_view(),

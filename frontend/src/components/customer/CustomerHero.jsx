@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { Link } from "react-router-dom";
+import { resolveImageUrl } from "../../utils/imageUtils";
 
 import api from "../../api/axios";
 
@@ -56,6 +57,9 @@ function CustomerHero({
               ? "FESTIVE OFFER"
               : top.offer_type_display || "EXCLUSIVE DEAL";
 
+          const rawImage = top.banner_image || top.salon_cover_image;
+          const resolvedImage = resolveImageUrl(rawImage, FALLBACK_HERO_OFFER.image);
+
           setLatestOffer({
             id: top.id,
             title: top.title,
@@ -67,10 +71,7 @@ function CustomerHero({
             type_label: typeLabel,
             salon_name: top.salon_name || null,
             salon_id: top.salon_id || null,
-            image:
-              top.banner_image ||
-              top.salon_cover_image ||
-              FALLBACK_HERO_OFFER.image,
+            image: resolvedImage,
           });
         }
       })
@@ -80,7 +81,7 @@ function CustomerHero({
       isMounted = false;
     };
   }, []);
-
+  
   const handleCopyCode = (e) => {
     e.stopPropagation();
     if (!latestOffer?.code) return;
@@ -93,9 +94,7 @@ function CustomerHero({
 
   const handleClaimOffer = () => {
     if (latestOffer?.salon_id) {
-      navigate(
-        `/salons/${salon_id}|| ""}`
-      );
+      navigate(`/customer/salons/${latestOffer.salon_id}`);
     } else {
       navigate(`/offers?code=${latestOffer.code || ""}`);
     }
@@ -435,10 +434,14 @@ function CustomerHero({
             <div className="hero-offer-content">
               <div className="hero-offer-thumb-container">
                 <img
-                  src={latestOffer.image}
+                  src={resolveImageUrl(latestOffer.image, FALLBACK_HERO_OFFER.image)}
                   alt={latestOffer.title}
                   className="hero-offer-thumb"
                   loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = FALLBACK_HERO_OFFER.image;
+                  }}
                 />
                 <span className="hero-offer-live-badge">LIVE DEAL</span>
               </div>
