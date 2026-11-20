@@ -1305,7 +1305,7 @@ export default function CreateSalon() {
         ) {
           msg = "Uploaded files or payload exceeds server limit. Please select smaller photos/documents or restart the Django server.";
         } else if (err.message.toLowerCase().includes("network error") || !err.response) {
-          msg = "Cannot connect to the backend server. Please verify Django server is running at http://127.0.0.1:8000 and PostgreSQL is started.";
+          msg = "Cannot connect to the server. Please check your internet connection or try again later.";
         } else {
           msg = err.message;
         }

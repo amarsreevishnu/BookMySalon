@@ -1,5 +1,6 @@
 import logging
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,9 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def on_authentication_error(
         self, request, provider, error=None, exception=None, extra_context=None
     ):
+        if extra_context is None:
+            extra_context = {}
+        extra_context["FRONTEND_URL"] = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
         logger.error(
             "Social authentication error: provider=%s, error=%s, exception=%s, extra_context=%s",
             provider,

@@ -1,8 +1,10 @@
 
 function GoogleButton() {
   const handleGoogleLogin = () => {
-    window.location.href =
-      "http://localhost:8000/accounts/google/login/?process=login";
+    const backendUrl = (
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"
+    ).replace(/\/+$/, "");
+    window.location.href = `${backendUrl}/accounts/google/login/?process=login`;
   };
 
   return (
