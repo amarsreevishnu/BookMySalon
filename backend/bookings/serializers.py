@@ -33,6 +33,10 @@ class BookingCreateSerializer(serializers.Serializer):
     )
     voucher_code = serializers.CharField(required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    tax_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    discount_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     def to_internal_value(self, data):
         if hasattr(data, 'copy'):
@@ -40,6 +44,9 @@ class BookingCreateSerializer(serializers.Serializer):
         elif isinstance(data, dict):
             data = dict(data)
         if isinstance(data, dict):
+            # Strictly reject client-supplied pricing overrides
+            for price_key in ('subtotal', 'tax_amount', 'discount_amount', 'total_amount'):
+                data.pop(price_key, None)
             w = data.get('worker_id')
             if w in ('auto', 'any', 'null', 'undefined', '', None):
                 data['worker_id'] = None

@@ -798,7 +798,7 @@ class AvailableSlotsView(APIView):
 class BookingCreateView(APIView):
 
     authentication_classes = [OptionalJWTAuthentication]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = BookingCreateSerializer(data=request.data)
@@ -812,12 +812,13 @@ class BookingCreateView(APIView):
         start_time = data['start_time']
         end_time = data['end_time']
         worker_id = data.get('worker_id')
-        total_duration = data.get('total_duration', service.duration)
-        subtotal = data.get('subtotal', service.price)
-        tax_amount = data.get('tax_amount', Decimal('0.00'))
-        discount_amount = data.get('discount_amount', Decimal('0.00'))
-        voucher_code = data.get('voucher_code', '')
-        total_amount = data.get('total_amount', subtotal)
+        pricing = data.get('pricing', {})
+        total_duration = pricing.get('total_duration', data.get('total_duration', service.duration))
+        subtotal = pricing.get('subtotal', sum(s.price for s in services_list))
+        tax_amount = pricing.get('tax_amount', Decimal('0.00'))
+        discount_amount = pricing.get('discount_amount', Decimal('0.00'))
+        voucher_code = pricing.get('voucher_code', data.get('voucher_code', ''))
+        total_amount = pricing.get('total_amount', subtotal + tax_amount - discount_amount)
         service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
 
         # Check Salon Subscription Status
@@ -853,7 +854,7 @@ class BookingCreateView(APIView):
 
                 if worker_id:
                     try:
-                        worker = WorkerProfile.objects.get(pk=worker_id, salon=salon, is_active=True)
+                        worker = WorkerProfile.objects.select_for_update().get(pk=worker_id, salon=salon, is_active=True)
                     except WorkerProfile.DoesNotExist:
                         return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -979,15 +980,20 @@ class BookingCreateView(APIView):
                             if has_break_overlap:
                                 continue
 
+                            # Lock candidate worker row to serialize concurrent checks
+                            locked_candidate = WorkerProfile.objects.select_for_update().filter(pk=candidate.pk).first()
+                            if not locked_candidate:
+                                continue
+
                             conflicts = Booking.objects.select_for_update().filter(
-                                worker=candidate,
+                                worker=locked_candidate,
                                 booking_date=booking_date,
                                 start_time__lt=end_time,
                                 end_time__gt=start_time,
                                 status__in=active_statuses,
                             )
                             if not conflicts.exists():
-                                assigned_worker = candidate
+                                assigned_worker = locked_candidate
                                 break
 
                         if not assigned_worker:
@@ -1020,6 +1026,8 @@ class BookingCreateView(APIView):
 
                 booking_status = Booking.Status.CONFIRMED if is_pay_at_salon else Booking.Status.PENDING
                 booking_payment_status = Booking.PaymentStatus.PENDING
+
+                
 
                 booking = Booking.objects.create(
                     salon=salon,
@@ -1097,9 +1105,15 @@ class BookingCreateView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        resp_message = (
+            'Booking confirmed successfully!'
+            if booking.status == Booking.Status.CONFIRMED
+            else 'Booking initiated. Please complete online payment to confirm.'
+        )
+
         return Response(
             {
-                'message': 'Booking confirmed successfully!',
+                'message': resp_message,
                 'booking': BookingReadSerializer(booking, context={'request': request}).data,
             },
             status=status.HTTP_201_CREATED,
@@ -1123,12 +1137,13 @@ class BookingReserveView(APIView):
         start_time = data['start_time']
         end_time = data['end_time']
         worker_id = data.get('worker_id')
-        total_duration = data.get('total_duration', service.duration)
-        subtotal = data.get('subtotal', service.price)
-        tax_amount = data.get('tax_amount', Decimal('0.00'))
-        discount_amount = data.get('discount_amount', Decimal('0.00'))
-        voucher_code = data.get('voucher_code', '')
-        total_amount = data.get('total_amount', subtotal)
+        pricing = data.get('pricing', {})
+        total_duration = pricing.get('total_duration', data.get('total_duration', service.duration))
+        subtotal = pricing.get('subtotal', sum(s.price for s in services_list))
+        tax_amount = pricing.get('tax_amount', Decimal('0.00'))
+        discount_amount = pricing.get('discount_amount', Decimal('0.00'))
+        voucher_code = pricing.get('voucher_code', data.get('voucher_code', ''))
+        total_amount = pricing.get('total_amount', subtotal + tax_amount - discount_amount)
         service_name = " + ".join([s.effective_name for s in services_list]) if len(services_list) > 1 else service.effective_name
 
         # Check Salon Subscription Status
@@ -1163,7 +1178,7 @@ class BookingReserveView(APIView):
 
                 if worker_id:
                     try:
-                        worker = WorkerProfile.objects.get(pk=worker_id, salon=salon, is_active=True)
+                        worker = WorkerProfile.objects.select_for_update().get(pk=worker_id, salon=salon, is_active=True)
                     except WorkerProfile.DoesNotExist:
                         return Response({'error': 'Worker not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1286,15 +1301,20 @@ class BookingReserveView(APIView):
                             if has_break_overlap:
                                 continue
 
+                            # Lock candidate worker row to serialize concurrent checks
+                            locked_candidate = WorkerProfile.objects.select_for_update().filter(pk=candidate.pk).first()
+                            if not locked_candidate:
+                                continue
+
                             conflicts = Booking.objects.select_for_update().filter(
-                                worker=candidate,
+                                worker=locked_candidate,
                                 booking_date=booking_date,
                                 start_time__lt=end_time,
                                 end_time__gt=start_time,
                                 status__in=active_statuses,
                             )
                             if not conflicts.exists():
-                                assigned_worker = candidate
+                                assigned_worker = locked_candidate
                                 break
 
                         if not assigned_worker:
@@ -1479,6 +1499,7 @@ class BookingCancelView(APIView):
     def patch(self, request, pk):
         try:
             booking = Booking.objects.get(pk=pk, customer=request.user)
+
         except Booking.DoesNotExist:
             return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 

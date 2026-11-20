@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { resolveImageUrl } from "../../utils/imageUtils";
 import api from "../../api/axios";
 
 const FALLBACK_OFFERS = [
@@ -111,15 +112,23 @@ function OfferSection() {
               ? "FESTIVE OFFER"
               : offer.type || "SPECIAL OFFER";
 
-          const cardImg =
+          const fallbackImg = DEFAULT_OFFER_IMAGES[idx % DEFAULT_OFFER_IMAGES.length];
+          const rawImg =
             offer.banner_image ||
             offer.salon_cover_image ||
-            offer.image ||
-            DEFAULT_OFFER_IMAGES[idx % DEFAULT_OFFER_IMAGES.length];
+            offer.image;
+          const cardImg = resolveImageUrl(rawImg, fallbackImg);
 
           return (
             <article className="offer-card" key={offer.id}>
-              <img src={cardImg} alt={offer.title} />
+              <img
+                src={cardImg}
+                alt={offer.title}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackImg;
+                }}
+              />
 
               <div className="offer-card-content">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
