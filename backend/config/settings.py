@@ -200,6 +200,24 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 USE_S3 = config("USE_S3", default=False, cast=bool)
 
+# --------------------------------------------------
+# CLOUDINARY CONFIGURATION
+# --------------------------------------------------
+
+USE_CLOUDINARY = config("USE_CLOUDINARY", default=False, cast=bool)
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="")
+CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="")
+
+if USE_CLOUDINARY and CLOUDINARY_CLOUD_NAME:
+    import cloudinary
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True,
+    )
+
 if USE_S3:
 
     AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME")

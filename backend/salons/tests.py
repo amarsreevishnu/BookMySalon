@@ -116,6 +116,32 @@ class UploadMiddlewareAndMediaTests(APISimpleTestCase):
         self.assertTrue(result_path.startswith("/media/salons/test/"))
         self.assertTrue(result_path.endswith(".png"))
 
+    @patch("cloudinary.uploader.upload")
+    def test_save_image_to_media_cloudinary_enabled(self, mock_upload):
+        from salons.media_utils import save_image_to_media
+        from django.conf import settings
+        mock_upload.return_value = {
+            "secure_url": "https://res.cloudinary.com/testcloud/image/upload/v12345/salons/test/img_123.jpg"
+        }
+        with self.settings(USE_CLOUDINARY=True, CLOUDINARY_CLOUD_NAME="testcloud"):
+            sample_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+            result = save_image_to_media(sample_b64, subfolder="salons/test")
+            self.assertEqual(result, "https://res.cloudinary.com/testcloud/image/upload/v12345/salons/test/img_123.jpg")
+            mock_upload.assert_called_once()
+
+    @patch("cloudinary.uploader.upload")
+    def test_save_document_to_media_cloudinary_enabled(self, mock_upload):
+        from salons.media_utils import save_document_to_media
+        from django.conf import settings
+        mock_upload.return_value = {
+            "secure_url": "https://res.cloudinary.com/testcloud/image/upload/v12345/salons/documents/doc_123.pdf"
+        }
+        with self.settings(USE_CLOUDINARY=True, CLOUDINARY_CLOUD_NAME="testcloud"):
+            tiny_pdf = "data:application/pdf;base64,JVBERi0xLjAKMSAwIG9iajw8L1BhZ2VzIDIgMCBSPj5lbmRvYmoKMiAwIG9iajw8L0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvTWVkaWFCb3hbMCAwIDMgM10+PmVuZG9iagp4cmVmCjAgNAowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTYgMDAwMDAgbgowMDAwMDAwMTExIDAwMDAwIG4KdHJhaWxlcjw8L1Jvb3QgMSAwIFIvU2l6ZSA0Pj4Kc3RhcnR4cmVmCjE2NAolJUVPRgo="
+            result = save_document_to_media(tiny_pdf, subfolder="salons/documents")
+            self.assertEqual(result, "https://res.cloudinary.com/testcloud/image/upload/v12345/salons/documents/doc_123.pdf")
+            mock_upload.assert_called_once()
+
 
 class AdminSalonManagementTests(APISimpleTestCase):
     def setUp(self):
